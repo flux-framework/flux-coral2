@@ -143,6 +143,9 @@ fluxlib_ldflags="-shared -export-dynamic --disable-static -Wl,--no-undefined"
 AC_SUBST(fluxlib_ldflags)
 
 AC_CONFIG_FILES([Makefile
+  src/Makefile
+  src/job-manager/Makefile
+  src/job-manager/plugins/Makefile
   t/Makefile])
 AC_OUTPUT
 
