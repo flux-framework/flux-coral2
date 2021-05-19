@@ -25,6 +25,7 @@ jobs:
       TAP_DRIVER_QUIET: 1
       FLUX_TEST_TIMEOUT: 300
       DOCKER_REPO: fluxrm/flux-coral2
+      FLUX_TEST_VALGRIND: t
     timeout-minutes: 30
     strategy:
       matrix:
