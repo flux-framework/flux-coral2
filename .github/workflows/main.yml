@@ -1,0 +1,42 @@
+on:
+  pull_request:
+    branches:
+      master
+  push:
+    branches:
+      master
+name: ci
+jobs:
+  check-pr:
+    name: validate commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 0
+    - run: git fetch origin master
+    - uses: flux-framework/pr-validator@master
+
+  ci-checks:
+    runs-on: ubuntu-latest
+    env:
+      TAP_DRIVER_QUIET: 1
+      FLUX_TEST_TIMEOUT: 300
+      DOCKER_REPO: fluxrm/flux-coral2
+      FLUX_TEST_VALGRIND: t
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        image: ["centos8", "focal"]
+      fail-fast: false
+    name: ${{ matrix.image }}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+       ref: ${{ github.event.pull_request.head.sha }}
+       fetch-depth: 0
+
+    - name: docker-run-checks
+      run: ./src/test/docker/docker-run-checks.sh -i ${{ matrix.image }} --
