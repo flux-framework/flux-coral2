@@ -137,7 +137,7 @@ if [[ -n "$MOUNT_HOME_ARGS" ]]; then
     echo "mounting $HOME as /home/$USER"
 fi
 if [[ -n "$MOUNT_KUBE_ARGS" ]]; then
-    echo "mounting kube config inside container"
+    echo "mounting kube config inside container with ${MOUNT_KUBE_ARGS}"
 fi
 echo "mounting $TOP as /usr/src"
 
