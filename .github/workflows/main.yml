@@ -52,3 +52,7 @@ jobs:
 
     - name: docker-run-checks
       run: ./src/test/docker/docker-run-checks.sh -i ${{ matrix.image }} --
+
+    - name: annotate errors
+      if: failure() || cancelled()
+      run: src/test/checks-annotate.sh
