@@ -13,6 +13,7 @@ BASE_DOCKER_REPO=fluxrm/flux-sched
 IMAGE=focal
 JOBS=2
 MOUNT_HOME_ARGS="--volume=$HOME:/home/$USER -e HOME"
+MOUNT_KUBE_ARGS="--volume=$HOME/.kube:/usr/local/share/kube-localhost"
 
 if test "$PROJECT" = "flux-core"; then
   FLUX_SECURITY_VERSION=0.4.0
@@ -39,6 +40,7 @@ Options:\n\
      --no-home                 Skip mounting the host home directory\n\
      --install-only            Skip make check, only make install\n\
      --inception               Run tests as flux jobs\n\
+     --no-kube                 Skip mounting the kube config\n\
  -q, --quiet                   Add --quiet to docker-build\n\
  -t, --tag=TAG                 If checks succeed, tag image as NAME\n\
  -i, --image=NAME              Use base docker image NAME (default=$IMAGE)\n\
@@ -79,6 +81,7 @@ while true; do
       --no-home)                   MOUNT_HOME_ARGS="";         shift   ;;
       --install-only)              INSTALL_ONLY=t;             shift   ;;
       --inception)                 INCEPTION=t;                shift   ;;
+      --no-kube)                   MOUNT_KUBE_ARGS="";         shift   ;;
       -P|--no-poison)              POISON=0;                   shift   ;;
       -t|--tag)                    TAG="$2";                   shift 2 ;;
       --)                          shift; break;                       ;;
@@ -133,6 +136,9 @@ checks_group "Building image $IMAGE for user $USER $(id -u) group=$(id -g)" \
 if [[ -n "$MOUNT_HOME_ARGS" ]]; then
     echo "mounting $HOME as /home/$USER"
 fi
+if [[ -n "$MOUNT_KUBE_ARGS" ]]; then
+    echo "mounting kube config inside container"
+fi
 echo "mounting $TOP as /usr/src"
 
 export PROJECT
@@ -163,6 +169,7 @@ else
         --workdir=/usr/src \
         --volume=$TOP:/usr/src \
         $MOUNT_HOME_ARGS \
+        $MOUNT_KUBE_ARGS \
         -e CC \
         -e CXX \
         -e LDFLAGS \
