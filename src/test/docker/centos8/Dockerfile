@@ -11,5 +11,9 @@ RUN \
    && sudo usermod -G wheel $USER; \
  fi
 
+RUN sudo yum install -y python3-pip \
+    && sudo pip3 install kubernetes
+
+
 USER $USER
 WORKDIR /home/$USER

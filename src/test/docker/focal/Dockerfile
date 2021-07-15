@@ -11,5 +11,9 @@ RUN \
    && sudo adduser $USER sudo ; \
  fi
 
+RUN sudo apt-get update \
+    && sudo apt-get install -y python3-pip \
+    && sudo pip install kubernetes
+
 USER $USER
 WORKDIR /home/$USER
