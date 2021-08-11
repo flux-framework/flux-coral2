@@ -22,3 +22,11 @@ Flux CORAL2 consists (or will consist) of several plugins, including:
 Flux CORAL2 requires an installed flux-core and flux-sched package.  Instructions
 for building/accessing these packages can be found in
 [Flux's documentation](https://flux-framework.readthedocs.io/en/latest/quickstart.html#building-the-code).
+
+### Running Flux CORAL2
+
+Flux CORAL2 requires a K8s server with the NNF CRD and the NNF objects contained in `./k8s`. 
+
+When developing locally, the suggested way to achieve this is to start a [kind](https://kind.sigs.k8s.io/) cluster with `kind create cluster --config=./kind/kind-config.yaml`.  You can then install the CRD with `kubectl apply -f ./k8s/NearNodeFlash.yaml` and the objects with `kubectl apply -f ./k8s/`.
+
+Once you have a k8s server up and running and the proper credentials in your `~/.kube/config` file, you can then launch a container that runs the full testsuite with `./src/test/docker/docker-run-checks.sh --`.  This script not only builds a test container on top of the flux-sched image and running the testsuite, but it also handles mounting and tweaking the k8s credentials on your host to work within the container.  You can also use the container interactively by passing the `-I` flag to `docker-run-checks.sh`.
