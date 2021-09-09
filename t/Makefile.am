@@ -22,7 +22,8 @@ clean-local:
 # This list is included in both TESTS and dist_check_SCRIPTS.
 TESTSCRIPTS = \
 	t0000-sharness.t \
-	t1000-dws-dependencies.t
+	t1000-dws-dependencies.t \
+	t1001-cray-pals.t
 
 # make check runs these TAP tests directly (both scripts and programs)
 TESTS = \
