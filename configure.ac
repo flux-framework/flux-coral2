@@ -136,8 +136,8 @@ AC_SUBST(fluxcoral2pylinkdir)
 fluxmod_ldflags="-Wl,--no-undefined -avoid-version -export-symbols-regex '^mod_(main|name|service)\$\$' --disable-static -shared -export-dynamic"
 AC_SUBST(fluxmod_ldflags)
 
-shellplugin_ldflags="-Wl,--no-undefined -avoid-version -export-symbols-regex '^flux_plugin_init\$\$' --disable-static -shared -export-dynamic"
-AC_SUBST(shellplugin_ldflags)
+fluxplugin_ldflags="-avoid-version -export-symbols-regex '^flux_plugin_init\$\$' --disable-static -shared -export-dynamic"
+AC_SUBST(fluxplugin_ldflags)
 
 fluxlib_ldflags="-shared -export-dynamic --disable-static -Wl,--no-undefined"
 AC_SUBST(fluxlib_ldflags)
@@ -146,6 +146,8 @@ AC_CONFIG_FILES([Makefile
   src/Makefile
   src/job-manager/Makefile
   src/job-manager/plugins/Makefile
+  src/shell/Makefile
+  src/shell/plugins/Makefile
   t/Makefile])
 AC_OUTPUT
 
