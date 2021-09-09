@@ -146,6 +146,8 @@ AC_CONFIG_FILES([Makefile
   src/Makefile
   src/job-manager/Makefile
   src/job-manager/plugins/Makefile
+  src/shell/Makefile
+  src/shell/plugins/Makefile
   t/Makefile])
 AC_OUTPUT
 

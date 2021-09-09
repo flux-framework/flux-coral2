@@ -1,6 +1,5 @@
 .NOTPARALLEL:
 
-SUBDIRS = job-manager \
-	shell
+SUBDIRS = plugins
 
 check-local: all
