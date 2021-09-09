@@ -7,7 +7,7 @@ AM_LDFLAGS = \
 	$(CODE_COVERAGE_LIBS)
 
 jobtapdir = \
-    $(fluxlibdir)/job-manager/
+    $(fluxlibdir)/job-manager/plugins/
 
 jobtap_LTLIBRARIES = \
 	dws-jobtap.la \
