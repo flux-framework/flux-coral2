@@ -39,7 +39,14 @@ EXTRA_DIST= \
 dist_check_SCRIPTS = \
 	$(TESTSCRIPTS)
 
+check_PROGRAMS = \
+	util/rpc
+
+util_rpc_SOURCES = util/rpc.c
+util_rpc_CFLAGS = $(FLUX_CORE_CFLAGS)
+util_rpc_LDADD = $(FLUX_CORE_LIBS)
+
 check-prep:
-	$(MAKE)
+	$(MAKE) $(check_PROGRAMS)
 
 	
