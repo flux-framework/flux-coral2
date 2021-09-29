@@ -7,7 +7,6 @@ AM_LDFLAGS = \
 
 AM_TESTS_ENVIRONMENT = \
 	test -n "$$FLUX_TEST_INSTALLED_PATH" && \
-	export PYTHONPATH="$(PYTHON_SITE_PKG):$$PYTHONPATH";\
 	export PYTHON="${PYTHON}";\
 	export PATH="$(FLUX_PREFIX)/bin:$(PATH)";
 
