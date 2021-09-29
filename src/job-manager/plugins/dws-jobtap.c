@@ -108,7 +108,7 @@ static int depend_cb (flux_plugin_t *p,
         }
 
         flux_future_t *create_fut = flux_rpc_pack (
-            h, "dws.create", FLUX_NODEID_ANY, 0, "{s:s}", "dw_string", dw
+            h, "dws.create", FLUX_NODEID_ANY, 0, "{s:s, s:i}", "dw_string", dw, "jobid", id
         );
         if (create_fut == NULL) {
             flux_log_error (h, "Failed to send dws.create RPC");

@@ -24,6 +24,7 @@ TESTSCRIPTS = \
 	t0000-sharness.t \
 	t1000-dws-dependencies.t \
 	t1001-cray-pals.t \
+	t1002-dws-workflow-obj.t \
 	t2000-dws2jgf.t
 
 # make check runs these TAP tests directly (both scripts and programs)
