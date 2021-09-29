@@ -16,9 +16,6 @@
 #include <stdio.h>
 #include <flux/core.h>
 
-#include "src/common/libutil/read_all.h"
-#include "src/common/libutil/log.h"
-
 
 #define OPTIONS "r"
 static const struct option longopts[] = {
@@ -37,10 +34,6 @@ int main (int argc, char *argv[])
     flux_t *h;
     flux_future_t *f;
     const char *topic;
-    ssize_t inlen;
-    void *inbuf;
-    const void *outbuf;
-    int outlen;
     int expected_errno = -1;
     int ch;
     bool raw = false;
@@ -60,39 +53,35 @@ int main (int argc, char *argv[])
     if (argc - optind > 0)
         expected_errno = strtoul (argv[optind++], NULL, 10);
 
-    /* N.B. As a safety measure, read_all() adds a NULL char to the buffer
-     * that is not accounted for in the returned length.  RFC 3 requires that
-     * JSON payloads include a NULL terminator.  Assume a JSON payload
-     * if size is nonzero AND the raw option was not specified, and add one
-     * to the required length to satisfy RFC 3.
-     */
-    if ((inlen = read_all (STDIN_FILENO, &inbuf)) < 0)
-        log_err_exit ("read from stdin");
-    if (!raw && inlen > 0)
-        inlen++;
-
-    if (!(h = flux_open (NULL, 0)))
-        log_err_exit ("flux_open");
-    if (!(f = flux_rpc_raw (h, topic, inbuf, inlen, FLUX_NODEID_ANY, 0)))
-        log_err_exit ("flux_rpc_raw %s", topic);
-    if (flux_rpc_get_raw (f, &outbuf, &outlen) < 0) {
+    if (!(h = flux_open (NULL, 0))) {
+        fprintf (stderr, "flux_open\n");
+        exit (1);
+    }
+    if (!(f = flux_rpc (h, topic, NULL, FLUX_NODEID_ANY, 0))) {
+        fprintf (stderr, "flux_rpc %s\n", topic);
+        exit(1);
+    }
+    if (flux_rpc_get (f, NULL) < 0) {
         if (expected_errno > 0) {
-            if (errno != expected_errno)
-                log_msg_exit ("%s: failed with errno=%d != expected %d",
+            if (errno != expected_errno) {
+                fprintf (stderr, "%s: failed with errno=%d != expected %d\n",
                               topic, errno, expected_errno);
+                exit(1);
+            }
         }
-        else
-            log_msg_exit ("%s: %s", topic, future_strerror (f, errno));
+        else {
+            fprintf (stderr, "%s: %s\n", topic, future_strerror (f, errno));
+            exit(1);
+        }
     }
     else {
-        if (expected_errno > 0)
-            log_msg_exit ("%s: succeeded but expected failure errno=%d",
+        if (expected_errno > 0) {
+            fprintf (stderr, "%s: succeeded but expected failure errno=%d\n",
                           topic, expected_errno);
-        if (write_all (STDOUT_FILENO, outbuf, outlen) < 0)
-            log_err_exit ("write to stdout");
+            exit(1);
+        }
     }
     flux_future_destroy (f);
-    free (inbuf);
     flux_close (h);
     return (0);
 }
