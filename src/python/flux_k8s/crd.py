@@ -8,3 +8,10 @@ WORKFLOW_CRD = CRD(
     namespace = "default",
     plural = "workflows"
 )
+
+RABBIT_CRD = CRD(
+    group = "rabbit.hpe.com",
+    version = "v1alpha",
+    namespace = "default",
+    plural = "nearnodeflashes",
+)
