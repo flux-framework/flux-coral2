@@ -4,6 +4,11 @@ test_description='Test DWS Workflow Objection Creation'
 
 . $(dirname $0)/sharness.sh
 
+if test_have_prereq NO_HPE_VM; then
+    skip_all='skipping DWS workflow tests due to no HPE VM'
+    test_done
+fi
+
 FLUX_SIZE=2
 
 test_under_flux ${FLUX_SIZE} job
