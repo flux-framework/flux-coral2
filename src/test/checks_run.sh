@@ -45,7 +45,7 @@ fi
 ARGS="$@"
 JOBS=${JOBS:-2}
 MAKECMDS="${MAKE} -j ${JOBS}"
-CHECKCMDS="${MAKE} -j ${JOBS} ${DISTCHECK:+dist}check"
+CHECKCMDS="${MAKE} ${DISTCHECK:+dist}check"
 
 # Add non-standard path for libfaketime to LD_LIBRARY_PATH:
 export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu/faketime"
@@ -116,7 +116,7 @@ if test "$COVERAGE" = "t"; then
 	CHECKCMDS="\
 	ENABLE_USER_SITE=1 \
 	COVERAGE_PROCESS_START=$(pwd)/coverage.rc \
-	${MAKE} -j $JOBS check-code-coverage && \
+	${MAKE} check-code-coverage && \
 	lcov -l flux*-coverage.info && \
 	coverage combine .coverage* && \
 	coverage html && coverage xml &&
@@ -197,7 +197,7 @@ if test "$RECHECK" = "t" -a $RC -ne 0; then
   if test -s t/t0000-sharness.trs; then
     cd t
     printf "::warning::make check failed, trying recheck in ./t\n"
-    checks_group "make recheck" ${MAKE} -j ${JOBS} recheck
+    checks_group "make recheck" ${MAKE} recheck
     RC=$?
     cd
    else
