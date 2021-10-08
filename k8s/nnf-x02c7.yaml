@@ -1,0 +1,28 @@
+apiVersion: "rabbit.hpe.com/v1alpha"
+kind: NearNodeFlash
+metadata:
+  name: x02c7t7
+spec:
+  status: available
+  percentDegraded: 0
+  allocationGranularityUnits: GB
+  allocationGranularity: 4000
+  capacityUnits: GB
+  capacity: 4000
+  computes:
+    - x02c7s0b0n1
+    - x02c7s0b0n2
+    - x02c7s1b0n1
+    - x02c7s1b0n2
+    - x02c7s2b0n1
+    - x02c7s2b0n2
+    - x02c7s3b0n1
+    - x02c7s3b0n2
+    - x02c7s4b0n1
+    - x02c7s4b0n2
+    - x02c7s5b0n1
+    - x02c7s5b0n2
+    - x02c7s6b0n1
+    - x02c7s6b0n2
+    - x02c7s7b0n1
+    - x02c7s7b0n2
