@@ -15,3 +15,10 @@ RABBIT_CRD = CRD(
     namespace = "default",
     plural = "nearnodeflashes",
 )
+
+DIRECTIVEBREAKDOWN_CRD = CRD(
+    group = "dws.cray.hpe.com",
+    version = "v1alpha1",
+    namespace = "default",
+    plural = "directivebreakdowns",
+)

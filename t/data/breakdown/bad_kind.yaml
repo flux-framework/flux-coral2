@@ -1,0 +1,26 @@
+version: v1
+kind: SomethingElse  # error: bad kind
+metadata:
+  name: job456-0
+spec:
+  dwRecord:
+    dwDirectiveIndex: 0
+    dwDirective: jobdw type=lustre capacity=10TB name=lus-name
+  lifetime: job
+  name: my-lustre-storage
+spec:
+  ready: true
+  servers:
+    kind: Servers
+    name: job456-0
+    namespace: default
+  allocationSet:
+  - allocationStategy: AllocateSingleServer
+    minimumCapacity: 2000000000
+    label: mgt
+  - allocationStategy: AllocateSingleServer
+    minimumCapacity: 2000000000000
+    label: mdt
+  - allocationStategy: AllocateAcrossServers
+    minimumCapacity: 10000000000000
+    label: ost
