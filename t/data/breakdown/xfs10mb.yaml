@@ -1,0 +1,21 @@
+version: v1
+kind: DirectiveBreakdown
+metadata:
+  name: job456-0
+spec:
+  dwRecord:
+    dwDirectiveIndex: 0
+    dwDirective: jobdw type=xfs capacity=1MB name=xfs-name
+  type: xfs
+  lifetime: job
+  name: my-xfs-storage
+spec:
+  ready: true
+  servers:
+    kind: Servers
+    name: job456-0
+    namespace: default
+  allocationSet:
+  - allocationStategy: AllocatePerCompute
+    minimumCapacity: 1000000
+    label: xfs
