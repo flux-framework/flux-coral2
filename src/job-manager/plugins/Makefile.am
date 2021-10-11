@@ -22,7 +22,7 @@ dws_jobtap_la_LDFLAGS = \
 	-avoid-version
 
 dws_jobtap_la_LIBADD= \
-    $(FLUX_CORE_LDFLAGS)
+    $(FLUX_CORE_LIBS)
 
 cray_pals_port_distributor_la_SOURCES = \
 	cray_pals_port_distributor.c

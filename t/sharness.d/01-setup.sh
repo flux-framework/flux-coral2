@@ -37,7 +37,7 @@ fi
 #
 REAL_HOME=$(getent passwd $USER | cut -d: -f6)
 USER_SITE=$(HOME=$REAL_HOME flux python -c 'import site; print(site.USER_SITE)')
-PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}${USER_SITE}
+PYTHONPATH=${FLUX_SOURCE_DIR}/src/python:${PYTHONPATH:+${PYTHONPATH}:}${USER_SITE}
 export REAL_HOME PYTHONPATH
 
 # vi: ts=4 sw=4 expandtab

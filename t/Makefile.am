@@ -7,7 +7,6 @@ AM_LDFLAGS = \
 
 AM_TESTS_ENVIRONMENT = \
 	test -n "$$FLUX_TEST_INSTALLED_PATH" && \
-	export PYTHONPATH="$(PYTHON_SITE_PKG):$$PYTHONPATH";\
 	export PYTHON="${PYTHON}";\
 	export PATH="$(FLUX_PREFIX)/bin:$(PATH)";
 
@@ -24,6 +23,8 @@ TESTSCRIPTS = \
 	t0000-sharness.t \
 	t1000-dws-dependencies.t \
 	t1001-cray-pals.t \
+	t1002-dws-workflow-obj.t \
+	t1003-dws-nnf-watch.t \
 	t2000-dws2jgf.t
 
 # make check runs these TAP tests directly (both scripts and programs)
@@ -39,7 +40,14 @@ EXTRA_DIST= \
 dist_check_SCRIPTS = \
 	$(TESTSCRIPTS)
 
+check_PROGRAMS = \
+	util/rpc
+
+util_rpc_SOURCES = util/rpc.c
+util_rpc_CFLAGS = $(FLUX_CORE_CFLAGS)
+util_rpc_LDADD = $(FLUX_CORE_LIBS)
+
 check-prep:
-	$(MAKE)
+	$(MAKE) $(check_PROGRAMS)
 
 	

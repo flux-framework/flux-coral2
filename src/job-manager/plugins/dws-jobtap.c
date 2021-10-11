@@ -9,7 +9,7 @@
 \************************************************************/
 
 /* dws-jobtap.c - keep jobs in depend state if they contain a dws attribute,
- *  send an RPC for validation, and wait for a response to release
+ *  send an RPC for creation/validation, and wait for a response to release
  */
 
 #if HAVE_CONFIG_H
@@ -22,23 +22,23 @@
 #include <flux/core.h>
 #include <flux/jobtap.h>
 
-#define VALIDATE_DEP_NAME "dws-validate"
+#define CREATE_DEP_NAME "dws-create"
 
-struct validate_arg_t {
+struct create_arg_t {
     flux_plugin_t *p;
     flux_jobid_t id;
 };
 
-static void validate_cb (flux_future_t *f, void *arg)
+static void create_cb (flux_future_t *f, void *arg)
 {
     int success = false;
     char *errstr = NULL;
     flux_t *h = flux_future_get_flux(f);
     char jobid_buf[64];
-    struct validate_arg_t *args = flux_future_aux_get (f, "flux::validate_args");
+    struct create_arg_t *args = flux_future_aux_get (f, "flux::create_args");
 
     if (args == NULL) {
-        flux_log_error (h, "validate args missing in future aux");
+        flux_log_error (h, "create args missing in future aux");
         goto done;
     }
 
@@ -52,25 +52,25 @@ static void validate_cb (flux_future_t *f, void *arg)
                              "success", &success,
                              "errstr", &errstr) < 0)
     {
-        flux_log_error (h, "Failed to unpack dws.validate RPC for job %s", jobid_buf);
+        flux_log_error (h, "Failed to unpack dws.create RPC for job %s", jobid_buf);
         goto done;
     }
 
     if (success) {
-        if (flux_jobtap_dependency_remove (args->p, args->id, VALIDATE_DEP_NAME) < 0) {
+        if (flux_jobtap_dependency_remove (args->p, args->id, CREATE_DEP_NAME) < 0) {
             flux_log_error (h,
                             "Failed to remove dependency %s for job %s",
-                            VALIDATE_DEP_NAME,
+                            CREATE_DEP_NAME,
                             jobid_buf);
         }
     } else {
-        flux_log_error (h, "Failed to validate DW string for job %s", jobid_buf);
+        flux_log_error (h, "Failed to create DWS workflow object for job %s", jobid_buf);
         
         char *reason;
         flux_future_t *exception_f;
-        if (asprintf (&reason, "DW string validation failed: %s", errstr) < 0)
+        if (asprintf (&reason, "DWS workflow object creation failed: %s", errstr) < 0)
             goto done;
-        exception_f = flux_job_raise (h, args->id, "dw-validation", 0, reason);
+        exception_f = flux_job_raise (h, args->id, "dw-create", 0, reason);
         // N.B.: we don't block to check the status of this exception raising as
         // that would cause a deadlock in the job-manager
         flux_future_destroy (exception_f);
@@ -101,36 +101,36 @@ static int depend_cb (flux_plugin_t *p,
                                 "dw", &dw) < 0)
         return -1;
     if (dw) {
-        if (flux_jobtap_dependency_add (p, id, VALIDATE_DEP_NAME) < 0) {
+        if (flux_jobtap_dependency_add (p, id, CREATE_DEP_NAME) < 0) {
             flux_log_error (h, "Failed to add jobtap dependency for dws");
             rc = -1;
             goto ret;
         }
 
-        flux_future_t *validate_fut = flux_rpc_pack (
-            h, "dws.validate", FLUX_NODEID_ANY, 0, "{s:s}", "dw_string", dw
+        flux_future_t *create_fut = flux_rpc_pack (
+            h, "dws.create", FLUX_NODEID_ANY, 0, "{s:s, s:i}", "dw_string", dw, "jobid", id
         );
-        if (validate_fut == NULL) {
-            flux_log_error (h, "Failed to send dws.validate RPC");
+        if (create_fut == NULL) {
+            flux_log_error (h, "Failed to send dws.create RPC");
             rc = -1;
             goto ret;
         }
         
-        struct validate_arg_t *validate_args = calloc (sizeof (struct validate_arg_t), 1);
-        if (validate_args == NULL) {
+        struct create_arg_t *create_args = calloc (sizeof (struct create_arg_t), 1);
+        if (create_args == NULL) {
             rc = -1;
             goto ret;
         }
-        validate_args->p = p;
-        validate_args->id = id;
-        if (flux_future_aux_set (validate_fut, "flux::validate_args", validate_args, free) < 0) {
-            flux_future_destroy (validate_fut);
+        create_args->p = p;
+        create_args->id = id;
+        if (flux_future_aux_set (create_fut, "flux::create_args", create_args, free) < 0) {
+            flux_future_destroy (create_fut);
             rc = -1;
             goto ret;
         }
 
-        if (flux_future_then (validate_fut, -1, validate_cb, NULL) < 0) {
-            flux_future_destroy (validate_fut);
+        if (flux_future_then (create_fut, -1, create_cb, NULL) < 0) {
+            flux_future_destroy (create_fut);
             rc = -1;
             goto ret;
         }
