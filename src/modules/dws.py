@@ -67,10 +67,10 @@ def create_cb(fh, t, msg, arg):
 
 
 def rabbit_state_change_cb(event, fh, rabbits):
-    object = event["object"]
-    name = object["metadata"]["name"]
-    percentDegraded = object["spec"]["percentDegraded"]
-    status = object["spec"]["status"]
+    obj = event["object"]
+    name = obj["metadata"]["name"]
+    percentDegraded = obj["spec"]["percentDegraded"]
+    status = obj["spec"]["status"]
 
     try:
         curr_rabbit = rabbits[name]
@@ -92,7 +92,7 @@ def rabbit_state_change_cb(event, fh, rabbits):
         )
         # TODO: update "percentDegraded" property of vertex in resource graph
         # TODO: update capacity of rabbit in resource graph (mark some slices down?)
-    rabbits[name] = object
+    rabbits[name] = obj
 
 
 def init_rabbits(k8s_api, fh, watchers):
