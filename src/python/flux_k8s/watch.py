@@ -55,9 +55,11 @@ class Watchers:
     def __enter__(self):
         return self
 
-    def __exit__(self):
-        self.timer_fh_watch.stop().destroy()
-        self.msg_fh_watch.stop().destroy()
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.timer_fh_watch.stop()
+        self.timer_fh_watch.destroy()
+        self.msg_fh_watch.stop()
+        self.msg_fh_watch.destroy()
 
     def add_watch(self, watch):
         self.watches.append(watch)
