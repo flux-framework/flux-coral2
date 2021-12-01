@@ -48,7 +48,7 @@ test_expect_success 'job submission with valid DW string works' '
 	jobid=$(flux mini submit --setattr=system.dw="jobdw capacity=10GiB type=xfs name=project1" hostname) &&
 	flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
-	flux job wait-event -t 5 -m description=${CREATE_DEP_NAME} \
+	flux job wait-event -t 25 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
 	flux job wait-event -vt 5 ${jobid} clean
 '

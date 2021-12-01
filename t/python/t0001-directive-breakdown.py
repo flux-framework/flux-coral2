@@ -33,12 +33,11 @@ class TestDirectiveBreakdowns(unittest.TestCase):
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_lustre10tb(self, patched_fetch):
         patched_fetch.return_value = read_yaml_breakdown(YAMLDIR / "lustre10tb.yaml")
-        jobspec = unittest.mock.Mock(spec_set=["resources"])
-        jobspec.resources = []
-        directivebreakdown.apply_breakdowns(None, None, jobspec)
+        resources = []
+        directivebreakdown.apply_breakdowns(None, None, resources)
         patched_fetch.assert_called_with(None, None)
-        self.assertEqual(len(jobspec.resources), 3)
-        for resource in jobspec.resources:
+        self.assertEqual(len(resources), 3)
+        for resource in resources:
             self.assertTrue(resource["type"].startswith("rabbit-"))
             self.assertEqual(resource["count"], 1)
             self.assertEqual(len(resource["with"]), 1)
@@ -54,13 +53,12 @@ class TestDirectiveBreakdowns(unittest.TestCase):
         ):
             with self.subTest(resources=resources):
                 # note that if subtests fail, their output doesn't show in TAP
-                jobspec = unittest.mock.Mock(spec_set=["resources"])
-                jobspec.resources = resources
-                directivebreakdown.apply_breakdowns(None, None, jobspec)
+                resources = resources
+                directivebreakdown.apply_breakdowns(None, None, resources)
                 patched_fetch.assert_called_with(None, None)
-                self.assertEqual(len(jobspec.resources), 1)
-                self.assertEqual(jobspec.resources[0]["type"], "node")
-                rabbit = jobspec.resources[0]["with"][1]
+                self.assertEqual(len(resources), 1)
+                self.assertEqual(resources[0]["type"], "node")
+                rabbit = resources[0]["with"][1]
                 self.assertEqual(rabbit["type"], "rabbit-xfs")
                 self.assertEqual(rabbit["count"], 1)
                 self.assertEqual(len(rabbit["with"]), 1)
@@ -73,8 +71,7 @@ class TestDirectiveBreakdowns(unittest.TestCase):
         patched_fetch.return_value = read_yaml_breakdown(
             YAMLDIR / "xfs10mb.yaml", YAMLDIR / "xfs10mb.yaml"
         )
-        jobspec = unittest.mock.Mock(spec_set=["resources"])
-        jobspec.resources = [
+        resources = [
             {
                 "type": "node",
                 "count": 1,
@@ -87,10 +84,10 @@ class TestDirectiveBreakdowns(unittest.TestCase):
                 ],
             }
         ]
-        rabbit = jobspec.resources[0]["with"][1]
+        rabbit = resources[0]["with"][1]
         self.assertEqual(rabbit["with"][0]["count"], int(5e5))
         # each xfs10mb.yaml should add 10e5 to ``rabbit["with"][0]["count"]``
-        directivebreakdown.apply_breakdowns(None, None, jobspec)
+        directivebreakdown.apply_breakdowns(None, None, resources)
         patched_fetch.assert_called_with(None, None)
         self.assertEqual(rabbit["with"][0]["type"], "storage")
         self.assertEqual(rabbit["with"][0]["unit"], "B")
@@ -101,16 +98,15 @@ class TestDirectiveBreakdowns(unittest.TestCase):
         patched_fetch.return_value = read_yaml_breakdown(
             YAMLDIR / "xfs10mb.yaml", YAMLDIR / "lustre10tb.yaml"
         )
-        jobspec = unittest.mock.Mock(spec_set=["resources"])
-        jobspec.resources = [{"type": "node", "count": 1, "with": [{"type": "slot"}]}]
-        directivebreakdown.apply_breakdowns(None, None, jobspec)
+        resources = [{"type": "node", "count": 1, "with": [{"type": "slot"}]}]
+        directivebreakdown.apply_breakdowns(None, None, resources)
         patched_fetch.assert_called_with(None, None)
-        self.assertEqual(len(jobspec.resources), 4)
-        self.assertEqual(jobspec.resources[0]["type"], "node")
-        rabbit_xfs = jobspec.resources[0]["with"][1]
+        self.assertEqual(len(resources), 4)
+        self.assertEqual(resources[0]["type"], "node")
+        rabbit_xfs = resources[0]["with"][1]
         self.assertEqual(rabbit_xfs["type"], "rabbit-xfs")
         self.assertEqual(rabbit_xfs["count"], 1)
-        for resource in jobspec.resources[1:]:
+        for resource in resources[1:]:
             self.assertTrue(resource["type"].startswith("rabbit-"))
             self.assertEqual(resource["count"], 1)
             self.assertEqual(len(resource["with"]), 1)
@@ -120,18 +116,16 @@ class TestDirectiveBreakdowns(unittest.TestCase):
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_xfs10mb_no_node_or_slot(self, patched_fetch):
         patched_fetch.return_value = read_yaml_breakdown(YAMLDIR / "xfs10mb.yaml")
-        jobspec = unittest.mock.Mock(spec_set=["resources"])
-        jobspec.resources = []
+        resources = []
         with self.assertRaisesRegex(ValueError, "Neither 'node' nor 'slot'.*"):
-            directivebreakdown.apply_breakdowns(None, None, jobspec)
+            directivebreakdown.apply_breakdowns(None, None, resources)
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_allocation_bad_label(self, patched_fetch):
         patched_fetch.return_value = read_yaml_breakdown(YAMLDIR / "bad_label.yaml")
-        jobspec = unittest.mock.Mock(spec_set=["resources"])
-        jobspec.resources = []
+        resources = []
         with self.assertRaisesRegex(ValueError, "Unknown label.*"):
-            directivebreakdown.apply_breakdowns(None, None, jobspec)
+            directivebreakdown.apply_breakdowns(None, None, resources)
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_allocation_bad_kind(self, patched_fetch):
@@ -142,8 +136,7 @@ class TestDirectiveBreakdowns(unittest.TestCase):
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_bad_existing_units(self, patched_fetch):
         patched_fetch.return_value = read_yaml_breakdown(YAMLDIR / "xfs10mb.yaml")
-        jobspec = unittest.mock.Mock(spec_set=["resources"])
-        jobspec.resources = [
+        resources = [
             {
                 "type": "node",
                 "count": 1,
@@ -157,7 +150,7 @@ class TestDirectiveBreakdowns(unittest.TestCase):
             }
         ]
         with self.assertRaisesRegex(ValueError, "Unit mismatch"):
-            directivebreakdown.apply_breakdowns(None, None, jobspec)
+            directivebreakdown.apply_breakdowns(None, None, resources)
 
 
 unittest.main(testRunner=TAPTestRunner())

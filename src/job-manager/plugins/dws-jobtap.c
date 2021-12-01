@@ -36,6 +36,7 @@ static void create_cb (flux_future_t *f, void *arg)
     flux_t *h = flux_future_get_flux(f);
     char jobid_buf[64];
     struct create_arg_t *args = flux_future_aux_get (f, "flux::create_args");
+    json_t *resources = NULL;
 
     if (args == NULL) {
         flux_log_error (h, "create args missing in future aux");
@@ -48,15 +49,16 @@ static void create_cb (flux_future_t *f, void *arg)
     }
 
     if (flux_rpc_get_unpack (f,
-                             "{s:b, s?s}",
+                             "{s:b, s?s, s?o}",
                              "success", &success,
-                             "errstr", &errstr) < 0)
+                             "errstr", &errstr,
+                             "resources", &resources) < 0)
     {
         flux_log_error (h, "Failed to unpack dws.create RPC for job %s", jobid_buf);
         goto done;
     }
 
-    if (success) {
+    if (success && resources) {
         if (flux_jobtap_dependency_remove (args->p, args->id, CREATE_DEP_NAME) < 0) {
             flux_log_error (h,
                             "Failed to remove dependency %s for job %s",
@@ -65,7 +67,7 @@ static void create_cb (flux_future_t *f, void *arg)
         }
     } else {
         flux_log_error (h, "Failed to create DWS workflow object for job %s", jobid_buf);
-        
+
         char *reason;
         flux_future_t *exception_f;
         if (asprintf (&reason, "DWS workflow object creation failed: %s", errstr) < 0)
@@ -90,15 +92,17 @@ static int depend_cb (flux_plugin_t *p,
     char *dw = NULL;
     flux_t *h = flux_jobtap_get_flux (p);
     int rc = 0;
+    json_t *resources;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:I s:{s:{s:{s?s}}}}",
+                                "{s:I s:{s:{s:{s?s}}} s:{s:o}}",
                                 "id", &id,
                                 "jobspec",
                                 "attributes",
                                 "system",
-                                "dw", &dw) < 0)
+                                "dw", &dw,
+                                "jobspec", "resources", &resources) < 0)
         return -1;
     if (dw) {
         if (flux_jobtap_dependency_add (p, id, CREATE_DEP_NAME) < 0) {
@@ -108,14 +112,14 @@ static int depend_cb (flux_plugin_t *p,
         }
 
         flux_future_t *create_fut = flux_rpc_pack (
-            h, "dws.create", FLUX_NODEID_ANY, 0, "{s:s, s:i}", "dw_string", dw, "jobid", id
+            h, "dws.create", FLUX_NODEID_ANY, 0, "{s:s, s:i, s:O}", "dw_string", dw, "jobid", id, "resources", resources
         );
         if (create_fut == NULL) {
             flux_log_error (h, "Failed to send dws.create RPC");
             rc = -1;
             goto ret;
         }
-        
+
         struct create_arg_t *create_args = calloc (sizeof (struct create_arg_t), 1);
         if (create_args == NULL) {
             rc = -1;
@@ -138,7 +142,7 @@ static int depend_cb (flux_plugin_t *p,
 
 ret:
     return rc;
-    
+
 }
 
 static const struct flux_plugin_handler tab[] = {

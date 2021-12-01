@@ -11,7 +11,7 @@ parser.add_argument('--fail', action='store_true')
 args = parser.parse_args()
 
 def create_cb(fh, t, msg, arg):
-    payload = {"success": not args.fail}
+    payload = {"success": not args.fail, "resources": {"foo": "bar"}}
     if args.fail:
         payload['errstr'] = "Failed for test purposes"
     fh.respond(msg, payload)
