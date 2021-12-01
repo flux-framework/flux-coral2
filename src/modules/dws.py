@@ -2,16 +2,22 @@
 
 import os
 import syslog
+import json
 import argparse
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
 import flux
+from flux.job import JobspecV1
 from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
 from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD
 from flux_k8s.watch import Watchers, Watch
+from flux_k8s.directivebreakdown import apply_breakdowns
+
+
+_SAVED_MESSAGES = {}
 
 
 def create_cb(fh, t, msg, arg):
@@ -60,10 +66,10 @@ def create_cb(fh, t, msg, arg):
             ),
         )
         payload = {"success": False, "errstr": str(e)}
+        fh.respond(msg, payload)
     else:
-        payload = {"success": True}
-
-    fh.respond(msg, payload)
+        _SAVED_MESSAGES[jobid] = (msg, msg.payload["resources"])
+        fh.msg_incref(msg)
 
 
 def rabbit_state_change_cb(event, fh, rabbits):
@@ -93,6 +99,18 @@ def rabbit_state_change_cb(event, fh, rabbits):
         # TODO: update "percentDegraded" property of vertex in resource graph
         # TODO: update capacity of rabbit in resource graph (mark some slices down?)
     rabbits[name] = obj
+
+
+def workflow_state_change_cb(event, fh, k8s_api):
+    workflow = event["object"]
+    name = workflow["metadata"]["name"]
+    if workflow["status"]["state"] == "proposal" and workflow["status"]["ready"]:
+        # ensure jobspec update is only done once by removing _SAVED_MESSAGES entry
+        msg, resources = _SAVED_MESSAGES.pop(workflow["spec"]["jobID"], (None, None))
+        if msg is not None:
+            apply_breakdowns(k8s_api, workflow, resources)
+            fh.respond(msg, {"success": True, "resources": resources})
+            fh.msg_decref(msg)
 
 
 def init_rabbits(k8s_api, fh, watchers):
@@ -126,7 +144,7 @@ def main():
     except ApiException as rest_exception:
         if rest_exception.status == 403:
             raise Exception(
-                "You must be logged in to the K8s or OpenShift" " cluster to continue"
+                "You must be logged in to the K8s or OpenShift cluster to continue"
             )
         raise
 
@@ -141,6 +159,9 @@ def main():
 
     with Watchers(fh, watch_interval=args.watch_interval) as watchers:
         init_rabbits(k8s_api, fh, watchers)
+        watchers.add_watch(
+            Watch(k8s_api, WORKFLOW_CRD, 0, workflow_state_change_cb, fh, k8s_api)
+        )
 
         # This job event is used to close the race condition between the python
         # process starting and the `dws` service being registered. Once
