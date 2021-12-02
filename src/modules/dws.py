@@ -17,6 +17,7 @@ from flux_k8s.watch import Watchers, Watch
 from flux_k8s.directivebreakdown import apply_breakdowns
 
 
+_WORKFLOW_NAME = "dws-workflow-test-{jobid}"
 _SAVED_MESSAGES = {}
 
 
@@ -40,7 +41,7 @@ def create_cb(fh, t, msg, arg):
             "apiVersion": "/".join([WORKFLOW_CRD.group, WORKFLOW_CRD.version]),
             "spec": spec,
             "metadata": {
-                "name": "dws-workflow-test-{}".format(jobid),
+                "name": _WORKFLOW_NAME.format(jobid=jobid),
                 "namespace": WORKFLOW_CRD.namespace,
             },
         }
@@ -68,8 +69,38 @@ def create_cb(fh, t, msg, arg):
         payload = {"success": False, "errstr": str(e)}
         fh.respond(msg, payload)
     else:
-        _SAVED_MESSAGES[jobid] = (msg, msg.payload["resources"])
+        _SAVED_MESSAGES[jobid] = msg
         fh.msg_incref(msg)
+
+
+def setup_cb(fh, t, msg, k8s_api):
+    try:
+        jobid = msg.payload["jobid"]
+    except KeyError as e:
+        fh.respond(msg, {"success": False, "errstr": str(e)})
+        fh.log(
+            syslog.LOG_ERR,
+            f"Exception when extracting job data from payload: {e}"
+        )
+    else:
+        # TODO: update servers and computes
+        if move_workflow_desiredstate(fh, msg, jobid, "setup", k8s_api):
+            fh.respond(msg, {"success": True})
+    print(f"Responded to {msg.payload}", flush=True)
+
+
+def move_workflow_desiredstate(fh, msg, jobid, desiredstate, k8s_api):
+    try:
+        k8s_api.patch_namespaced_custom_object(*WORKFLOW_CRD, _WORKFLOW_NAME.format(jobid=jobid), {"spec": {"desiredState": desiredstate}})
+    except ApiException as e:
+        fh.log(
+            syslog.LOG_ERR,
+            f"Exception when calling CustomObjectsApi->patch_namespaced_custom_object: {e}"
+        )
+        fh.respond(msg, {"success": False, "errstr": str(e)})
+        return False
+    else:
+        return True
 
 
 def rabbit_state_change_cb(event, fh, rabbits):
@@ -104,14 +135,35 @@ def rabbit_state_change_cb(event, fh, rabbits):
 def workflow_state_change_cb(event, fh, k8s_api):
     workflow = event["object"]
     name = workflow["metadata"]["name"]
+    jobid = workflow["spec"]["jobID"]
     if workflow["status"]["state"] == "proposal" and workflow["status"]["ready"]:
         # ensure jobspec update is only done once by removing _SAVED_MESSAGES entry
-        msg, resources = _SAVED_MESSAGES.pop(workflow["spec"]["jobID"], (None, None))
+        msg = _SAVED_MESSAGES.pop(jobid, None)
         if msg is not None:
-            apply_breakdowns(k8s_api, workflow, resources)
-            fh.respond(msg, {"success": True, "resources": resources})
+            try:
+                resources = msg.payload["resources"]
+                apply_breakdowns(k8s_api, workflow, resources)
+            except Exception as e:
+                fh.log(
+                    syslog.LOG_ERR,
+                    f"Exception when calling applying breakdowns to jobspec resources: {e}"
+                )
+                fh.respond(msg, {"success": False, "errstr": str(e)})
+            else:
+                fh.respond(msg, {"success": True, "resources": resources})
             fh.msg_decref(msg)
-
+    if workflow["status"]["state"] == "setup" and workflow["status"]["ready"]:
+        msg = _SAVED_MESSAGES.pop(jobid, None)
+        if msg is not None:
+            move_workflow_desiredstate(fh, msg, jobid, "data_in", k8s_api)
+    if workflow["status"]["state"] == "data_in" and workflow["status"]["ready"]:
+        msg = _SAVED_MESSAGES.pop(jobid, None)
+        if msg is not None:
+            move_workflow_desiredstate(fh, msg, jobid, "pre_run", k8s_api)
+    if workflow["status"]["state"] == "pre_run" and workflow["status"]["ready"]:
+        msg = _SAVED_MESSAGES.pop(jobid, None)
+        if msg is not None:
+            fh.respond(msg, {"success": True})
 
 def init_rabbits(k8s_api, fh, watchers):
     try:
@@ -151,10 +203,14 @@ def main():
     fh = flux.Flux()
     serv_reg_fut = fh.service_register("dws")
 
-    w = fh.msg_watcher_create(
+    create_watcher = fh.msg_watcher_create(
         create_cb, FLUX_MSGTYPE_REQUEST, "dws.create", args=k8s_api
     )
-    w.start()
+    create_watcher.start()
+    setup_watcher = fh.msg_watcher_create(
+        setup_cb, FLUX_MSGTYPE_REQUEST, "dws.setup", args=k8s_api
+    )
+    setup_watcher.start()
     serv_reg_fut.get()
 
     with Watchers(fh, watch_interval=args.watch_interval) as watchers:
@@ -172,7 +228,10 @@ def main():
 
         fh.reactor_run()
 
-        w.stop().destroy()
+        create_watcher.stop()
+        create_watcher.destroy()
+        setup_watcher.stop()
+        setup_watcher.destroy()
 
 
 if __name__ == "__main__":
