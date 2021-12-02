@@ -17,6 +17,8 @@
 #endif
 
 #include <stdio.h>
+#include <stdint.h>
+#include <inttypes.h>
 #include <jansson.h>
 
 #include <flux/core.h>
@@ -30,22 +32,51 @@ struct create_arg_t {
     flux_jobid_t id;
 };
 
+
+static int raise_job_exception(flux_t *h, flux_jobid_t id, const char *exception, const char *errstr)
+{
+    char *reason;
+    flux_future_t *exception_f;
+
+    if (!errstr){
+        errstr = "<no error string provided>";
+    }
+    flux_log_error (h, "Raising exception for job %" PRIu64 ": %s", id, errstr);
+    if (asprintf (&reason, "DWS workflow interactions failed: %s", errstr) < 0)
+        return -1;
+    exception_f = flux_job_raise (h, id, exception, 0, reason);
+    // N.B.: we don't block to check the status of this exception raising as
+    // that would cause a deadlock in the job-manager
+    flux_future_destroy (exception_f);
+    free(reason);
+    return 0;
+}
+
+static int dws_prolog_finish (flux_t *h, flux_plugin_t *p, flux_jobid_t id, int success, const char *errstr){
+    if (flux_jobtap_prolog_finish (p, id, SETUP_PROLOG_NAME, !success) < 0) {
+            flux_log_error (h,
+                            "Failed to finish prolog %s for job %" PRIu64,
+                            SETUP_PROLOG_NAME,
+                            id);
+            return -1;
+        }
+    if (!success) {
+        flux_log_error (h, "Failed to setup DWS workflow object for job %" PRIu64, id);
+        return raise_job_exception (h, id, SETUP_PROLOG_NAME, errstr);
+    }
+    return 0;
+}
+
 static void create_cb (flux_future_t *f, void *arg)
 {
     int success = false;
     char *errstr = NULL;
     flux_t *h = flux_future_get_flux(f);
-    char jobid_buf[64];
     struct create_arg_t *args = flux_future_aux_get (f, "flux::create_args");
     json_t *resources = NULL;
 
     if (args == NULL) {
         flux_log_error (h, "create args missing in future aux");
-        goto done;
-    }
-
-    if (flux_job_id_encode (args->id, "f58", jobid_buf, 64) < 0) {
-        flux_log_error (h, "Failed to encode id in f58");
         goto done;
     }
 
@@ -55,29 +86,16 @@ static void create_cb (flux_future_t *f, void *arg)
                              "errstr", &errstr,
                              "resources", &resources) < 0)
     {
-        flux_log_error (h, "Failed to unpack dws.create RPC for job %s", jobid_buf);
+        raise_job_exception (h, args->id, CREATE_DEP_NAME, "Failed to unpack dws.create RPC");
         goto done;
     }
 
     if (success && resources) {
         if (flux_jobtap_dependency_remove (args->p, args->id, CREATE_DEP_NAME) < 0) {
-            flux_log_error (h,
-                            "Failed to remove dependency %s for job %s",
-                            CREATE_DEP_NAME,
-                            jobid_buf);
+            raise_job_exception (h, args->id, CREATE_DEP_NAME, "Failed to remove dependency for job");
         }
     } else {
-        flux_log_error (h, "Failed to create DWS workflow object for job %s", jobid_buf);
-
-        char *reason;
-        flux_future_t *exception_f;
-        if (asprintf (&reason, "DWS workflow object creation failed: %s", errstr) < 0)
-            goto done;
-        exception_f = flux_job_raise (h, args->id, "dw-create", 0, reason);
-        // N.B.: we don't block to check the status of this exception raising as
-        // that would cause a deadlock in the job-manager
-        flux_future_destroy (exception_f);
-        free (reason);
+        raise_job_exception (h, args->id, CREATE_DEP_NAME, "dws.create RPC returned failure");
     }
 
 done:
@@ -92,7 +110,6 @@ static int depend_cb (flux_plugin_t *p,
     flux_jobid_t id;
     char *dw = NULL;
     flux_t *h = flux_jobtap_get_flux (p);
-    int rc = 0;
     json_t *resources;
 
     if (flux_plugin_arg_unpack (args,
@@ -108,8 +125,7 @@ static int depend_cb (flux_plugin_t *p,
     if (dw) {
         if (flux_jobtap_dependency_add (p, id, CREATE_DEP_NAME) < 0) {
             flux_log_error (h, "Failed to add jobtap dependency for dws");
-            rc = -1;
-            goto ret;
+            return -1;
         }
 
         flux_future_t *create_fut = flux_rpc_pack (
@@ -117,42 +133,30 @@ static int depend_cb (flux_plugin_t *p,
         );
         if (create_fut == NULL) {
             flux_log_error (h, "Failed to send dws.create RPC");
-            rc = -1;
-            goto ret;
+            return -1;
         }
 
         struct create_arg_t *create_args = calloc (sizeof (struct create_arg_t), 1);
         if (create_args == NULL) {
-            rc = -1;
-            goto ret;
+            return -1;
         }
         create_args->p = p;
         create_args->id = id;
-        if (flux_future_aux_set (create_fut, "flux::create_args", create_args, free) < 0) {
+        if (flux_future_aux_set (create_fut, "flux::create_args", create_args, free) < 0
+            || flux_future_then (create_fut, -1, create_cb, NULL) < 0) {
             flux_future_destroy (create_fut);
-            rc = -1;
-            goto ret;
-        }
-
-        if (flux_future_then (create_fut, -1, create_cb, NULL) < 0) {
-            flux_future_destroy (create_fut);
-            rc = -1;
-            goto ret;
+            return -1;
         }
     }
-
-ret:
-    return rc;
-
+    return 0;
 }
 
 
-static void setup_cb (flux_future_t *f, void *arg)
+static void setup_rpc_cb (flux_future_t *f, void *arg)
 {
     int success = false;
     //char *errstr = NULL;
     flux_t *h = flux_future_get_flux(f);
-    char jobid_buf[64];
     struct create_arg_t *args = flux_future_aux_get (f, "flux::setup_args");
 
     if (args == NULL) {
@@ -160,45 +164,58 @@ static void setup_cb (flux_future_t *f, void *arg)
         goto done;
     }
 
-    if (flux_job_id_encode (args->id, "f58", jobid_buf, 64) < 0) {
-        flux_log_error (h, "Failed to encode id in f58");
-        goto done;
-    }
-
     if (flux_rpc_get_unpack (f,
                              "{s:b}",
                              "success", &success) < 0)
     {
-        flux_log_error (h, "Failed to unpack dws.setup RPC for job %s", jobid_buf);
+        dws_prolog_finish (h, args->p, args->id, 0, "Failed to unpack dws.setup RPC");
         goto done;
     }
 
-    if (flux_jobtap_prolog_finish (args->p, args->id, SETUP_PROLOG_NAME, !success) < 0) {
-            flux_log_error (h,
-                            "Failed to finish prolog %s for job %s",
-                            SETUP_PROLOG_NAME,
-                            jobid_buf);
-        }
-
-    if (success) {
-
-    } else {
-        flux_log_error (h, "Failed to setup DWS workflow object for job %s", jobid_buf);
-
-        char *reason;
-        flux_future_t *exception_f;
-        if (asprintf (&reason, "DWS workflow setup failed: %s", "unknown error") < 0)
-            goto done;
-        exception_f = flux_job_raise (h, args->id, SETUP_PROLOG_NAME, 0, reason);
-        // N.B.: we don't block to check the status of this exception raising as
-        // that would cause a deadlock in the job-manager
-        flux_future_destroy (exception_f);
-        free (reason);
-    }
+    // error string below will only be printed if ``!success``
+    dws_prolog_finish (h, args->p, args->id, success, "dws.setup RPC returned failure");
 
 done:
     flux_future_destroy (f);
 
+}
+
+
+static void fetch_R_callback (flux_future_t *f, void *arg)
+{
+    json_t *R;
+    flux_t *h = flux_future_get_flux(f);
+    struct create_arg_t *args = flux_future_aux_get (f, "flux::fetch_R");
+    struct create_arg_t *create_args;
+    flux_future_t *setup_rpc_fut;
+
+    if (args == NULL){
+        flux_log_error (h, "fetch_R aux missing");
+        goto done;
+    }
+
+    if (flux_kvs_lookup_get_unpack (f, "o", &R) < 0){
+        dws_prolog_finish (h, args->p, args->id, 0, "Failed to unpack R");
+        goto done;
+    }
+
+    create_args = calloc (sizeof (struct create_arg_t), 1);
+    if (create_args == NULL) {
+        dws_prolog_finish (h, args->p, args->id, 0, "Failed to create aux struct");
+        goto done;
+    }
+    create_args->p = args->p;
+    create_args->id = args->id;
+    if (!(setup_rpc_fut = flux_rpc_pack (
+        h, "dws.setup", FLUX_NODEID_ANY, 0, "{s:i, s:O}", "jobid", args->id, "R", R))
+        || flux_future_aux_set (setup_rpc_fut, "flux::setup_args", create_args, free) < 0
+        || flux_future_then (setup_rpc_fut, -1, setup_rpc_cb, NULL) < 0) {
+        flux_future_destroy (setup_rpc_fut);
+        dws_prolog_finish (h, args->p, args->id, 0, "Failed to send dws.setup RPC");
+    }
+
+done:
+    flux_future_destroy (f);
 }
 
 
@@ -209,8 +226,9 @@ static int run_cb (flux_plugin_t *p,
 {
     flux_jobid_t id;
     char *dw = NULL;
+    char buf[1024];
     flux_t *h = flux_jobtap_get_flux (p);
-    flux_future_t *setup_fut;
+    flux_future_t *fetch_R_future = NULL;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -226,26 +244,20 @@ static int run_cb (flux_plugin_t *p,
             flux_log_error (h, "Failed to start jobtap prolog for dws");
             return -1;
         }
-
-        setup_fut = flux_rpc_pack (
-            h, "dws.setup", FLUX_NODEID_ANY, 0, "{s:i}", "jobid", id
-        );
-        if (setup_fut == NULL) {
-            flux_log_error (h, "Failed to send dws.create RPC");
-            return -1;
-        }
         struct create_arg_t *create_args = calloc (sizeof (struct create_arg_t), 1);
         if (create_args == NULL) {
             return -1;
         }
         create_args->p = p;
         create_args->id = id;
-        if (flux_future_aux_set (setup_fut, "flux::setup_args", create_args, free) < 0) {
-            flux_future_destroy (setup_fut);
-            return -1;
-        }
-        if (flux_future_then (setup_fut, -1, setup_cb, NULL) < 0) {
-            flux_future_destroy (setup_fut);
+        if (flux_job_kvs_key (buf, sizeof (buf), id, "R") < 0
+            || !(fetch_R_future = flux_kvs_lookup (h, NULL, 0, buf))
+            || flux_future_aux_set (fetch_R_future, "flux::fetch_R", create_args, free) < 0
+            || flux_future_then (fetch_R_future, -1., fetch_R_callback, NULL) < 0) {
+            flux_future_destroy (fetch_R_future);
+            flux_log_error (h,
+                            "dws-jobtap: "
+                            "Error creating future to send R to dws.py");
             return -1;
         }
     }
