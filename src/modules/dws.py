@@ -8,11 +8,12 @@ import argparse
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
 import flux
+from flux.hostlist import Hostlist
 from flux.job import JobspecV1
 from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
-from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD
+from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD, COMPUTE_CRD
 from flux_k8s.watch import Watchers, Watch
 from flux_k8s.directivebreakdown import apply_breakdowns
 
@@ -76,17 +77,29 @@ def create_cb(fh, t, msg, arg):
 def setup_cb(fh, t, msg, k8s_api):
     try:
         jobid = msg.payload["jobid"]
+        R_dict = msg.payload["R"]
     except KeyError as e:
         fh.respond(msg, {"success": False, "errstr": str(e)})
         fh.log(
             syslog.LOG_ERR,
             f"Exception when extracting job data from payload: {e}"
         )
-    else:
-        # TODO: update servers and computes
-        if move_workflow_desiredstate(fh, msg, jobid, "setup", k8s_api):
-            fh.respond(msg, {"success": True})
-    print(f"Responded to {msg.payload}", flush=True)
+        return
+    compute_nodes = [{"name": hostname} for hostname in Hostlist(R_dict["execution"]["nodelist"]).uniq()]
+    # TODO: update servers custom resource
+    try:
+        k8s_api.patch_namespaced_custom_object(*COMPUTE_CRD, _WORKFLOW_NAME.format(jobid=jobid), {"data": compute_nodes})
+    except ApiException as e:
+        fh.log(
+            syslog.LOG_ERR,
+            f"Exception when calling CustomObjectsApi->patch_namespaced_custom_object: {e}"
+        )
+        fh.respond(msg, {"success": False, "errstr": str(e)})
+        print(e, flush=True)
+        return
+    print("patched compute CRD", flush=True)
+    if move_workflow_desiredstate(fh, msg, jobid, "setup", k8s_api):
+        fh.respond(msg, {"success": True})
 
 
 def move_workflow_desiredstate(fh, msg, jobid, desiredstate, k8s_api):
