@@ -6,7 +6,7 @@ def apply_breakdowns(k8s_api, workflow, resources):
     for breakdown in fetch_breakdowns(k8s_api, workflow):
         if breakdown["kind"] != "DirectiveBreakdown":
             raise ValueError(f"unsupported breakdown kind {breakdown['kind']!r}")
-        for allocation in breakdown["spec"]["allocationSet"]:
+        for allocation in breakdown["status"]["allocationSet"]:
             apply_allocation(allocation, resources)
 
 

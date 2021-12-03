@@ -9,7 +9,7 @@ spec:
   type: xfs
   lifetime: job
   name: my-xfs-storage
-spec:
+status:
   ready: true
   servers:
     kind: Servers

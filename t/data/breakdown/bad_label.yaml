@@ -8,7 +8,7 @@ spec:
     dwDirective: jobdw type=lustre capacity=10TB name=lus-name
   lifetime: job
   name: my-lustre-storage
-spec:
+status:
   ready: true
   servers:
     kind: Servers
