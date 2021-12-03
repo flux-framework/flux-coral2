@@ -19,7 +19,15 @@ from flux_k8s.directivebreakdown import apply_breakdowns
 
 
 _WORKFLOW_NAME = "dws-workflow-test-{jobid}"
-_SAVED_MESSAGES = {}
+_WORKFLOWINFO_CACHE = {}
+
+
+class WorkflowInfo:
+    def __init__(self, create_rpc):
+        self.create_rpc = create_rpc
+        self.setup_rpc = None
+        self.post_run_rpc = None
+        self.environment = None
 
 
 def create_cb(fh, t, msg, arg):
@@ -57,21 +65,18 @@ def create_cb(fh, t, msg, arg):
 
     try:
         api_response = api_instance.create_namespaced_custom_object(
-            *WORKFLOW_CRD,
-            body,
+            *WORKFLOW_CRD, body,
         )
     except ApiException as e:
         fh.log(
             syslog.LOG_ERR,
-            "Exception when calling CustomObjectsApi->create_namespaced_custom_object: {}".format(
-                e
-            ),
+            "Exception when calling CustomObjectsApi->"
+            f"create_namespaced_custom_object: {e}",
         )
         payload = {"success": False, "errstr": str(e)}
         fh.respond(msg, payload)
     else:
-        _SAVED_MESSAGES[jobid] = msg
-        fh.msg_incref(msg)
+        _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(msg)
 
 
 def setup_cb(fh, t, msg, k8s_api):
@@ -80,37 +85,56 @@ def setup_cb(fh, t, msg, k8s_api):
         R_dict = msg.payload["R"]
     except KeyError as e:
         fh.respond(msg, {"success": False, "errstr": str(e)})
-        fh.log(
-            syslog.LOG_ERR,
-            f"Exception when extracting job data from payload: {e}"
-        )
+        fh.log(syslog.LOG_ERR, f"Exception when extracting job data from payload: {e}")
         return
-    compute_nodes = [{"name": hostname} for hostname in Hostlist(R_dict["execution"]["nodelist"]).uniq()]
+    compute_nodes = [
+        {"name": hostname}
+        for hostname in Hostlist(R_dict["execution"]["nodelist"]).uniq()
+    ]
     # TODO: update servers custom resource
+    resource_name = _WORKFLOW_NAME.format(jobid=jobid)
     try:
-        k8s_api.patch_namespaced_custom_object(*COMPUTE_CRD, _WORKFLOW_NAME.format(jobid=jobid), {"data": compute_nodes})
+        k8s_api.patch_namespaced_custom_object(
+            *COMPUTE_CRD, resource_name, {"data": compute_nodes}
+        )
     except ApiException as e:
         fh.log(
             syslog.LOG_ERR,
-            f"Exception when calling CustomObjectsApi->patch_namespaced_custom_object: {e}"
+            f"Exception when calling CustomObjectsApi->"
+            f"patch_namespaced_custom_object for Compute {resource_name!r}: {e}",
         )
         fh.respond(msg, {"success": False, "errstr": str(e)})
-        print(e, flush=True)
         return
-    print("patched compute CRD", flush=True)
+    _WORKFLOWINFO_CACHE[jobid].setup_rpc = msg
     if move_workflow_desiredstate(fh, msg, jobid, "setup", k8s_api):
         fh.respond(msg, {"success": True})
 
 
-def move_workflow_desiredstate(fh, msg, jobid, desiredstate, k8s_api):
+def post_run_cb(fh, t, msg, k8s_api):
     try:
-        k8s_api.patch_namespaced_custom_object(*WORKFLOW_CRD, _WORKFLOW_NAME.format(jobid=jobid), {"spec": {"desiredState": desiredstate}})
+        jobid = msg.payload["jobid"]
+    except KeyError as e:
+        fh.respond(msg, {"success": False, "errstr": str(e)})
+        fh.log(syslog.LOG_ERR, f"Exception when extracting job data from payload: {e}")
+    else:
+        _WORKFLOWINFO_CACHE[jobid].post_run_rpc = msg
+        move_workflow_desiredstate(fh, msg, jobid, "post_run", k8s_api)
+
+
+def move_workflow_desiredstate(fh, msg, jobid, desiredstate, k8s_api):
+    workflow_name = _WORKFLOW_NAME.format(jobid=jobid)
+    try:
+        k8s_api.patch_namespaced_custom_object(
+            *WORKFLOW_CRD, workflow_name, {"spec": {"desiredState": desiredstate}}
+        )
     except ApiException as e:
         fh.log(
             syslog.LOG_ERR,
-            f"Exception when calling CustomObjectsApi->patch_namespaced_custom_object: {e}"
+            f"Exception when patching {workflow_name!r} to "
+            f"desiredState {desiredstate!r}: {e}",
         )
         fh.respond(msg, {"success": False, "errstr": str(e)})
+        del _WORKFLOWINFO_CACHE[jobid]
         return False
     else:
         return True
@@ -129,7 +153,8 @@ def rabbit_state_change_cb(event, fh, rabbits):
             syslog.LOG_DEBUG,
             f"Just encountered an unknown Rabbit ({name}) in the event stream",
         )
-        # TODO: should never happen, but if it does, insert the rabbit into the resource graph
+        # TODO: should never happen, but if it does,
+        # insert the rabbit into the resource graph
         return
 
     if curr_rabbit["spec"]["status"] != status:
@@ -145,38 +170,59 @@ def rabbit_state_change_cb(event, fh, rabbits):
     rabbits[name] = obj
 
 
+def state_complete(workflow, state):
+    return (
+        workflow["spec"]["desiredState"] == workflow["status"]["state"] == state
+        and workflow["status"]["ready"]
+    )
+
+
 def workflow_state_change_cb(event, fh, k8s_api):
     workflow = event["object"]
-    name = workflow["metadata"]["name"]
     jobid = workflow["spec"]["jobID"]
-    if workflow["status"]["state"] == "proposal" and workflow["status"]["ready"]:
-        # ensure jobspec update is only done once by removing _SAVED_MESSAGES entry
-        msg = _SAVED_MESSAGES.pop(jobid, None)
-        if msg is not None:
-            try:
-                resources = msg.payload["resources"]
-                apply_breakdowns(k8s_api, workflow, resources)
-            except Exception as e:
-                fh.log(
-                    syslog.LOG_ERR,
-                    f"Exception when calling applying breakdowns to jobspec resources: {e}"
-                )
-                fh.respond(msg, {"success": False, "errstr": str(e)})
-            else:
-                fh.respond(msg, {"success": True, "resources": resources})
-            fh.msg_decref(msg)
-    if workflow["status"]["state"] == "setup" and workflow["status"]["ready"]:
-        msg = _SAVED_MESSAGES.pop(jobid, None)
-        if msg is not None:
-            move_workflow_desiredstate(fh, msg, jobid, "data_in", k8s_api)
-    if workflow["status"]["state"] == "data_in" and workflow["status"]["ready"]:
-        msg = _SAVED_MESSAGES.pop(jobid, None)
-        if msg is not None:
-            move_workflow_desiredstate(fh, msg, jobid, "pre_run", k8s_api)
-    if workflow["status"]["state"] == "pre_run" and workflow["status"]["ready"]:
-        msg = _SAVED_MESSAGES.pop(jobid, None)
-        if msg is not None:
-            fh.respond(msg, {"success": True})
+    try:
+        winfo = _WORKFLOWINFO_CACHE[jobid]
+    except KeyError:
+        fh.log(syslog.LOG_DEBUG, f"Unrecognized workflow {jobid}, ignoring...")
+        return
+    if state_complete(workflow, "proposal"):
+        try:
+            resources = winfo.create_rpc.payload["resources"]
+            apply_breakdowns(k8s_api, workflow, resources)
+        except Exception as e:
+            fh.log(
+                syslog.LOG_ERR,
+                f"Exception when applying breakdowns to jobspec resources: {e}",
+            )
+            fh.respond(winfo.create_rpc, {"success": False, "errstr": str(e)})
+            del _WORKFLOWINFO_CACHE[jobid]
+        else:
+            fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
+        winfo.create_rpc = None
+    elif state_complete(workflow, "setup") and False:  # TODO: put in servers resources
+        # move workflow to next stage
+        move_workflow_desiredstate(fh, winfo.setup_rpc, jobid, "data_in", k8s_api)
+    elif state_complete(workflow, "data_in"):
+        # move workflow to next stage
+        move_workflow_desiredstate(fh, winfo.setup_rpc, jobid, "pre_run", k8s_api)
+    elif state_complete(workflow, "pre_run"):
+        # tell DWS jobtap plugin that the job can start
+        fh.respond(winfo.setup_rpc, {"success": True})
+        winfo.setup_rpc = None
+    elif state_complete(workflow, "post_run"):
+        # move workflow to next stage
+        move_workflow_desiredstate(fh, winfo.post_run_rpc, jobid, "data_out", k8s_api)
+    elif state_complete(workflow, "data_out"):
+        # move workflow to next stage
+        move_workflow_desiredstate(fh, winfo.post_run_rpc, jobid, "teardown", k8s_api)
+    elif state_complete(workflow, "teardown"):
+        # delete workflow object and tell DWS jobtap plugin that the job is done
+        k8s_api.delete_namespaced_custom_object(
+            *WORKFLOW_CRD, _WORKFLOW_NAME.format(jobid=jobid)
+        )
+        fh.respond(winfo.post_run_rpc, {"success": True})
+        del _WORKFLOWINFO_CACHE[jobid]
+
 
 def init_rabbits(k8s_api, fh, watchers):
     try:
@@ -224,6 +270,10 @@ def main():
         setup_cb, FLUX_MSGTYPE_REQUEST, "dws.setup", args=k8s_api
     )
     setup_watcher.start()
+    post_run_watcher = fh.msg_watcher_create(
+        post_run_cb, FLUX_MSGTYPE_REQUEST, "dws.post_run", args=k8s_api
+    )
+    post_run_watcher.start()
     serv_reg_fut.get()
 
     with Watchers(fh, watch_interval=args.watch_interval) as watchers:
@@ -245,6 +295,8 @@ def main():
         create_watcher.destroy()
         setup_watcher.stop()
         setup_watcher.destroy()
+        post_run_watcher.stop()
+        post_run_watcher.destroy()
 
 
 if __name__ == "__main__":
