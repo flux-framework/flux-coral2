@@ -155,6 +155,7 @@ static int depend_cb (flux_plugin_t *p,
 static void setup_rpc_cb (flux_future_t *f, void *arg)
 {
     int success = false;
+    json_t *env = NULL;
     //char *errstr = NULL;
     flux_t *h = flux_future_get_flux(f);
     struct create_arg_t *args = flux_future_aux_get (f, "flux::setup_args");
@@ -165,15 +166,30 @@ static void setup_rpc_cb (flux_future_t *f, void *arg)
     }
 
     if (flux_rpc_get_unpack (f,
-                             "{s:b}",
-                             "success", &success) < 0)
+                             "{s:b, s?o}",
+                             "success", &success, "variables", &env) < 0)
     {
         dws_prolog_finish (h, args->p, args->id, 0, "Failed to unpack dws.setup RPC");
         goto done;
     }
-
-    // error string below will only be printed if ``!success``
-    dws_prolog_finish (h, args->p, args->id, success, "dws.setup RPC returned failure");
+    // error string below will only be printed if ``!(success && env)``
+    if (success && env){
+        if (flux_jobtap_event_post_pack (args->p,
+                                    args->id,
+                                    "dws_environment",
+                                    "{s:O}",
+                                    "variables",
+                                    env) < 0){
+            dws_prolog_finish (h, args->p, args->id, 0, "failed to send dws_environment event");
+        }
+        else {
+            flux_log_error (h, "sent dws_environment event");
+            dws_prolog_finish (h, args->p, args->id, 1, "success!");
+        }
+    }
+    else {
+        dws_prolog_finish (h, args->p, args->id, success, "dws.setup RPC returned failure");
+    }
 
 done:
     flux_future_destroy (f);

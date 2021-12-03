@@ -9,9 +9,12 @@ AM_LDFLAGS = \
 shell_plugindir = \
     $(fluxlibdir)/shell/plugins/coral2/
 
-shell_plugin_LTLIBRARIES = cray_pals.la
+shell_plugin_LTLIBRARIES = \
+	cray_pals.la \
+	dws_environment.la
 
-cray_pals_la_SOURCES = cray_pals.c
+cray_pals_la_SOURCES = cray_pals.c \
+	eventlog_helpers.c
 cray_pals_la_CPPFLAGS = $(AM_CPPFLAGS)
 cray_pals_la_LIBADD = \
 	$(FLUX_CORE_LIBS) \
@@ -21,3 +24,12 @@ cray_pals_la_LDFLAGS = \
 	$(AM_LDFLAGS) \
 	$(fluxplugin_ldflags) -module
 
+dws_environment_la_SOURCES = dws_environment.c \
+	eventlog_helpers.c
+dws_environment_la_CPPFLAGS = $(AM_CPPFLAGS)
+dws_environment_la_LIBADD = \
+	$(FLUX_CORE_LIBS) \
+	$(JANSSON_LIBS)
+dws_environment_la_LDFLAGS = \
+	$(AM_LDFLAGS) \
+	$(fluxplugin_ldflags) -module

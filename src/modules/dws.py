@@ -107,7 +107,7 @@ def setup_cb(fh, t, msg, k8s_api):
         return
     _WORKFLOWINFO_CACHE[jobid].setup_rpc = msg
     if move_workflow_desiredstate(fh, msg, jobid, "setup", k8s_api):
-        fh.respond(msg, {"success": True})
+        fh.respond(msg, {"success": True, "variables": {}})
 
 
 def post_run_cb(fh, t, msg, k8s_api):
