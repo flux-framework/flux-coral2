@@ -21,7 +21,7 @@ def create_cb(fh, t, msg, arg):
         fh.reactor_stop()
 
 def setup_cb(fh, t, msg, arg):
-    payload = {"success": not args.fail}
+    payload = {"success": not args.fail, "variables": {}}
     if args.fail:
         payload['errstr'] = "Failed for test purposes"
     fh.respond(msg, payload)
