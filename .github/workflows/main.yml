@@ -45,9 +45,9 @@ jobs:
 
     - name: Install CRDs
       run: |
-        # Add the NNF CRD
-        kubectl apply -f ./k8s/NearNodeFlash.yaml
-        # Add all of the NNF instances
+        # Add the Storage CRD
+        kubectl apply -f ./k8s/Storage.yaml
+        # Add all of the Storage instances
         kubectl apply -f ./k8s/
 
     - name: docker-run-checks

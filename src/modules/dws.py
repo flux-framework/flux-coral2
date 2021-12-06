@@ -143,27 +143,27 @@ def move_workflow_desiredstate(fh, msg, jobid, desiredstate, k8s_api):
 def rabbit_state_change_cb(event, fh, rabbits):
     obj = event["object"]
     name = obj["metadata"]["name"]
-    percentDegraded = obj["spec"]["percentDegraded"]
-    status = obj["spec"]["status"]
+    capacity = obj["data"]["capacity"]
+    status = obj["data"]["status"]
 
     try:
         curr_rabbit = rabbits[name]
     except KeyError:
         fh.log(
             syslog.LOG_DEBUG,
-            f"Just encountered an unknown Rabbit ({name}) in the event stream",
+            f"Just encountered an unknown Storage object ({name}) in the event stream",
         )
         # TODO: should never happen, but if it does,
         # insert the rabbit into the resource graph
         return
 
-    if curr_rabbit["spec"]["status"] != status:
-        fh.log(syslog.LOG_DEBUG, f"Rabbit {name} status changed to {status}")
+    if curr_rabbit["data"]["status"] != status:
+        fh.log(syslog.LOG_DEBUG, f"Storage {name} status changed to {status}")
         # TODO: update status of vertex in resource graph
-    if curr_rabbit["spec"]["percentDegraded"] != percentDegraded:
+    if curr_rabbit["data"]["capacity"] != capacity:
         fh.log(
             syslog.LOG_DEBUG,
-            f"Rabbit {name} percentDegraded changed to {percentDegraded}",
+            f"Storage {name} capacity changed to {capacity}",
         )
         # TODO: update "percentDegraded" property of vertex in resource graph
         # TODO: update capacity of rabbit in resource graph (mark some slices down?)
