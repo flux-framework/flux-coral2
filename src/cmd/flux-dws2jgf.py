@@ -96,9 +96,9 @@ class Coral2Graph(FluxionResourceGraphV1):
         edg2 = ElCapResourceRelationshipV1(global_nnf.get_id(), vtx.get_id())
         self.add_edge(edg2)
         children = self._rv1NoSched['execution']['R_lite'][0]['children']
-        for node in nnf['computes']:
-            self._encode_rank(parent, next(self._rankids), children, node)
-    
+        for node in nnf["access"]['computes']:
+            self._encode_rank(parent, next(self._rankids), children, node["name"])
+
     def _encode_rack(self, parent, global_nnf, nnf):
         res_type = "rack"
         res_name = f"{res_type}{self._rackids}"
@@ -166,7 +166,7 @@ def encode(rv1, nnfs):
     return rv1
 
 
-def get_nnf():
+def get_storage():
     k8s_client = k8s.config.new_client_from_config()
     try:
         api_instance = k8s.client.CustomObjectsApi(k8s_client)
@@ -177,10 +177,10 @@ def get_nnf():
                 " cluster to continue"
             )
         raise
-    
-    group = "rabbit.hpe.com"
-    version = "v1alpha"
-    plural = "nearnodeflashes"
+
+    group = "dws.cray.hpe.com"
+    version = "v1alpha1"
+    plural = "storages"
     try:
         api_response = api_instance.list_cluster_custom_object(group, version, plural)
     except ApiException as e:
@@ -192,12 +192,15 @@ LOGGER = logging.getLogger("flux-dws2jgf")
 @flux.util.CLIMain(LOGGER)
 def main():
     parser = argparse.ArgumentParser(
-        prog="flux-dws2jgf", formatter_class=flux.util.help_formatter()
+        prog="flux-dws2jgf", formatter_class=flux.util.help_formatter(),
+        description="Print JGF representation of Rabbit nodes"
     )
+    parser.add_argument("--test-pattern", help="For testing purposes. A regex pattern to apply to Rabbits", default="")
     args = parser.parse_args()
 
-    nnfs = [x['spec'] for x in get_nnf()['items']]
-    all_computes = [compute for nnf in nnfs for compute in nnf['computes']]
+    x = get_storage()['items']
+    nnfs = [x['data'] for x in get_storage()['items'] if re.search(args.test_pattern, x["metadata"]["name"])]
+    all_computes = [compute['name'] for nnf in nnfs for compute in nnf['access']['computes']]
     num_nodes = len(all_computes)
     rv1 = {
         "execution": {

@@ -1,0 +1,148 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.1
+  creationTimestamp: null
+  name: storages.dws.cray.hpe.com
+spec:
+  group: dws.cray.hpe.com
+  names:
+    kind: Storage
+    listKind: StorageList
+    plural: storages
+    singular: storage
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Storage is the Schema for the storages API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          data:
+            description: StorageData contains the data about the storage
+            properties:
+              access:
+                description: Access contains the information about where the storage
+                  is accessible
+                properties:
+                  computes:
+                    description: Computes is the list of compute nodes that have access
+                      to the storage
+                    items:
+                      description: Node provides the status of either a compute or
+                        a server
+                      properties:
+                        name:
+                          description: Name is the Kubernetes name of the node
+                          type: string
+                        status:
+                          description: Status of the node
+                          enum:
+                          - Ready
+                          - NotReady
+                          - Failed
+                          - Missing
+                          type: string
+                      type: object
+                    type: array
+                  protocol:
+                    description: Protocol is the method that this storage can be accessed
+                    enum:
+                    - PCIe
+                    type: string
+                  servers:
+                    description: Servers is the list of non-compute nodes that have
+                      access to the storage
+                    items:
+                      description: Node provides the status of either a compute or
+                        a server
+                      properties:
+                        name:
+                          description: Name is the Kubernetes name of the node
+                          type: string
+                        status:
+                          description: Status of the node
+                          enum:
+                          - Ready
+                          - NotReady
+                          - Failed
+                          - Missing
+                          type: string
+                      type: object
+                    type: array
+                type: object
+              capacity:
+                description: Capacity is the number of bytes this storage provides.
+                  This is the total accessible bytes as determined by the driver and
+                  may be different than the sum of the devices' capacities.
+                format: int64
+                type: integer
+              devices:
+                description: Devices is the list of physical devices that make up
+                  this storage
+                items:
+                  description: StorageDevices contains the details of the storage
+                    hardware
+                  properties:
+                    capacity:
+                      description: Capacity in bytes of the device. The full capacity
+                        may not be usable depending on what the storage driver can
+                        provide.
+                      format: int64
+                      type: integer
+                    model:
+                      description: Model is the manufacturer information about the
+                        device
+                      type: string
+                    status:
+                      description: Status of the individual device
+                      enum:
+                      - Ready
+                      - NotReady
+                      - Failed
+                      - Missing
+                      type: string
+                    wearLevel:
+                      description: WearLevel in percent for SSDs
+                      format: int64
+                      type: integer
+                  type: object
+                type: array
+              status:
+                description: Status is the overall status of the storage
+                enum:
+                - Ready
+                - NotReady
+                - Failed
+                - Missing
+                type: string
+              type:
+                description: Type describes what type of storage this is
+                enum:
+                - NVMe
+                type: string
+            type: object
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: Storage
+    listKind: StorageList
+    plural: storages
+    singular: storage
+  conditions: []
+  storedVersions: []
