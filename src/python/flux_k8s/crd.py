@@ -29,3 +29,10 @@ COMPUTE_CRD = CRD(
     namespace = "default",
     plural = "computes",
 )
+
+SERVER_CRD = CRD(
+    group = "dws.cray.hpe.com",
+    version = "v1alpha1",
+    namespace = "default",
+    plural = "servers",
+)

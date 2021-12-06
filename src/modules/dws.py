@@ -13,7 +13,7 @@ from flux.job import JobspecV1
 from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
-from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD, COMPUTE_CRD
+from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD, COMPUTE_CRD, SERVER_CRD
 from flux_k8s.watch import Watchers, Watch
 from flux_k8s.directivebreakdown import apply_breakdowns
 
@@ -57,7 +57,7 @@ def create_cb(fh, t, msg, arg):
     except Exception as e:
         fh.log(
             syslog.LOG_ERR,
-            "Exception when extracting job data from payload: {}".format(e),
+            f"Exception when extracting job data from payload: {e}",
         )
         payload = {"success": False, "errstr": str(e)}
         fh.respond(msg, payload)
@@ -97,17 +97,31 @@ def setup_cb(fh, t, msg, k8s_api):
         k8s_api.patch_namespaced_custom_object(
             *COMPUTE_CRD, resource_name, {"data": compute_nodes}
         )
+        k8s_api.patch_namespaced_custom_object(
+            *SERVER_CRD,
+            resource_name + "-0",
+            {
+                "spec": {
+                    "allocationSets": [
+                        {
+                            "allocationSize": 1073741824 // 100,
+                            "label": "xfs",
+                            "storage": [{"allocationCount": 16, "name": "kind-worker"}],
+                        }
+                    ]
+                }
+            },
+        )
     except ApiException as e:
         fh.log(
             syslog.LOG_ERR,
             f"Exception when calling CustomObjectsApi->"
-            f"patch_namespaced_custom_object for Compute {resource_name!r}: {e}",
+            f"patch_namespaced_custom_object for Compute/Server {resource_name!r}: {e}",
         )
         fh.respond(msg, {"success": False, "errstr": str(e)})
         return
     _WORKFLOWINFO_CACHE[jobid].setup_rpc = msg
-    if move_workflow_desiredstate(fh, msg, jobid, "setup", k8s_api):
-        fh.respond(msg, {"success": True, "variables": {}})
+    move_workflow_desiredstate(fh, msg, jobid, "setup", k8s_api)
 
 
 def post_run_cb(fh, t, msg, k8s_api):
@@ -199,7 +213,7 @@ def workflow_state_change_cb(event, fh, k8s_api):
         else:
             fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
         winfo.create_rpc = None
-    elif state_complete(workflow, "setup") and False:  # TODO: put in servers resources
+    elif state_complete(workflow, "setup"):  # TODO: put in servers resources
         # move workflow to next stage
         move_workflow_desiredstate(fh, winfo.setup_rpc, jobid, "data_in", k8s_api)
     elif state_complete(workflow, "data_in"):
@@ -207,7 +221,7 @@ def workflow_state_change_cb(event, fh, k8s_api):
         move_workflow_desiredstate(fh, winfo.setup_rpc, jobid, "pre_run", k8s_api)
     elif state_complete(workflow, "pre_run"):
         # tell DWS jobtap plugin that the job can start
-        fh.respond(winfo.setup_rpc, {"success": True})
+        fh.respond(winfo.setup_rpc, {"success": True, "variables": workflow["status"].get("env", {})})
         winfo.setup_rpc = None
     elif state_complete(workflow, "post_run"):
         # move workflow to next stage

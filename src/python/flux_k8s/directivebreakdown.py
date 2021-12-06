@@ -46,7 +46,7 @@ def apply_xfs(allocation, resources):
             node = entry
             break
         if entry["type"] == "slot":
-            node = {"type": "node", "count": {"min": 0}, "with": [entry]}
+            node = {"type": "node", "count": {"min": 1}, "with": [entry]}
             resources[i] = node
             break
     else:

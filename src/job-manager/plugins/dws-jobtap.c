@@ -73,7 +73,7 @@ static void create_cb (flux_future_t *f, void *arg)
     char *errstr = NULL;
     flux_t *h = flux_future_get_flux(f);
     struct create_arg_t *args = flux_future_aux_get (f, "flux::create_args");
-    json_t *resources = NULL;
+    json_t *jobspec = arg, *resources = NULL;
 
     if (args == NULL) {
         flux_log_error (h, "create args missing in future aux");
@@ -93,12 +93,18 @@ static void create_cb (flux_future_t *f, void *arg)
     if (success && resources) {
         if (flux_jobtap_dependency_remove (args->p, args->id, CREATE_DEP_NAME) < 0) {
             raise_job_exception (h, args->id, CREATE_DEP_NAME, "Failed to remove dependency for job");
+            goto done;
+        }
+        if (json_object_set (jobspec, "resources", resources) < 0){
+            raise_job_exception (h, args->id, CREATE_DEP_NAME, "Failed to update jobspec with DWS resources");
+            goto done;
         }
     } else {
         raise_job_exception (h, args->id, CREATE_DEP_NAME, "dws.create RPC returned failure");
     }
 
 done:
+    json_decref (jobspec);
     flux_future_destroy (f);
 }
 
@@ -111,15 +117,17 @@ static int depend_cb (flux_plugin_t *p,
     char *dw = NULL;
     flux_t *h = flux_jobtap_get_flux (p);
     json_t *resources;
+    json_t *jobspec;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:I s:{s:{s:{s?s}}} s:{s:o}}",
+                                "{s:I s:{s:{s:{s?s}}} s:o s:{s:o}}",
                                 "id", &id,
                                 "jobspec",
                                 "attributes",
                                 "system",
                                 "dw", &dw,
+                                "jobspec", &jobspec,
                                 "jobspec", "resources", &resources) < 0)
         return -1;
     if (dw) {
@@ -143,10 +151,11 @@ static int depend_cb (flux_plugin_t *p,
         create_args->p = p;
         create_args->id = id;
         if (flux_future_aux_set (create_fut, "flux::create_args", create_args, free) < 0
-            || flux_future_then (create_fut, -1, create_cb, NULL) < 0) {
+            || flux_future_then (create_fut, -1, create_cb, jobspec) < 0) {
             flux_future_destroy (create_fut);
             return -1;
         }
+        json_incref (jobspec); // create_fut will use and destroy `jobspec`.
     }
     return 0;
 }
@@ -183,7 +192,6 @@ static void setup_rpc_cb (flux_future_t *f, void *arg)
             dws_prolog_finish (h, args->p, args->id, 0, "failed to send dws_environment event");
         }
         else {
-            flux_log_error (h, "sent dws_environment event");
             dws_prolog_finish (h, args->p, args->id, 1, "success!");
         }
     }
@@ -253,8 +261,10 @@ static int run_cb (flux_plugin_t *p,
                                 "jobspec",
                                 "attributes",
                                 "system",
-                                "dw", &dw) < 0)
+                                "dw", &dw) < 0){
+        flux_log_error (h, "Failed to unpack args");
         return -1;
+    }
     if (dw) {
         if (flux_jobtap_prolog_start (p, SETUP_PROLOG_NAME) < 0) {
             flux_log_error (h, "Failed to start jobtap prolog for dws");
@@ -280,9 +290,43 @@ static int run_cb (flux_plugin_t *p,
     return 0;
 }
 
+static int cleanup_cb (flux_plugin_t *p,
+                      const char *topic,
+                      flux_plugin_arg_t *args,
+                      void *arg)
+{
+    flux_jobid_t id;
+    char *dw = NULL;
+    flux_future_t *post_run_fut;
+    flux_t *h = flux_jobtap_get_flux (p);
+
+    if (flux_plugin_arg_unpack (args,
+                                FLUX_PLUGIN_ARG_IN,
+                                "{s:I s:{s:{s:{s?s}}}}",
+                                "id", &id,
+                                "jobspec",
+                                "attributes",
+                                "system",
+                                "dw", &dw) < 0){
+        flux_log_error (h, "Failed to unpack args");
+        return -1;
+    }
+    if (dw) {
+        if (!(post_run_fut = flux_rpc_pack (
+            h, "dws.post_run", FLUX_NODEID_ANY, 0, "{s:i}", "jobid", id
+        ))) {
+            flux_log_error (h, "Failed to send dws.post_run RPC");
+            return -1;
+        }
+        flux_future_destroy (post_run_fut);
+    }
+    return 0;
+}
+
 static const struct flux_plugin_handler tab[] = {
     { "job.state.depend", depend_cb, NULL },
     { "job.state.run", run_cb, NULL },
+    { "job.state.cleanup", cleanup_cb, NULL },
     { 0 },
 };
 
