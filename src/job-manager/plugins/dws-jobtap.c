@@ -52,17 +52,20 @@ static int raise_job_exception(flux_t *h, flux_jobid_t id, const char *exception
     return 0;
 }
 
-static int dws_prolog_finish (flux_t *h, flux_plugin_t *p, flux_jobid_t id, int success, const char *errstr){
-    if (flux_jobtap_prolog_finish (p, id, SETUP_PROLOG_NAME, !success) < 0) {
+static int dws_prolog_finish (flux_t *h, flux_plugin_t *p, flux_jobid_t id, int success, const char *errstr, int *prolog_active){
+    if (*prolog_active){
+        if (flux_jobtap_prolog_finish (p, id, SETUP_PROLOG_NAME, !success) < 0) {
             flux_log_error (h,
                             "Failed to finish prolog %s for job %" PRIu64,
                             SETUP_PROLOG_NAME,
                             id);
             return -1;
         }
-    if (!success) {
-        flux_log_error (h, "Failed to setup DWS workflow object for job %" PRIu64, id);
-        return raise_job_exception (h, id, SETUP_PROLOG_NAME, errstr);
+        *prolog_active = 0;
+        if (!success) {
+            flux_log_error (h, "Failed to setup DWS workflow object for job %" PRIu64, id);
+            return raise_job_exception (h, id, SETUP_PROLOG_NAME, errstr);
+        }
     }
     return 0;
 }
@@ -118,6 +121,7 @@ static int depend_cb (flux_plugin_t *p,
     flux_t *h = flux_jobtap_get_flux (p);
     json_t *resources;
     json_t *jobspec;
+    int *prolog_active;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -135,9 +139,20 @@ static int depend_cb (flux_plugin_t *p,
             flux_log_error (h, "Failed to add jobtap dependency for dws");
             return -1;
         }
-
+        // subscribe to exception events
+        if (flux_jobtap_job_subscribe (p, FLUX_JOBTAP_CURRENT_JOB) < 0
+            || !(prolog_active = malloc(sizeof (int)))
+            || flux_jobtap_job_aux_set (p,
+                                     FLUX_JOBTAP_CURRENT_JOB,
+                                     "dws_job_status",
+                                     prolog_active,
+                                     free) < 0){
+            flux_log_error (h, "dws-jobtap: error initializing exception-monitoring");
+            return -1;
+        }
+        *prolog_active = 0;
         flux_future_t *create_fut = flux_rpc_pack (
-            h, "dws.create", FLUX_NODEID_ANY, 0, "{s:s, s:i, s:O}", "dw_string", dw, "jobid", id, "resources", resources
+            h, "dws.create", FLUX_NODEID_ANY, 0, "{s:s, s:I, s:O}", "dw_string", dw, "jobid", id, "resources", resources
         );
         if (create_fut == NULL) {
             flux_log_error (h, "Failed to send dws.create RPC");
@@ -168,8 +183,9 @@ static void setup_rpc_cb (flux_future_t *f, void *arg)
     //char *errstr = NULL;
     flux_t *h = flux_future_get_flux(f);
     struct create_arg_t *args = flux_future_aux_get (f, "flux::setup_args");
+    int *prolog_active = flux_future_aux_get(f, "flux::prolog_active");
 
-    if (args == NULL) {
+    if (args == NULL || prolog_active == NULL) {
         flux_log_error (h, "create args missing in future aux");
         goto done;
     }
@@ -178,7 +194,7 @@ static void setup_rpc_cb (flux_future_t *f, void *arg)
                              "{s:b, s?o}",
                              "success", &success, "variables", &env) < 0)
     {
-        dws_prolog_finish (h, args->p, args->id, 0, "Failed to unpack dws.setup RPC");
+        dws_prolog_finish (h, args->p, args->id, 0, "Failed to unpack dws.setup RPC", prolog_active);
         goto done;
     }
     // error string below will only be printed if ``!(success && env)``
@@ -188,15 +204,17 @@ static void setup_rpc_cb (flux_future_t *f, void *arg)
                                     "dws_environment",
                                     "{s:O}",
                                     "variables",
-                                    env) < 0){
-            dws_prolog_finish (h, args->p, args->id, 0, "failed to send dws_environment event");
+                                    env) < 0
+            || flux_jobtap_job_aux_set (args->p, args->id, "flux::dws_run_started", (void *) 1, NULL) < 0){
+            dws_prolog_finish (h, args->p, args->id, 0, "failed to send dws_environment event", prolog_active);
         }
         else {
-            dws_prolog_finish (h, args->p, args->id, 1, "success!");
+            dws_prolog_finish (h, args->p, args->id, 1, "success!", prolog_active);
+
         }
     }
     else {
-        dws_prolog_finish (h, args->p, args->id, success, "dws.setup RPC returned failure");
+        dws_prolog_finish (h, args->p, args->id, 0, "dws.setup RPC returned failure", prolog_active);
     }
 
 done:
@@ -211,31 +229,33 @@ static void fetch_R_callback (flux_future_t *f, void *arg)
     flux_t *h = flux_future_get_flux(f);
     struct create_arg_t *args = flux_future_aux_get (f, "flux::fetch_R");
     struct create_arg_t *create_args;
+    int *prolog_active = flux_future_aux_get(f, "flux::prolog_active");
     flux_future_t *setup_rpc_fut;
 
-    if (args == NULL){
-        flux_log_error (h, "fetch_R aux missing");
+    if (args == NULL || prolog_active == NULL){
+        flux_log_error (h, "fetch_R_callback: auxes missing");
         goto done;
     }
 
     if (flux_kvs_lookup_get_unpack (f, "o", &R) < 0){
-        dws_prolog_finish (h, args->p, args->id, 0, "Failed to unpack R");
+        dws_prolog_finish (h, args->p, args->id, 0, "Failed to unpack R", prolog_active);
         goto done;
     }
 
     create_args = calloc (sizeof (struct create_arg_t), 1);
     if (create_args == NULL) {
-        dws_prolog_finish (h, args->p, args->id, 0, "Failed to create aux struct");
+        dws_prolog_finish (h, args->p, args->id, 0, "Failed to create aux struct", prolog_active);
         goto done;
     }
     create_args->p = args->p;
     create_args->id = args->id;
     if (!(setup_rpc_fut = flux_rpc_pack (
-        h, "dws.setup", FLUX_NODEID_ANY, 0, "{s:i, s:O}", "jobid", args->id, "R", R))
+        h, "dws.setup", FLUX_NODEID_ANY, 0, "{s:I, s:O}", "jobid", args->id, "R", R))
         || flux_future_aux_set (setup_rpc_fut, "flux::setup_args", create_args, free) < 0
+        || flux_future_aux_set (setup_rpc_fut, "flux::prolog_active", prolog_active, NULL) < 0
         || flux_future_then (setup_rpc_fut, -1, setup_rpc_cb, NULL) < 0) {
         flux_future_destroy (setup_rpc_fut);
-        dws_prolog_finish (h, args->p, args->id, 0, "Failed to send dws.setup RPC");
+        dws_prolog_finish (h, args->p, args->id, 0, "Failed to send dws.setup RPC", prolog_active);
     }
 
 done:
@@ -253,6 +273,7 @@ static int run_cb (flux_plugin_t *p,
     char buf[1024];
     flux_t *h = flux_jobtap_get_flux (p);
     flux_future_t *fetch_R_future = NULL;
+    int *prolog_active;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -266,12 +287,14 @@ static int run_cb (flux_plugin_t *p,
         return -1;
     }
     if (dw) {
-        if (flux_jobtap_prolog_start (p, SETUP_PROLOG_NAME) < 0) {
+        if (flux_jobtap_prolog_start (p, SETUP_PROLOG_NAME) < 0 || !(prolog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_job_status"))) {
             flux_log_error (h, "Failed to start jobtap prolog for dws");
             return -1;
         }
+        *prolog_active = 1;
         struct create_arg_t *create_args = calloc (sizeof (struct create_arg_t), 1);
         if (create_args == NULL) {
+            dws_prolog_finish (h, p, id, 0, "OOM", prolog_active);
             return -1;
         }
         create_args->p = p;
@@ -279,11 +302,13 @@ static int run_cb (flux_plugin_t *p,
         if (flux_job_kvs_key (buf, sizeof (buf), id, "R") < 0
             || !(fetch_R_future = flux_kvs_lookup (h, NULL, 0, buf))
             || flux_future_aux_set (fetch_R_future, "flux::fetch_R", create_args, free) < 0
+            || flux_future_aux_set (fetch_R_future, "flux::prolog_active", prolog_active, NULL) < 0
             || flux_future_then (fetch_R_future, -1., fetch_R_callback, NULL) < 0) {
             flux_future_destroy (fetch_R_future);
             flux_log_error (h,
                             "dws-jobtap: "
                             "Error creating future to send R to dws.py");
+            dws_prolog_finish (h, p, id, 0, "", prolog_active);
             return -1;
         }
     }
@@ -299,6 +324,7 @@ static int cleanup_cb (flux_plugin_t *p,
     char *dw = NULL;
     flux_future_t *post_run_fut;
     flux_t *h = flux_jobtap_get_flux (p);
+    int dws_run_started = 0;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -312,8 +338,11 @@ static int cleanup_cb (flux_plugin_t *p,
         return -1;
     }
     if (dw) {
+        if (flux_jobtap_job_aux_get(p, FLUX_JOBTAP_CURRENT_JOB, "flux::dws_run_started")){
+            dws_run_started = 1;
+        }
         if (!(post_run_fut = flux_rpc_pack (
-            h, "dws.post_run", FLUX_NODEID_ANY, 0, "{s:i}", "jobid", id
+            h, "dws.post_run", FLUX_NODEID_ANY, 0, "{s:I, s:b}", "jobid", id, "run_started", dws_run_started
         ))) {
             flux_log_error (h, "Failed to send dws.post_run RPC");
             return -1;
@@ -323,10 +352,40 @@ static int cleanup_cb (flux_plugin_t *p,
     return 0;
 }
 
+static int exception_cb (flux_plugin_t *p,
+                         const char *topic,
+                         flux_plugin_arg_t *args,
+                         void *arg)
+{
+    flux_jobid_t id;
+    flux_t *h = flux_jobtap_get_flux (p);
+    int *prolog_active;
+
+    if (flux_plugin_arg_unpack (args,
+                                FLUX_PLUGIN_ARG_IN,
+                                "{s:I}",
+                                "id", &id) < 0){
+        flux_log_error (h, "Failed to unpack args");
+        return -1;
+    }
+    if ((prolog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_job_status")) && (*prolog_active)){
+        if (flux_jobtap_prolog_finish (p, id, SETUP_PROLOG_NAME, -1) < 0) {
+            flux_log_error (h,
+                            "Failed to finish prolog %s for job %" PRIu64 " after exception",
+                            SETUP_PROLOG_NAME,
+                            id);
+            return -1;
+        }
+        *prolog_active = 0;
+    }
+    return 0;
+}
+
 static const struct flux_plugin_handler tab[] = {
     { "job.state.depend", depend_cb, NULL },
     { "job.state.run", run_cb, NULL },
     { "job.state.cleanup", cleanup_cb, NULL },
+    { "job.event.exception", exception_cb, NULL },
     { 0 },
 };
 
