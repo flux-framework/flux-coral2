@@ -28,6 +28,7 @@ class WorkflowInfo:
         self.setup_rpc = None
         self.post_run_rpc = None
         self.environment = None
+        self.toredown = False
 
 
 def create_cb(fh, t, msg, arg):
@@ -127,12 +128,24 @@ def setup_cb(fh, t, msg, k8s_api):
 def post_run_cb(fh, t, msg, k8s_api):
     try:
         jobid = msg.payload["jobid"]
+        run_started = msg.payload["run_started"]
     except KeyError as e:
         fh.respond(msg, {"success": False, "errstr": str(e)})
         fh.log(syslog.LOG_ERR, f"Exception when extracting job data from payload: {e}")
     else:
+        if jobid not in _WORKFLOWINFO_CACHE:
+            # the job is done but we don't recognize it
+            fh.log(syslog.LOG_ERR, f"Unrecognized job {jobid} in dws.post_run")
+            fh.respond(msg, {"success": False, "errstr": ""})
+            return
         _WORKFLOWINFO_CACHE[jobid].post_run_rpc = msg
-        move_workflow_desiredstate(fh, msg, jobid, "post_run", k8s_api)
+        if not run_started:
+            # the job hit an exception before beginning to run; transition
+            # the workflow immediately to 'teardown'
+            _WORKFLOWINFO_CACHE[jobid].toredown = True
+            move_workflow_desiredstate(fh, msg, jobid, "teardown", k8s_api)
+        else:
+            move_workflow_desiredstate(fh, msg, jobid, "post_run", k8s_api)
 
 
 def move_workflow_desiredstate(fh, msg, jobid, desiredstate, k8s_api):
@@ -199,7 +212,20 @@ def workflow_state_change_cb(event, fh, k8s_api):
     except KeyError:
         fh.log(syslog.LOG_DEBUG, f"Unrecognized workflow {jobid}, ignoring...")
         return
-    if state_complete(workflow, "proposal"):
+    if state_complete(workflow, "teardown"):
+        # delete workflow object and tell DWS jobtap plugin that the job is done
+        k8s_api.delete_namespaced_custom_object(
+            *WORKFLOW_CRD, _WORKFLOW_NAME.format(jobid=jobid)
+        )
+        fh.respond(winfo.post_run_rpc, {"success": True})
+        del _WORKFLOWINFO_CACHE[jobid]
+    elif winfo.toredown:
+        # in the event of an exception, the workflow will skip to 'teardown'.
+        # Without this early 'return', this function may try to
+        # move a 'teardown' workflow to an earlier state because the
+        # 'teardown' update is still in the k8s update queue.
+        return
+    elif state_complete(workflow, "proposal"):
         try:
             resources = winfo.create_rpc.payload["resources"]
             apply_breakdowns(k8s_api, workflow, resources)
