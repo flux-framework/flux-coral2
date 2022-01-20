@@ -3,14 +3,14 @@ from flux_k8s.crd import DIRECTIVEBREAKDOWN_CRD
 
 def apply_breakdowns(k8s_api, workflow, resources):
     """Apply all of the directive breakdown information to a jobspec's `resources`."""
-    for breakdown in fetch_breakdowns(k8s_api, workflow):
+    for breakdown in _fetch_breakdowns(k8s_api, workflow):
         if breakdown["kind"] != "DirectiveBreakdown":
             raise ValueError(f"unsupported breakdown kind {breakdown['kind']!r}")
         for allocation in breakdown["status"]["allocationSet"]:
-            apply_allocation(allocation, resources)
+            _apply_allocation(allocation, resources)
 
 
-def fetch_breakdowns(k8s_api, workflow):
+def _fetch_breakdowns(k8s_api, workflow):
     """Fetch all of the directive breakdowns associated with a workflow."""
     if not workflow["status"]["directiveBreakdowns"]:
         raise ValueError(f"workflow {workflow} has no directive breakdowns")
@@ -24,57 +24,41 @@ def fetch_breakdowns(k8s_api, workflow):
         )
 
 
-def apply_allocation(allocation, resources):
+def _apply_allocation(allocation, resources):
     """Parse a single 'allocationSet' and apply to it a jobspec's ``resources``."""
     if allocation["label"] == "xfs":
-        apply_xfs(allocation, resources)
+        _apply_xfs(allocation["minimumCapacity"], resources)
     elif allocation["label"] in ("ost", "mgt", "mdt"):
-        apply_lustre(allocation, resources)
+        _apply_lustre(allocation, resources)
     else:
         raise ValueError(f"Unknown label {allocation['label']!r}")
 
 
-def apply_xfs(allocation, resources):
-    """Apply XFS (node-local storage) to a jobspec's ``resources``."""
-    with_storage = {
-        "type": "storage",
-        "count": allocation["minimumCapacity"],
-        "unit": "B",
+def _get_nnf_resource(capacity):
+    return {
+        "type": "nnf",
+        "count": 1,
+        "with": [{"type": "ssd", "count": max(1, capacity // (1024 ** 3)), "exclusive": True}],
     }
-    for i, entry in enumerate(resources):
-        if entry["type"] == "node":
-            node = entry
-            break
-        if entry["type"] == "slot":
-            node = {"type": "node", "count": {"min": 1}, "with": [entry]}
-            resources[i] = node
-            break
-    else:
-        raise ValueError(
-            f"Neither 'node' nor 'slot' found within jobspec resources {resources}"
-        )
-    for entry in node["with"]:
-        # if there is already a `rabbit-xfs[storage]` entry, add to its `count` field
-        if entry["type"] == "rabbit-xfs":
-            aggregate_resources(entry["with"], allocation["minimumCapacity"])
-            return
-    node["with"].append(
-        {
-            "type": "rabbit-xfs",
-            "count": 1,
-            "with": [
-                {"type": "storage", "count": allocation["minimumCapacity"], "unit": "B"}
-            ],
-        }
-    )
 
 
-def apply_lustre(allocation, resources):
+def _apply_xfs(capacity, resources):
+    """Apply XFS (node-local storage) to a jobspec's ``resources``."""
+    if len(resources) > 1 or resources[0]["type"] != "node":
+        raise ValueError("jobspec resources must have a single top-level 'node' entry")
+    node = resources[0]
+    nodecount = node["count"]
+    resources.append(_get_nnf_resource(capacity))
+    # node["count"] = 1
+    # resources[0] = {"type": "slot", "label": "foobar", "count": nodecount, "with": [node, _get_nnf_resource(capacity)]}
+
+
+def _apply_lustre(allocation, resources):
     """Apply Lustre OST/MGT/MDT to a jobspec's ``resources`` dictionary."""
     # if there is already a `rabbit-label[storage]` entry, add to its `count` field
     for entry in resources:
         if entry["type"] == f"rabbit-{allocation['label']}":
-            aggregate_resources(entry["with"], allocation["minimumCapacity"])
+            _aggregate_resources(entry["with"], allocation["minimumCapacity"])
             return
     resources.append(
         {
@@ -87,7 +71,7 @@ def apply_lustre(allocation, resources):
     )
 
 
-def aggregate_resources(with_resources, additional_capacity):
+def _aggregate_resources(with_resources, additional_capacity):
     for resource in with_resources:
         if resource["type"] == "storage":
             if resource.get("unit") == "B":

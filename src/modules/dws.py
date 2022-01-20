@@ -237,6 +237,10 @@ def workflow_state_change_cb(event, fh, k8s_api):
             fh.respond(winfo.create_rpc, {"success": False, "errstr": str(e)})
             del _WORKFLOWINFO_CACHE[jobid]
         else:
+            import json
+            with open("resources.json", "w") as fd:
+                json.dump(resources, fd)
+            # print(f"RESOURCES:\n{json.dumps(resources)}\n")
             fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
         winfo.create_rpc = None
     elif state_complete(workflow, "setup"):  # TODO: put in servers resources

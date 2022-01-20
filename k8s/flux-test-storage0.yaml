@@ -2,37 +2,37 @@ apiVersion: dws.cray.hpe.com/v1alpha1
 data:
   access:
     computes:
-    - name: Compute 0
+    - name: Compute0
       status: Ready
-    - name: Compute 1
+    - name: Compute1
       status: Ready
-    - name: Compute 2
+    - name: Compute2
       status: Ready
-    - name: Compute 3
+    - name: Compute3
       status: Ready
-    - name: Compute 4
+    - name: Compute4
       status: Ready
-    - name: Compute 5
+    - name: Compute5
       status: Ready
-    - name: Compute 6
+    - name: Compute6
       status: Ready
-    - name: Compute 7
+    - name: Compute7
       status: Ready
-    - name: Compute 8
+    - name: Compute8
       status: Ready
-    - name: Compute 9
+    - name: Compute9
       status: Ready
-    - name: Compute 10
+    - name: Compute10
       status: Ready
-    - name: Compute 11
+    - name: Compute11
       status: Ready
-    - name: Compute 12
+    - name: Compute12
       status: Ready
-    - name: Compute 13
+    - name: Compute13
       status: Ready
-    - name: Compute 14
+    - name: Compute14
       status: Ready
-    - name: Compute 15
+    - name: Compute15
       status: Ready
     protocol: PCIe
     servers:
