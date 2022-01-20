@@ -1,0 +1,39 @@
+queue_rules:
+  - name: default
+    conditions:
+      - base=master
+      - status-success="validate commits"
+      - status-success="centos8"
+      - status-success="focal"
+      - label="merge-when-passing"
+      - label!="work-in-progress"
+      - "approved-reviews-by=@flux-framework/core"
+      - "#approved-reviews-by>0"
+      - "#changes-requested-reviews-by=0"
+      - -title~=^\[*[Ww][Ii][Pp]
+
+pull_request_rules:
+  - name: rebase and merge when passing all checks
+    conditions:
+      - base=master
+      - label="merge-when-passing"
+      - label!="work-in-progress"
+      - -title~=^\[*[Ww][Ii][Pp]
+      - "approved-reviews-by=@flux-framework/core"
+      - "#approved-reviews-by>0"
+      - "#changes-requested-reviews-by=0"
+    actions:
+      queue:
+        name: default
+        method: merge
+        update_method: rebase
+  - name: remove outdated approved reviews
+    conditions:
+      - author!=@core
+    actions:
+      dismiss_reviews:
+        approved: true
+        changes_requested: false
+        message: |
+          Approving reviews have been dismissed because this pull request
+          was updated.
