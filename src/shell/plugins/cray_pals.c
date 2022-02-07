@@ -693,6 +693,13 @@ static int read_future (flux_future_t *fut, char *buf, size_t bufsize)
             json_decref (o);
             return -1;
         }
+        if (!strcmp (name, "start")) {
+            /*  'start' event with no cray_port_distribution event.
+             *  assume cray-pals jobtap plugin is not loaded.
+             */
+            shell_debug ("jobtap plugin not loaded: disabling operation");
+            return 0;
+        }
         if (!strcmp (name, "cray_port_distribution")) {
             if (!(array = json_object_get (context, "ports"))) {
                 shell_log_error ("No port context in cray_port_distribution");
@@ -722,13 +729,15 @@ static int read_future (flux_future_t *fut, char *buf, size_t bufsize)
                 }
             }
             json_decref (o);
-            return 0;
+            /*  Return 1 on success
+             */
+            return 1;
         } else {
             flux_future_reset (fut);
             json_decref (o);
         }
     }
-    shell_log_error ("No cray_port_distribution event posted");
+    shell_log_error ("Timed out waiting for start event");
     return -1;
 }
 
@@ -737,22 +746,24 @@ static int get_pals_ports (flux_shell_t *shell, json_int_t jobid)
     flux_t *h;
     char buf[256];
     flux_future_t *fut = NULL;
+    int rc;
 
     if (!(h = flux_shell_get_flux (shell))
         || !(fut = flux_job_event_watch (h, (flux_jobid_t)jobid, "eventlog", 0))) {
         shell_log_error ("Error creating event_watch future");
         return -1;
     }
-    if (read_future (fut, buf, sizeof (buf)) < 0) {
+    if ((rc = read_future (fut, buf, sizeof (buf))) < 0)
         shell_log_error ("Error reading ports from eventlog");
-        flux_future_destroy (fut);
-        return -1;
-    }
     flux_future_destroy (fut);
-    if (flux_shell_setenvf (shell, 1, "PMI_CONTROL_PORT", "%s", buf) < 0) {
+
+    /* read_future() returns 1 if port distribution event was found:
+     */
+    if (rc == 1
+        && flux_shell_setenvf (shell, 1, "PMI_CONTROL_PORT", "%s", buf) < 0) {
         return -1;
     }
-    return 0;
+    return rc;
 }
 
 /*
