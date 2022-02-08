@@ -131,6 +131,12 @@ static void count_job_shells (flux_future_t *fut, void *arg)
     }
 
 cleanup:
+    if (flux_jobtap_prolog_finish (triple->plugin,
+                                   triple->jobid,
+                                   "cray-pals-port-distributor",
+                                   0) < 0)
+        flux_log_error (h,
+                        "cray_pals_port_distributor: prolog_finish");
     if (hlist)
         hostlist_destroy (hlist);
     flux_future_destroy (fut);
@@ -168,11 +174,17 @@ static int run_cb (flux_plugin_t *p,
         flux_log_error (h,
                         "cray_pals_port_distributor: "
                         "Error creating shell-counting future");
-        free (triple);
-        return -1;
+        goto error;
+    }
+    if (flux_jobtap_prolog_start (p, "cray-pals-port-distributor") < 0) {
+        flux_log_error (h, "cray_pals_port_distributor: prolog_start");
+        goto error;
     }
     // 'triple' freed in callback
     return 0;
+error:
+    free (triple);
+    return -1;
 }
 
 /* On a job's cleanup event, get the ports and return them

@@ -70,4 +70,12 @@ test_expect_success 'shell: pals shell plugin creates apinfo file' '
 	&& test ! -z \$PALS_APINFO && test -f \$PALS_APINFO"
 '
 
+test_expect_success 'shell: pals shell plugin ignores missing jobtap plugin' '
+	flux jobtap remove cray_pals_port_distributor.so &&
+	flux mini run -o verbose -o userrc=$(pwd)/$USERRC_NAME \
+		-N2 -n2 hostname > no-jobtap.log 2>&1 &&
+	test_debug "cat no-jobtap.log" &&
+	grep "jobtap plugin not loaded" no-jobtap.log
+'
+
 test_done
