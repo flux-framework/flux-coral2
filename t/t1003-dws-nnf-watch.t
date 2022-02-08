@@ -1,6 +1,6 @@
 #!/bin/sh
 
-test_description='Test Watching NNFs in K8s'
+test_description='Test Watching Storages in K8s'
 
 . $(dirname $0)/sharness.sh
 
@@ -41,20 +41,20 @@ test_expect_success 'wait for service to register and send test RPC' '
 
 test_expect_success 'updating the NNF status is caught by the watch' '
 	flux dmesg -C &&
-	kubectl patch nearnodeflash x01c1t7 \
+	kubectl patch storages flux-test-storage0 \
 		--type merge --patch "$(cat ${DATA_DIR}/down.yaml)" &&
 	${RPC} "dws.watch_test" &&
-	check_dmesg_for_pattern "x01c1t7 status changed to unavailable" &&
-	check_dmesg_for_pattern "x01c1t7 percentDegraded changed to 10"
+	check_dmesg_for_pattern "flux-test-storage0 status changed to NotReady" &&
+	check_dmesg_for_pattern "flux-test-storage0 capacity changed to 100000"
 '
 
 test_expect_success 'revert the changes to the NNF' '
 	flux dmesg -C &&
-	kubectl patch nearnodeflash x01c1t7 \
+	kubectl patch storages flux-test-storage0 \
 		--type merge --patch "$(cat ${DATA_DIR}/up.yaml)" &&
 	${RPC} "dws.watch_test" &&
-	check_dmesg_for_pattern "x01c1t7 status changed to available" &&
-	check_dmesg_for_pattern "x01c1t7 percentDegraded changed to 0"
+	check_dmesg_for_pattern "flux-test-storage0 status changed to Ready" &&
+	check_dmesg_for_pattern "flux-test-storage0 capacity changed to 50000"
 '
 
 test_done

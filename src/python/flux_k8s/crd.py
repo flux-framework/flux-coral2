@@ -10,8 +10,29 @@ WORKFLOW_CRD = CRD(
 )
 
 RABBIT_CRD = CRD(
-    group = "rabbit.hpe.com",
-    version = "v1alpha",
+    group = "dws.cray.hpe.com",
+    version = "v1alpha1",
     namespace = "default",
-    plural = "nearnodeflashes",
+    plural = "storages",
+)
+
+DIRECTIVEBREAKDOWN_CRD = CRD(
+    group = "dws.cray.hpe.com",
+    version = "v1alpha1",
+    namespace = "default",
+    plural = "directivebreakdowns",
+)
+
+COMPUTE_CRD = CRD(
+    group = "dws.cray.hpe.com",
+    version = "v1alpha1",
+    namespace = "default",
+    plural = "computes",
+)
+
+SERVER_CRD = CRD(
+    group = "dws.cray.hpe.com",
+    version = "v1alpha1",
+    namespace = "default",
+    plural = "servers",
 )

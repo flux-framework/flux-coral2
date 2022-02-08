@@ -5,7 +5,7 @@ export KUBECONFIG=${REAL_HOME}/.kube/config
 
 #  Set HPE_VM or NO_HPE_VM prereq
 if type "kubectl" > /dev/null \
-   && kubectl get crd 2> /dev/null | grep -q workflows; then
+   && kubectl get crd 2> /dev/null | grep -q dwdirectiverules; then
     test_set_prereq HPE_VM
 else
     test_set_prereq NO_HPE_VM
