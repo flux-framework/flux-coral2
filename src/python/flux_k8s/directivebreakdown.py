@@ -3,11 +3,14 @@ from flux_k8s.crd import DIRECTIVEBREAKDOWN_CRD
 
 def apply_breakdowns(k8s_api, workflow, resources):
     """Apply all of the directive breakdown information to a jobspec's `resources`."""
+    ret = {}
     for breakdown in _fetch_breakdowns(k8s_api, workflow):
         if breakdown["kind"] != "DirectiveBreakdown":
             raise ValueError(f"unsupported breakdown kind {breakdown['kind']!r}")
         for allocation in breakdown["status"]["allocationSet"]:
             _apply_allocation(allocation, resources)
+        ret[breakdown["metadata"]["name"]] = breakdown["status"]["servers"]
+    return ret
 
 
 def _fetch_breakdowns(k8s_api, workflow):
@@ -26,6 +29,17 @@ def _fetch_breakdowns(k8s_api, workflow):
 
 def _apply_allocation(allocation, resources):
     """Parse a single 'allocationSet' and apply to it a jobspec's ``resources``."""
+    expected_alloc_strats = {
+        "xfs": "AllocatePerCompute",
+        "ost": "AllocateAcrossComputes",
+        "mdt": "AllocateSingleServer",
+        "mgt": "AllocateSingleServer",
+    }
+    if allocation["allocationStrategy"] != expected_alloc_strats[allocation["label"]]:
+        raise ValueError(
+            f"{allocation['label']} allocationStrategy "
+            f"must be {expected_alloc_strats[allocation['label']]!r}"
+        )
     if allocation["label"] == "xfs":
         _apply_xfs(allocation["minimumCapacity"], resources)
     elif allocation["label"] in ("ost", "mgt", "mdt"):
@@ -38,7 +52,9 @@ def _get_nnf_resource(capacity):
     return {
         "type": "nnf",
         "count": 1,
-        "with": [{"type": "ssd", "count": max(1, capacity // (1024 ** 3)), "exclusive": True}],
+        "with": [
+            {"type": "ssd", "count": max(1, capacity // (1024 ** 3)), "exclusive": True}
+        ],
     }
 
 

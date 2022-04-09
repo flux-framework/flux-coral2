@@ -103,7 +103,7 @@ class Coral2Graph(FluxionResourceGraphV1):
 
     def _encode_nnf(self, parent, global_nnf, nnf):
         res_type = "nnf"
-        res_name = f"{res_type}{self._rackids}"
+        res_name = nnf["metadata"]["name"]
         vtx = ElCapResourcePoolV1(
             self._uniqId,
             res_type,
@@ -122,9 +122,9 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._add_and_tick_uniq_id(vtx, edg)
         edg2 = ElCapResourceRelationshipV1(global_nnf.get_id(), vtx.get_id())
         self.add_edge(edg2)
-        self._encode_ssds(vtx, nnf)
+        self._encode_ssds(vtx, nnf["data"])
         children = self._rv1NoSched["execution"]["R_lite"][0]["children"]
-        for node in nnf["access"]["computes"]:
+        for node in nnf["data"]["access"]["computes"]:
             self._encode_rank(parent, next(self._rankids), children, node["name"])
 
     def _encode_rack(self, parent, global_nnf, nnf):
@@ -236,12 +236,11 @@ def main():
 
     input_r = json.load(sys.stdin)
     nnfs = [
-        x["data"]
-        for x in get_storage()["items"]
+        x for x in get_storage()["items"]
         if re.search(args.test_pattern, x["metadata"]["name"])
     ]
     dws_computes = set(
-        compute["name"] for nnf in nnfs for compute in nnf["access"]["computes"]
+        compute["name"] for nnf in nnfs for compute in nnf["data"]["access"]["computes"]
     )
     for host in Hostlist(input_r["execution"]["nodelist"]):
         try:

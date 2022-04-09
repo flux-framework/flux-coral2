@@ -3,6 +3,7 @@
 import os
 import syslog
 import json
+import re
 import argparse
 
 import kubernetes as k8s
@@ -18,52 +19,51 @@ from flux_k8s.watch import Watchers, Watch
 from flux_k8s.directivebreakdown import apply_breakdowns
 
 
-_WORKFLOW_NAME = "dws-workflow-test-{jobid}"
 _WORKFLOWINFO_CACHE = {}
+_XFS_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
+_LUSTRE_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
 
 
 class WorkflowInfo:
-    def __init__(self, create_rpc):
+    def __init__(self, name, create_rpc):
+        self.name = name
         self.create_rpc = create_rpc
         self.setup_rpc = None
         self.post_run_rpc = None
         self.environment = None
         self.toredown = False
+        self.computes = None
+        self.servers = None
 
 
 def create_cb(fh, t, msg, arg):
     api_instance = arg
-
     try:
         dw_string = msg.payload["dw_string"]
-        if not dw_string.startswith("#DW "):
-            dw_string = "#DW " + dw_string
         jobid = msg.payload["jobid"]
-        spec = {
-            "desiredState": "proposal",
-            "dwDirectives": [dw_string],
-            "jobID": jobid,
-            "userID": 1001,
-            "wlmID": "5f239bd8-30db-450b-8c2c-a1a7c8631a1a",
-        }
-        body = {
-            "kind": "Workflow",
-            "apiVersion": "/".join([WORKFLOW_CRD.group, WORKFLOW_CRD.version]),
-            "spec": spec,
-            "metadata": {
-                "name": _WORKFLOW_NAME.format(jobid=jobid),
-                "namespace": WORKFLOW_CRD.namespace,
-            },
-        }
     except Exception as e:
         fh.log(
-            syslog.LOG_ERR,
-            f"Exception when extracting job data from payload: {e}",
+            syslog.LOG_ERR, f"Exception when extracting job data from payload: {e}",
         )
         payload = {"success": False, "errstr": str(e)}
         fh.respond(msg, payload)
         return
-
+    if not dw_string.startswith("#DW "):
+        dw_string = "#DW " + dw_string
+    workflow_name = f"dws-workflow-test-{jobid}"
+    spec = {
+        "desiredState": "proposal",
+        "dwDirectives": [dw_string],
+        "jobID": jobid,
+        "userID": 1001,
+        "wlmID": str(jobid),
+    }
+    body = {
+        "kind": "Workflow",
+        "apiVersion": "/".join([WORKFLOW_CRD.group, WORKFLOW_CRD.version]),
+        "spec": spec,
+        "metadata": {"name": workflow_name, "namespace": WORKFLOW_CRD.namespace,},
+    }
     try:
         api_response = api_instance.create_namespaced_custom_object(
             *WORKFLOW_CRD, body,
@@ -77,42 +77,64 @@ def create_cb(fh, t, msg, arg):
         payload = {"success": False, "errstr": str(e)}
         fh.respond(msg, payload)
     else:
-        _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(msg)
+        _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg)
+
+
+def aggregate_allocations(sched_vertices):
+    allocations = {}
+    for vtx in sched_vertices:
+        if vtx["metadata"]["type"] == "ssd":
+            nnf = re.search(_XFS_REGEX, vtx["metadata"]["paths"]["containment"]).group(
+                1
+            )
+            allocations[nnf] = (
+                vtx["metadata"]["size"] * (1024 ** 3)
+            ) + allocations.get(nnf, 0)
+    return allocations
 
 
 def setup_cb(fh, t, msg, k8s_api):
     try:
         jobid = msg.payload["jobid"]
-        R_dict = msg.payload["R"]
+        hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
+        sched_vertices = msg.payload["R"]["scheduling"]["graph"]["nodes"]
+        workflow = _WORKFLOWINFO_CACHE[jobid]
     except KeyError as e:
         fh.respond(msg, {"success": False, "errstr": str(e)})
         fh.log(syslog.LOG_ERR, f"Exception when extracting job data from payload: {e}")
         return
-    compute_nodes = [
-        {"name": hostname}
-        for hostname in Hostlist(R_dict["execution"]["nodelist"]).uniq()
-    ]
-    # TODO: update servers custom resource
-    resource_name = _WORKFLOW_NAME.format(jobid=jobid)
+    compute_nodes = [{"name": hostname} for hostname in hlist]
     try:
         k8s_api.patch_namespaced_custom_object(
-            *COMPUTE_CRD, resource_name, {"data": compute_nodes}
+            COMPUTE_CRD.group,
+            COMPUTE_CRD.version,
+            workflow.computes["namespace"],
+            COMPUTE_CRD.plural,
+            workflow.computes["name"],
+            {"data": compute_nodes},
         )
-        k8s_api.patch_namespaced_custom_object(
-            *SERVER_CRD,
-            resource_name + "-0",
-            {
-                "spec": {
-                    "allocationSets": [
-                        {
-                            "allocationSize": 1073741824 // 100,
-                            "label": "xfs",
-                            "storage": [{"allocationCount": 16, "name": "kind-worker"}],
-                        }
-                    ]
-                }
-            },
-        )
+        for breakdown_name, server_info in workflow.servers.items():
+            k8s_api.patch_namespaced_custom_object(
+                SERVER_CRD.group,
+                SERVER_CRD.version,
+                server_info["namespace"],
+                SERVER_CRD.plural,
+                server_info["name"],
+                {
+                    "spec": {
+                        "allocationSets": [
+                            {
+                                "allocationSize": alloc_size,
+                                "label": "xfs",
+                                "storage": [{"allocationCount": 1, "name": nnf_name}],
+                            }
+                            for nnf_name, alloc_size in aggregate_allocations(
+                                sched_vertices
+                            ).items()
+                        ]
+                    }
+                },
+            )
     except ApiException as e:
         fh.log(
             syslog.LOG_ERR,
@@ -149,12 +171,13 @@ def post_run_cb(fh, t, msg, k8s_api):
 
 
 def move_workflow_desiredstate(fh, msg, jobid, desiredstate, k8s_api):
-    workflow_name = _WORKFLOW_NAME.format(jobid=jobid)
     try:
         k8s_api.patch_namespaced_custom_object(
-            *WORKFLOW_CRD, workflow_name, {"spec": {"desiredState": desiredstate}}
+            *WORKFLOW_CRD,
+            _WORKFLOWINFO_CACHE[jobid].name,
+            {"spec": {"desiredState": desiredstate}},
         )
-    except ApiException as e:
+    except (ApiException, KeyError) as e:
         fh.log(
             syslog.LOG_ERR,
             f"Exception when patching {workflow_name!r} to "
@@ -189,8 +212,7 @@ def rabbit_state_change_cb(event, fh, rabbits):
         # TODO: update status of vertex in resource graph
     if curr_rabbit["data"]["capacity"] != capacity:
         fh.log(
-            syslog.LOG_DEBUG,
-            f"Storage {name} capacity changed to {capacity}",
+            syslog.LOG_DEBUG, f"Storage {name} capacity changed to {capacity}",
         )
         # TODO: update "percentDegraded" property of vertex in resource graph
         # TODO: update capacity of rabbit in resource graph (mark some slices down?)
@@ -214,9 +236,7 @@ def workflow_state_change_cb(event, fh, k8s_api):
         return
     if state_complete(workflow, "teardown"):
         # delete workflow object and tell DWS jobtap plugin that the job is done
-        k8s_api.delete_namespaced_custom_object(
-            *WORKFLOW_CRD, _WORKFLOW_NAME.format(jobid=jobid)
-        )
+        k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
         fh.respond(winfo.post_run_rpc, {"success": True})
         del _WORKFLOWINFO_CACHE[jobid]
     elif winfo.toredown:
@@ -227,8 +247,9 @@ def workflow_state_change_cb(event, fh, k8s_api):
         return
     elif state_complete(workflow, "proposal"):
         try:
+            winfo.computes = workflow["status"]["computes"]
             resources = winfo.create_rpc.payload["resources"]
-            apply_breakdowns(k8s_api, workflow, resources)
+            winfo.servers = apply_breakdowns(k8s_api, workflow, resources)
         except Exception as e:
             fh.log(
                 syslog.LOG_ERR,
@@ -238,6 +259,7 @@ def workflow_state_change_cb(event, fh, k8s_api):
             del _WORKFLOWINFO_CACHE[jobid]
         else:
             import json
+
             with open("resources.json", "w") as fd:
                 json.dump(resources, fd)
             # print(f"RESOURCES:\n{json.dumps(resources)}\n")
@@ -251,7 +273,10 @@ def workflow_state_change_cb(event, fh, k8s_api):
         move_workflow_desiredstate(fh, winfo.setup_rpc, jobid, "pre_run", k8s_api)
     elif state_complete(workflow, "pre_run"):
         # tell DWS jobtap plugin that the job can start
-        fh.respond(winfo.setup_rpc, {"success": True, "variables": workflow["status"].get("env", {})})
+        fh.respond(
+            winfo.setup_rpc,
+            {"success": True, "variables": workflow["status"].get("env", {})},
+        )
         winfo.setup_rpc = None
     elif state_complete(workflow, "post_run"):
         # move workflow to next stage
@@ -261,9 +286,7 @@ def workflow_state_change_cb(event, fh, k8s_api):
         move_workflow_desiredstate(fh, winfo.post_run_rpc, jobid, "teardown", k8s_api)
     elif state_complete(workflow, "teardown"):
         # delete workflow object and tell DWS jobtap plugin that the job is done
-        k8s_api.delete_namespaced_custom_object(
-            *WORKFLOW_CRD, _WORKFLOW_NAME.format(jobid=jobid)
-        )
+        k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
         fh.respond(winfo.post_run_rpc, {"success": True})
         del _WORKFLOWINFO_CACHE[jobid]
 
