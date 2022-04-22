@@ -22,22 +22,23 @@ class Watch:
             "timeout_seconds": 1,
         }
         for event in k8s.watch.Watch().stream(
-            self.api.list_namespaced_custom_object,
-            *self.crd,
-            **kwargs
+            self.api.list_namespaced_custom_object, *self.crd, **kwargs
         ):
             event_version = int(event["object"]["metadata"]["resourceVersion"])
             self.resource_version = max(event_version, self.resource_version)
             self.cb(event, *self.cb_args, **self.cb_kwargs)
 
+
 def watch_cb(reactor, watcher, _r, watchers):
-    #watchers.fh.log(syslog.LOG_ERR, "Watch timer cb fired")
+    # watchers.fh.log(syslog.LOG_ERR, "Watch timer cb fired")
     watchers.watch()
+
 
 def watch_test_cb(fh, t, msg, watchers):
     fh.log(syslog.LOG_DEBUG, "received DWS watch test RPC")
     watchers.watch()
     fh.respond(msg)
+
 
 class Watchers:
     def __init__(self, fh, watch_interval=5):

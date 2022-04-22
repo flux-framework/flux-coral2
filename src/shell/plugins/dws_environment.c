@@ -99,7 +99,7 @@ static int dws_environment_init (flux_plugin_t *p,
                          void *data)
 {
     flux_shell_t *shell = flux_plugin_get_shell (p);
-    char *dw = NULL;
+    json_t *dw = NULL;
     json_int_t jobid;
     flux_t *h;
     flux_future_t *fut;
@@ -109,7 +109,7 @@ static int dws_environment_init (flux_plugin_t *p,
         return -1;
     }
     if (flux_shell_info_unpack (shell,
-                                "{s:I s:{s:{s:{s?s}}}}",
+                                "{s:I s:{s:{s:{s?o}}}}",
                                 "jobid", &jobid,
                                 "jobspec",
                                 "attributes",

@@ -117,7 +117,7 @@ static int depend_cb (flux_plugin_t *p,
                       void *arg)
 {
     flux_jobid_t id;
-    char *dw = NULL;
+    json_t *dw = NULL;
     flux_t *h = flux_jobtap_get_flux (p);
     json_t *resources;
     json_t *jobspec;
@@ -125,7 +125,7 @@ static int depend_cb (flux_plugin_t *p,
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:I s:{s:{s:{s?s}}} s:o s:{s:o}}",
+                                "{s:I s:{s:{s:{s?o}}} s:o s:{s:o}}",
                                 "id", &id,
                                 "jobspec",
                                 "attributes",
@@ -152,7 +152,7 @@ static int depend_cb (flux_plugin_t *p,
         }
         *prolog_active = 0;
         flux_future_t *create_fut = flux_rpc_pack (
-            h, "dws.create", FLUX_NODEID_ANY, 0, "{s:s, s:I, s:O}", "dw_string", dw, "jobid", id, "resources", resources
+            h, "dws.create", FLUX_NODEID_ANY, 0, "{s:O, s:I, s:O}", "dw_directives", dw, "jobid", id, "resources", resources
         );
         if (create_fut == NULL) {
             flux_log_error (h, "Failed to send dws.create RPC");
@@ -269,7 +269,7 @@ static int run_cb (flux_plugin_t *p,
                       void *arg)
 {
     flux_jobid_t id;
-    char *dw = NULL;
+    json_t *dw = NULL;
     char buf[1024];
     flux_t *h = flux_jobtap_get_flux (p);
     flux_future_t *fetch_R_future = NULL;
@@ -277,7 +277,7 @@ static int run_cb (flux_plugin_t *p,
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:I s:{s:{s:{s?s}}}}",
+                                "{s:I s:{s:{s:{s?o}}}}",
                                 "id", &id,
                                 "jobspec",
                                 "attributes",
@@ -321,14 +321,14 @@ static int cleanup_cb (flux_plugin_t *p,
                       void *arg)
 {
     flux_jobid_t id;
-    char *dw = NULL;
+    json_t *dw = NULL;
     flux_future_t *post_run_fut;
     flux_t *h = flux_jobtap_get_flux (p);
     int dws_run_started = 0;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:I s:{s:{s:{s?s}}}}",
+                                "{s:I s:{s:{s:{s?o}}}}",
                                 "id", &id,
                                 "jobspec",
                                 "attributes",
