@@ -16,12 +16,11 @@ from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
 from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD, COMPUTE_CRD, SERVER_CRD
 from flux_k8s.watch import Watchers, Watch
-from flux_k8s.directivebreakdown import apply_breakdowns
+from flux_k8s.directivebreakdown import apply_breakdowns, build_allocation_sets
 
 
 _WORKFLOWINFO_CACHE = {}
 _XFS_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
-_LUSTRE_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
 
 
 class WorkflowInfo:
@@ -33,27 +32,33 @@ class WorkflowInfo:
         self.environment = None
         self.toredown = False
         self.computes = None
-        self.servers = None
+        self.breakdowns = None
 
 
 def create_cb(fh, t, msg, arg):
     api_instance = arg
     try:
-        dw_string = msg.payload["dw_string"]
+        dw_directives = msg.payload["dw_directives"]
         jobid = msg.payload["jobid"]
     except Exception as e:
         fh.log(
             syslog.LOG_ERR, f"Exception when extracting job data from payload: {e}",
         )
-        payload = {"success": False, "errstr": str(e)}
-        fh.respond(msg, payload)
+        fh.respond(msg, {"success": False, "errstr": str(e)})
         return
-    if not dw_string.startswith("#DW "):
-        dw_string = "#DW " + dw_string
+    if isinstance(dw_directives, str):
+        dw_directives = [dw_directives]
+    if not isinstance(dw_directives, list):
+        err = f"Malformed dw_directives, not list or string: {dw_directives}"
+        fh.log(
+            syslog.LOG_ERR, err,
+        )
+        fh.respond(msg, {"success": False, "errstr": err})
+        return
     workflow_name = f"dws-workflow-test-{jobid}"
     spec = {
         "desiredState": "proposal",
-        "dwDirectives": [dw_string],
+        "dwDirectives": dw_directives,
         "jobID": jobid,
         "userID": 1001,
         "wlmID": str(jobid),
@@ -62,7 +67,7 @@ def create_cb(fh, t, msg, arg):
         "kind": "Workflow",
         "apiVersion": "/".join([WORKFLOW_CRD.group, WORKFLOW_CRD.version]),
         "spec": spec,
-        "metadata": {"name": workflow_name, "namespace": WORKFLOW_CRD.namespace,},
+        "metadata": {"name": workflow_name, "namespace": WORKFLOW_CRD.namespace},
     }
     try:
         api_response = api_instance.create_namespaced_custom_object(
@@ -80,16 +85,20 @@ def create_cb(fh, t, msg, arg):
         _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg)
 
 
-def aggregate_allocations(sched_vertices):
+def aggregate_local_allocations(sched_vertices):
+    """Find all node-local allocations associated with each NNF and aggregate them.
+
+    Return a mapping from NNF name to allocation size in bytes.
+    """
     allocations = {}
     for vtx in sched_vertices:
         if vtx["metadata"]["type"] == "ssd":
-            nnf = re.search(_XFS_REGEX, vtx["metadata"]["paths"]["containment"]).group(
-                1
-            )
-            allocations[nnf] = (
+            nnf_name = re.search(
+                _XFS_REGEX, vtx["metadata"]["paths"]["containment"]
+            ).group(1)
+            allocations[nnf_name] = (
                 vtx["metadata"]["size"] * (1024 ** 3)
-            ) + allocations.get(nnf, 0)
+            ) + allocations.get(nnf_name, 0)
     return allocations
 
 
@@ -104,6 +113,7 @@ def setup_cb(fh, t, msg, k8s_api):
         fh.log(syslog.LOG_ERR, f"Exception when extracting job data from payload: {e}")
         return
     compute_nodes = [{"name": hostname} for hostname in hlist]
+    local_allocations = aggregate_local_allocations(sched_vertices)
     try:
         k8s_api.patch_namespaced_custom_object(
             COMPUTE_CRD.group,
@@ -113,27 +123,17 @@ def setup_cb(fh, t, msg, k8s_api):
             workflow.computes["name"],
             {"data": compute_nodes},
         )
-        for breakdown_name, server_info in workflow.servers.items():
+        for breakdown in workflow.breakdowns:
+            allocation_sets = build_allocation_sets(
+                breakdown["status"]["allocationSet"], local_allocations
+            )
             k8s_api.patch_namespaced_custom_object(
                 SERVER_CRD.group,
                 SERVER_CRD.version,
-                server_info["namespace"],
+                breakdown["status"]["servers"]["namespace"],
                 SERVER_CRD.plural,
-                server_info["name"],
-                {
-                    "spec": {
-                        "allocationSets": [
-                            {
-                                "allocationSize": alloc_size,
-                                "label": "xfs",
-                                "storage": [{"allocationCount": 1, "name": nnf_name}],
-                            }
-                            for nnf_name, alloc_size in aggregate_allocations(
-                                sched_vertices
-                            ).items()
-                        ]
-                    }
-                },
+                breakdown["status"]["servers"]["name"],
+                {"spec": {"allocationSets": allocation_sets}},
             )
     except ApiException as e:
         fh.log(
@@ -249,7 +249,7 @@ def workflow_state_change_cb(event, fh, k8s_api):
         try:
             winfo.computes = workflow["status"]["computes"]
             resources = winfo.create_rpc.payload["resources"]
-            winfo.servers = apply_breakdowns(k8s_api, workflow, resources)
+            winfo.breakdowns = apply_breakdowns(k8s_api, workflow, resources)
         except Exception as e:
             fh.log(
                 syslog.LOG_ERR,
@@ -262,7 +262,7 @@ def workflow_state_change_cb(event, fh, k8s_api):
 
             with open("resources.json", "w") as fd:
                 json.dump(resources, fd)
-            # print(f"RESOURCES:\n{json.dumps(resources)}\n")
+            print(f"RESOURCES:\n{json.dumps(resources)}\n")
             fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
         winfo.create_rpc = None
     elif state_complete(workflow, "setup"):  # TODO: put in servers resources
