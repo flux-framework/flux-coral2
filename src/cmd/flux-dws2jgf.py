@@ -239,7 +239,7 @@ def main():
     parser.add_argument(
         "--chunks-per-nnf",
         help="The number of ways to split a rabbit/nnf",
-        default=16,
+        default=32,
         metavar="N",
         type=int,
     )
