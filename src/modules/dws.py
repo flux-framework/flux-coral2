@@ -40,6 +40,7 @@ def create_cb(fh, t, msg, arg):
     try:
         dw_directives = msg.payload["dw_directives"]
         jobid = msg.payload["jobid"]
+        userid = msg.payload["userid"]
     except Exception as e:
         fh.log(
             syslog.LOG_ERR, f"Exception when extracting job data from payload: {e}",
@@ -60,7 +61,7 @@ def create_cb(fh, t, msg, arg):
         "desiredState": "proposal",
         "dwDirectives": dw_directives,
         "jobID": jobid,
-        "userID": 1001,
+        "userID": userid,
         "wlmID": str(jobid),
     }
     body = {

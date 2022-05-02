@@ -121,18 +121,20 @@ static int depend_cb (flux_plugin_t *p,
     flux_t *h = flux_jobtap_get_flux (p);
     json_t *resources;
     json_t *jobspec;
+    int userid;
     int *prolog_active;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:I s:{s:{s:{s?o}}} s:o s:{s:o}}",
+                                "{s:I s:{s:{s:{s?o}}} s:o s:{s:o} s:i}",
                                 "id", &id,
                                 "jobspec",
                                 "attributes",
                                 "system",
                                 "dw", &dw,
                                 "jobspec", &jobspec,
-                                "jobspec", "resources", &resources) < 0)
+                                "jobspec", "resources", &resources,
+                                "userid", &userid) < 0)
         return -1;
     if (dw) {
         if (flux_jobtap_dependency_add (p, id, CREATE_DEP_NAME) < 0) {
@@ -152,7 +154,7 @@ static int depend_cb (flux_plugin_t *p,
         }
         *prolog_active = 0;
         flux_future_t *create_fut = flux_rpc_pack (
-            h, "dws.create", FLUX_NODEID_ANY, 0, "{s:O, s:I, s:O}", "dw_directives", dw, "jobid", id, "resources", resources
+            h, "dws.create", FLUX_NODEID_ANY, 0, "{s:O, s:I, s:O, s:i}", "dw_directives", dw, "jobid", id, "resources", resources, "userid", userid
         );
         if (create_fut == NULL) {
             flux_log_error (h, "Failed to send dws.create RPC");
