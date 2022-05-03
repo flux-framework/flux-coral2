@@ -33,3 +33,7 @@ COMPUTE_CRD = CRD(
 SERVER_CRD = CRD(
     group="dws.cray.hpe.com", version="v1alpha1", namespace="default", plural="servers",
 )
+
+STORAGE_CRD = CRD(
+    group="dws.cray.hpe.com", version="v1alpha1", namespace="default", plural="storages"
+)

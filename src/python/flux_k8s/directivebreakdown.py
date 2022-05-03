@@ -14,29 +14,28 @@ PER_COMPUTE_TYPES = ("xfs", "gfs2", "raw")
 LUSTRE_TYPES = ("ost", "mdt", "mgt")
 
 
-def build_allocation_sets(allocation_sets, local_allocations):
-    # ret = []
-    # for allocation in allocation_sets:
-    #     for nnf_name in local_allocations:
-    #         ret.append({"allocationSize": local_allocations[nnf_name] * allocation["percentage_of_total"], "label": allocation["label"], "storage": [{"allocationCount": 1, "name": nnf_name}]})
-    # return ret
+def build_allocation_sets(allocation_sets, local_allocations, nodes_per_nnf):
     ret = []
     for allocation in allocation_sets:
         for nnf_name in local_allocations:
             if allocation["label"] in PER_COMPUTE_TYPES:
+                alloc_size = int(
+                    local_allocations[nnf_name]
+                    * allocation["percentage_of_total"]
+                    / nodes_per_nnf[nnf_name]
+                )
+                if alloc_size < allocation["minimumCapacity"]:
+                    raise RuntimeError(
+                        "Expected an allocation size of at least "
+                        f"{allocation['minimumCapacity']}, got {alloc_size}"
+                    )
                 ret.append(
                     {
-                        "allocationSize": allocation["minimumCapacity"],
+                        "allocationSize": alloc_size,
                         "label": allocation["label"],
                         "storage": [
                             {
-                                "allocationCount": round(
-                                    (
-                                        local_allocations[nnf_name]
-                                        * allocation["percentage_of_total"]
-                                    )
-                                    / allocation["minimumCapacity"]
-                                ),
+                                "allocationCount": nodes_per_nnf[nnf_name],
                                 "name": nnf_name,
                             }
                         ],

@@ -14,13 +14,15 @@ from flux.job import JobspecV1
 from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
-from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD, COMPUTE_CRD, SERVER_CRD
+from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD, COMPUTE_CRD, SERVER_CRD, STORAGE_CRD
 from flux_k8s.watch import Watchers, Watch
 from flux_k8s.directivebreakdown import apply_breakdowns, build_allocation_sets
 
 
 _WORKFLOWINFO_CACHE = {}
+# Regex will match only rack-local allocations due to the rack\d+/ part
 _XFS_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
+_HOSTNAMES_TO_RABBITS = {}
 
 
 class WorkflowInfo:
@@ -115,6 +117,10 @@ def setup_cb(fh, t, msg, k8s_api):
         return
     compute_nodes = [{"name": hostname} for hostname in hlist]
     local_allocations = aggregate_local_allocations(sched_vertices)
+    nodes_per_nnf = {}
+    for hostname in hlist:
+        nnf_name = _HOSTNAMES_TO_RABBITS[hostname]
+        nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
     try:
         k8s_api.patch_namespaced_custom_object(
             COMPUTE_CRD.group,
@@ -126,7 +132,7 @@ def setup_cb(fh, t, msg, k8s_api):
         )
         for breakdown in workflow.breakdowns:
             allocation_sets = build_allocation_sets(
-                breakdown["status"]["allocationSet"], local_allocations
+                breakdown["status"]["allocationSet"], local_allocations, nodes_per_nnf
             )
             k8s_api.patch_namespaced_custom_object(
                 SERVER_CRD.group,
@@ -140,11 +146,11 @@ def setup_cb(fh, t, msg, k8s_api):
         fh.log(
             syslog.LOG_ERR,
             f"Exception when calling CustomObjectsApi->"
-            f"patch_namespaced_custom_object for Compute/Server {resource_name!r}: {e}",
+            f"patch_namespaced_custom_object for Compute/Server {workflow.name!r}: {e}",
         )
         fh.respond(msg, {"success": False, "errstr": str(e)})
         return
-    _WORKFLOWINFO_CACHE[jobid].setup_rpc = msg
+    workflow.setup_rpc = msg
     move_workflow_desiredstate(fh, msg, jobid, "setup", k8s_api)
 
 
@@ -326,7 +332,15 @@ def main():
                 "You must be logged in to the K8s or OpenShift cluster to continue"
             )
         raise
-
+    api_response = k8s_api.list_cluster_custom_object(STORAGE_CRD.group, STORAGE_CRD.version, STORAGE_CRD.plural)
+    for nnf in api_response["items"]:
+        for compute in nnf["data"]["access"]["computes"]:
+            hostname = compute["name"]
+            if hostname in _HOSTNAMES_TO_RABBITS:
+                raise KeyError(f"Same hostname ({hostname}) cannot be associated with "
+                    f"both {nnf['metadata']['name']} and "
+                    f"{_HOSTNAMES_TO_RABBITS[hostname]}")
+            _HOSTNAMES_TO_RABBITS[hostname] = nnf["metadata"]["name"]
     fh = flux.Flux()
     serv_reg_fut = fh.service_register("dws")
 
