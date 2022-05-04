@@ -25,9 +25,15 @@ class ElCapResourcePoolV1(FluxionResourcePoolV1):
 
     @staticmethod
     def constraints(resType):
-        return resType in ["rack", "nnf", "ssd", "globalnnfost", "globalnnfmdt", "globalnnfmgt"] or super(
-            ElCapResourcePoolV1, ElCapResourcePoolV1
-        ).constraints(resType)
+        return resType in [
+            "rack",
+            "nnf",
+            "ssd",
+            "globalnnfost",
+            "globalnnfmdt",
+            "globalnnfmgt",
+            "mgt_ip",
+        ] or super(ElCapResourcePoolV1, ElCapResourcePoolV1).constraints(resType)
 
     @property
     def path(self):
@@ -101,6 +107,30 @@ class Coral2Graph(FluxionResourceGraphV1):
             edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
             self._add_and_tick_uniq_id(vtx, edg)
 
+    def _encode_mgt_ip(self, parent):
+        """Each rabbit can only have one Lustre management server (mgt).
+
+        In order to accomodate this restriction, put one 'mgt_ip' type
+        on each rabbit and make every Lustre MGT allocation require it.
+        """
+        res_type = "mgt_ip"
+        res_name = res_type + "0"
+        vtx = ElCapResourcePoolV1(
+            self._uniqId,
+            res_type,
+            res_type,
+            res_name,
+            self._rackids,
+            self._uniqId,
+            -1,
+            True,
+            "",
+            1,
+            f"{parent.path}/{res_name}",
+        )
+        edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
+        self._add_and_tick_uniq_id(vtx, edg)
+
     def _encode_nnf(self, parent, global_nnf_list, nnf):
         res_type = "nnf"
         res_name = nnf["metadata"]["name"]
@@ -124,6 +154,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             edg2 = ElCapResourceRelationshipV1(global_nnf.get_id(), vtx.get_id())
             self.add_edge(edg2)
         self._encode_ssds(vtx, nnf["data"])
+        self._encode_mgt_ip(vtx)
         children = self._rv1NoSched["execution"]["R_lite"][0]["children"]
         for node in nnf["data"]["access"]["computes"]:
             self._encode_rank(parent, next(self._rankids), children, node["name"])
@@ -247,7 +278,8 @@ def main():
 
     input_r = json.load(sys.stdin)
     nnfs = [
-        x for x in get_storage()["items"]
+        x
+        for x in get_storage()["items"]
         if re.search(args.test_pattern, x["metadata"]["name"])
     ]
     dws_computes = set(

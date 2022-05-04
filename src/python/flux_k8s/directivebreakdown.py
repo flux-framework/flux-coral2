@@ -107,18 +107,20 @@ def _apply_allocation(allocation, resources):
     if allocation["label"] in PER_COMPUTE_TYPES:
         _apply_alloc_per_compute(capacity_gb, resources)
     elif allocation["label"] in LUSTRE_TYPES:
-        if allocation["label"] == "mgt":
-            _apply_lustre(capacity_gb, resources)
+        _apply_lustre(capacity_gb, resources, allocation["label"] == "mgt")
     else:
         raise ValueError(f"Unknown label {allocation['label']!r}")
 
 
-def _get_nnf_resource(capacity):
-    return {
+def _get_nnf_resource(capacity, mgt=False):
+    ret = {
         "type": "nnf",
         "count": 1,
         "with": [{"type": "ssd", "count": capacity, "exclusive": True}],
     }
+    if mgt:
+        ret["with"].append({"type": "mgt_ip", "count": 1})
+    return ret
 
 
 def _apply_alloc_per_compute(capacity, resources):
@@ -135,7 +137,7 @@ def _apply_alloc_per_compute(capacity, resources):
         # resources[0] = {"type": "slot", "label": "foobar", "count": nodecount, "with": [node, _get_nnf_resource(capacity)]}
 
 
-def _apply_lustre(capacity, resources):
+def _apply_lustre(capacity, resources, mgt):
     """Apply Lustre OST/MGT/MDT to a jobspec's ``resources`` dictionary."""
     # if there is already a `rabbit-label[storage]` entry, add to its `count` field
     # for entry in resources:
@@ -143,7 +145,7 @@ def _apply_lustre(capacity, resources):
     #         _aggregate_resources(entry["with"], allocation["minimumCapacity"])
     #         return
     resources.append(
-        {"type": "globalnnf", "count": 1, "with": [_get_nnf_resource(capacity)],}
+        {"type": "globalnnf", "count": 1, "with": [_get_nnf_resource(capacity, mgt)]}
     )
 
 
