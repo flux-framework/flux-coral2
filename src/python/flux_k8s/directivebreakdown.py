@@ -17,6 +17,13 @@ LUSTRE_TYPES = ("ost", "mdt", "mgt")
 def build_allocation_sets(allocation_sets, local_allocations, nodes_per_nnf):
     ret = []
     for allocation in allocation_sets:
+        alloc_entry = {
+            "allocationSize": 0,
+            "label": allocation["label"],
+            "storage": [],
+        }
+        max_alloc_size = 0
+        # build the storage field of alloc_entry
         for nnf_name in local_allocations:
             if allocation["label"] in PER_COMPUTE_TYPES:
                 alloc_size = int(
@@ -29,20 +36,17 @@ def build_allocation_sets(allocation_sets, local_allocations, nodes_per_nnf):
                         "Expected an allocation size of at least "
                         f"{allocation['minimumCapacity']}, got {alloc_size}"
                     )
-                ret.append(
-                    {
-                        "allocationSize": alloc_size,
-                        "label": allocation["label"],
-                        "storage": [
-                            {
-                                "allocationCount": nodes_per_nnf[nnf_name],
-                                "name": nnf_name,
-                            }
-                        ],
-                    }
+                if max_alloc_size == 0:
+                    max_alloc_size = alloc_size
+                else:
+                    max_alloc_size = min(max_alloc_size, alloc_size)
+                alloc_entry["storage"].append(
+                    {"allocationCount": nodes_per_nnf[nnf_name], "name": nnf_name}
                 )
             else:
                 raise ValueError(f"{allocation['label']} not currently supported")
+        alloc_entry["allocationSize"] = max_alloc_size
+        ret.append(alloc_entry)
     return ret
 
 
