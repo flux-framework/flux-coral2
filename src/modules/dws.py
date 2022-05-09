@@ -40,7 +40,6 @@ class WorkflowInfo:
         self.create_rpc = create_rpc
         self.setup_rpc = None
         self.post_run_rpc = None
-        self.environment = None
         self.toredown = False
         self.computes = None
         self.breakdowns = None
@@ -185,6 +184,9 @@ def post_run_cb(fh, t, msg, k8s_api):
     winfo = _WORKFLOWINFO_CACHE[msg.payload["jobid"]]
     run_started = msg.payload["run_started"]
     winfo.post_run_rpc = msg
+    if winfo.toredown:
+        # workflow has already been transitioned to 'teardown', do nothing
+        return
     if not run_started:
         # the job hit an exception before beginning to run; transition
         # the workflow immediately to 'teardown'
@@ -203,17 +205,29 @@ def state_complete(workflow, state):
 
 
 def workflow_state_change_cb(event, fh, k8s_api):
-    workflow = event["object"]
-    jobid = workflow["spec"]["jobID"]
+    """Exception-catching wrapper around _workflow_state_change_cb_inner."""
     try:
+        workflow = event["object"]
+        jobid = workflow["spec"]["jobID"]
         winfo = _WORKFLOWINFO_CACHE[jobid]
     except KeyError:
-        fh.log(syslog.LOG_DEBUG, f"Unrecognized workflow {jobid}, ignoring...")
         return
+    try:
+        _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api)
+    except Exception as exc:
+        try:
+            move_workflow_desiredstate(winfo.name, "teardown", k8s_api)
+        except Exception:
+            pass
+        winfo.toredown = True
+        fh.job_raise(jobid, "exception", 0, f"DWS interactions failed: {exc}")
+
+
+def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
     if state_complete(workflow, "teardown"):
         # delete workflow object and tell DWS jobtap plugin that the job is done
         k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
-        fh.respond(winfo.post_run_rpc, {"success": True})
+        fh.respond(winfo.post_run_rpc, {"success": True})  # ATM, does nothing
         del _WORKFLOWINFO_CACHE[jobid]
     elif winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
@@ -222,28 +236,17 @@ def workflow_state_change_cb(event, fh, k8s_api):
         # 'teardown' update is still in the k8s update queue.
         return
     elif state_complete(workflow, "proposal"):
-        try:
-            winfo.computes = workflow["status"]["computes"]
-            resources = winfo.create_rpc.payload["resources"]
-            winfo.breakdowns = apply_breakdowns(k8s_api, workflow, resources)
-        except Exception as exc:
-            handle_exception(fh, winfo.create_rpc, exc)
-            del _WORKFLOWINFO_CACHE[jobid]
-        else:
-            fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
+        winfo.computes = workflow["status"]["computes"]
+        resources = winfo.create_rpc.payload["resources"]
+        winfo.breakdowns = apply_breakdowns(k8s_api, workflow, resources)
+        fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
         winfo.create_rpc = None
     elif state_complete(workflow, "setup"):
         # move workflow to next stage, data_in
-        try:
-            move_workflow_desiredstate(winfo.name, "data_in", k8s_api)
-        except Exception as exc:
-            handle_exception(fh, winfo.setup_rpc, exc)
+        move_workflow_desiredstate(winfo.name, "data_in", k8s_api)
     elif state_complete(workflow, "data_in"):
         # move workflow to next stage, pre_run
-        try:
-            move_workflow_desiredstate(winfo.name, "pre_run", k8s_api)
-        except Exception as exc:
-            handle_exception(fh, winfo.setup_rpc, exc)
+        move_workflow_desiredstate(winfo.name, "pre_run", k8s_api)
     elif state_complete(workflow, "pre_run"):
         # tell DWS jobtap plugin that the job can start
         fh.respond(
@@ -253,16 +256,10 @@ def workflow_state_change_cb(event, fh, k8s_api):
         winfo.setup_rpc = None
     elif state_complete(workflow, "post_run"):
         # move workflow to next stage, data_out
-        try:
-            move_workflow_desiredstate(winfo.name, "data_out", k8s_api)
-        except Exception as exc:
-            handle_exception(fh, winfo.post_run_rpc, exc)
+        move_workflow_desiredstate(winfo.name, "data_out", k8s_api)
     elif state_complete(workflow, "data_out"):
         # move workflow to next stage, teardown
-        try:
-            move_workflow_desiredstate(winfo.name, "teardown", k8s_api)
-        except Exception as exc:
-            handle_exception(fh, winfo.post_run_rpc, exc)
+        move_workflow_desiredstate(winfo.name, "teardown", k8s_api)
 
 
 def rabbit_state_change_cb(event, fh, rabbits):
