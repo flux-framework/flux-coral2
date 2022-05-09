@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 
+"""
+Script that acts as an intermediate between flux-core plugins and DataWarp Services.
+
+DataWarp Services is DWS for short.
+"""
+
 import os
 import syslog
 import json
 import re
+import functools
 import argparse
 
 import kubernetes as k8s
@@ -26,6 +33,8 @@ _HOSTNAMES_TO_RABBITS = {}
 
 
 class WorkflowInfo:
+    """Represents and holds information about a specific workflow object."""
+
     def __init__(self, name, create_rpc):
         self.name = name
         self.create_rpc = create_rpc
@@ -37,27 +46,51 @@ class WorkflowInfo:
         self.breakdowns = None
 
 
-def create_cb(fh, t, msg, arg):
-    api_instance = arg
-    try:
-        dw_directives = msg.payload["dw_directives"]
-        jobid = msg.payload["jobid"]
-        userid = msg.payload["userid"]
-    except Exception as e:
-        fh.log(
-            syslog.LOG_ERR, f"Exception when extracting job data from payload: {e}",
-        )
-        fh.respond(msg, {"success": False, "errstr": str(e)})
-        return
+def handle_exception(fh, msg, exc):
+    fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {exc}")
+    fh.respond(msg, {"success": False, "errstr": str(exc)})
+
+
+def message_callback_wrapper(func):
+    """Decorator for msg_watcher callbacks.
+
+    Catch exceptions and return failure messages.
+    """
+
+    @functools.wraps(func)
+    def wrapper(fh, t, msg, k8s_api):
+        try:
+            func(fh, t, msg, k8s_api)
+        except Exception as exc:
+            handle_exception(fh, msg, exc)
+
+    return wrapper
+
+
+def move_workflow_desiredstate(workflow_name, desiredstate, k8s_api):
+    """Helper function for moving workflow to a desiredState."""
+    k8s_api.patch_namespaced_custom_object(
+        *WORKFLOW_CRD, workflow_name, {"spec": {"desiredState": desiredstate}},
+    )
+
+
+@message_callback_wrapper
+def create_cb(fh, t, msg, api_instance):
+    """dws.create RPC callback. Creates a k8s Workflow object for a job.
+
+    Triggered when a new job with a jobdw directive is submitted.
+
+    Stashes the RPC for response when DWS gives us directivebreakdown objects.
+    """
+    dw_directives = msg.payload["dw_directives"]
+    jobid = msg.payload["jobid"]
+    userid = msg.payload["userid"]
     if isinstance(dw_directives, str):
         dw_directives = [dw_directives]
     if not isinstance(dw_directives, list):
-        err = f"Malformed dw_directives, not list or string: {dw_directives}"
-        fh.log(
-            syslog.LOG_ERR, err,
+        raise TypeError(
+            f"Malformed dw_directives, not list or string: {dw_directives!r}"
         )
-        fh.respond(msg, {"success": False, "errstr": err})
-        return
     workflow_name = f"dws-workflow-test-{jobid}"
     spec = {
         "desiredState": "proposal",
@@ -72,20 +105,10 @@ def create_cb(fh, t, msg, arg):
         "spec": spec,
         "metadata": {"name": workflow_name, "namespace": WORKFLOW_CRD.namespace},
     }
-    try:
-        api_response = api_instance.create_namespaced_custom_object(
-            *WORKFLOW_CRD, body,
-        )
-    except ApiException as e:
-        fh.log(
-            syslog.LOG_ERR,
-            "Exception when calling CustomObjectsApi->"
-            f"create_namespaced_custom_object: {e}",
-        )
-        payload = {"success": False, "errstr": str(e)}
-        fh.respond(msg, payload)
-    else:
-        _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg)
+    api_instance.create_namespaced_custom_object(
+        *WORKFLOW_CRD, body,
+    )
+    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg)
 
 
 def aggregate_local_allocations(sched_vertices):
@@ -105,128 +128,74 @@ def aggregate_local_allocations(sched_vertices):
     return allocations
 
 
+@message_callback_wrapper
 def setup_cb(fh, t, msg, k8s_api):
-    try:
-        jobid = msg.payload["jobid"]
-        hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
-        sched_vertices = msg.payload["R"]["scheduling"]["graph"]["nodes"]
-        workflow = _WORKFLOWINFO_CACHE[jobid]
-    except KeyError as e:
-        fh.respond(msg, {"success": False, "errstr": str(e)})
-        fh.log(syslog.LOG_ERR, f"Exception when extracting job data from payload: {e}")
-        return
+    """dws.setup RPC callback.
+
+    The dws.setup RPC is sent when the job has reached the RUN state
+    (i.e. it has had resources assigned to it).
+
+    Pass the resource information on to DWS, and move the job to the `setup`
+    desiredState.
+    """
+    jobid = msg.payload["jobid"]
+    hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
+    sched_vertices = msg.payload["R"]["scheduling"]["graph"]["nodes"]
+    workflow = _WORKFLOWINFO_CACHE[jobid]
     compute_nodes = [{"name": hostname} for hostname in hlist]
     local_allocations = aggregate_local_allocations(sched_vertices)
     nodes_per_nnf = {}
     for hostname in hlist:
         nnf_name = _HOSTNAMES_TO_RABBITS[hostname]
         nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
-    try:
+    k8s_api.patch_namespaced_custom_object(
+        COMPUTE_CRD.group,
+        COMPUTE_CRD.version,
+        workflow.computes["namespace"],
+        COMPUTE_CRD.plural,
+        workflow.computes["name"],
+        {"data": compute_nodes},
+    )
+    for breakdown in workflow.breakdowns:
+        allocation_sets = build_allocation_sets(
+            breakdown["status"]["allocationSet"], local_allocations, nodes_per_nnf
+        )
         k8s_api.patch_namespaced_custom_object(
-            COMPUTE_CRD.group,
-            COMPUTE_CRD.version,
-            workflow.computes["namespace"],
-            COMPUTE_CRD.plural,
-            workflow.computes["name"],
-            {"data": compute_nodes},
+            SERVER_CRD.group,
+            SERVER_CRD.version,
+            breakdown["status"]["servers"]["namespace"],
+            SERVER_CRD.plural,
+            breakdown["status"]["servers"]["name"],
+            {"spec": {"allocationSets": allocation_sets}},
         )
-        for breakdown in workflow.breakdowns:
-            allocation_sets = build_allocation_sets(
-                breakdown["status"]["allocationSet"], local_allocations, nodes_per_nnf
-            )
-            k8s_api.patch_namespaced_custom_object(
-                SERVER_CRD.group,
-                SERVER_CRD.version,
-                breakdown["status"]["servers"]["namespace"],
-                SERVER_CRD.plural,
-                breakdown["status"]["servers"]["name"],
-                {"spec": {"allocationSets": allocation_sets}},
-            )
-    except ApiException as e:
-        fh.log(
-            syslog.LOG_ERR,
-            f"Exception when calling CustomObjectsApi->"
-            f"patch_namespaced_custom_object for Compute/Server {workflow.name!r}: {e}",
-        )
-        fh.respond(msg, {"success": False, "errstr": str(e)})
-        return
     workflow.setup_rpc = msg
-    move_workflow_desiredstate(fh, msg, jobid, "setup", k8s_api)
+    move_workflow_desiredstate(workflow.name, "setup", k8s_api)
 
 
+@message_callback_wrapper
 def post_run_cb(fh, t, msg, k8s_api):
-    try:
-        jobid = msg.payload["jobid"]
-        run_started = msg.payload["run_started"]
-    except KeyError as e:
-        fh.respond(msg, {"success": False, "errstr": str(e)})
-        fh.log(syslog.LOG_ERR, f"Exception when extracting job data from payload: {e}")
+    """dws.post_run RPC callback.
+
+    The dws.setup RPC is sent when the job has reached the CLEANUP state.
+
+    If the job reached the RUN state, move the workflow to `post_run`.
+    If the job did not reach the RUN state (exception path), move
+    the workflow directly to `teardown`.
+    """
+    winfo = _WORKFLOWINFO_CACHE[msg.payload["jobid"]]
+    run_started = msg.payload["run_started"]
+    winfo.post_run_rpc = msg
+    if not run_started:
+        # the job hit an exception before beginning to run; transition
+        # the workflow immediately to 'teardown'
+        winfo.toredown = True
+        move_workflow_desiredstate(winfo.name, "teardown", k8s_api)
     else:
-        if jobid not in _WORKFLOWINFO_CACHE:
-            # the job is done but we don't recognize it
-            fh.log(syslog.LOG_ERR, f"Unrecognized job {jobid} in dws.post_run")
-            fh.respond(msg, {"success": False, "errstr": ""})
-            return
-        _WORKFLOWINFO_CACHE[jobid].post_run_rpc = msg
-        if not run_started:
-            # the job hit an exception before beginning to run; transition
-            # the workflow immediately to 'teardown'
-            _WORKFLOWINFO_CACHE[jobid].toredown = True
-            move_workflow_desiredstate(fh, msg, jobid, "teardown", k8s_api)
-        else:
-            move_workflow_desiredstate(fh, msg, jobid, "post_run", k8s_api)
-
-
-def move_workflow_desiredstate(fh, msg, jobid, desiredstate, k8s_api):
-    try:
-        k8s_api.patch_namespaced_custom_object(
-            *WORKFLOW_CRD,
-            _WORKFLOWINFO_CACHE[jobid].name,
-            {"spec": {"desiredState": desiredstate}},
-        )
-    except (ApiException, KeyError) as e:
-        fh.log(
-            syslog.LOG_ERR,
-            f"Exception when patching {workflow_name!r} to "
-            f"desiredState {desiredstate!r}: {e}",
-        )
-        fh.respond(msg, {"success": False, "errstr": str(e)})
-        del _WORKFLOWINFO_CACHE[jobid]
-        return False
-    else:
-        return True
-
-
-def rabbit_state_change_cb(event, fh, rabbits):
-    obj = event["object"]
-    name = obj["metadata"]["name"]
-    capacity = obj["data"]["capacity"]
-    status = obj["data"]["status"]
-
-    try:
-        curr_rabbit = rabbits[name]
-    except KeyError:
-        fh.log(
-            syslog.LOG_DEBUG,
-            f"Just encountered an unknown Storage object ({name}) in the event stream",
-        )
-        # TODO: should never happen, but if it does,
-        # insert the rabbit into the resource graph
-        return
-
-    if curr_rabbit["data"]["status"] != status:
-        fh.log(syslog.LOG_DEBUG, f"Storage {name} status changed to {status}")
-        # TODO: update status of vertex in resource graph
-    if curr_rabbit["data"]["capacity"] != capacity:
-        fh.log(
-            syslog.LOG_DEBUG, f"Storage {name} capacity changed to {capacity}",
-        )
-        # TODO: update "percentDegraded" property of vertex in resource graph
-        # TODO: update capacity of rabbit in resource graph (mark some slices down?)
-    rabbits[name] = obj
+        move_workflow_desiredstate(winfo.name, "post_run", k8s_api)
 
 
 def state_complete(workflow, state):
+    """Helper function for checking whether a workflow has completed a given state."""
     return (
         workflow["spec"]["desiredState"] == workflow["status"]["state"] == state
         and workflow["status"]["ready"]
@@ -257,27 +226,24 @@ def workflow_state_change_cb(event, fh, k8s_api):
             winfo.computes = workflow["status"]["computes"]
             resources = winfo.create_rpc.payload["resources"]
             winfo.breakdowns = apply_breakdowns(k8s_api, workflow, resources)
-        except Exception as e:
-            fh.log(
-                syslog.LOG_ERR,
-                f"Exception when applying breakdowns to jobspec resources: {e}",
-            )
-            fh.respond(winfo.create_rpc, {"success": False, "errstr": str(e)})
+        except Exception as exc:
+            handle_exception(fh, winfo.create_rpc, exc)
             del _WORKFLOWINFO_CACHE[jobid]
         else:
-            import json
-
-            with open("resources.json", "w") as fd:
-                json.dump(resources, fd)
-            print(f"RESOURCES:\n{json.dumps(resources)}\n")
             fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
         winfo.create_rpc = None
-    elif state_complete(workflow, "setup"):  # TODO: put in servers resources
-        # move workflow to next stage
-        move_workflow_desiredstate(fh, winfo.setup_rpc, jobid, "data_in", k8s_api)
+    elif state_complete(workflow, "setup"):
+        # move workflow to next stage, data_in
+        try:
+            move_workflow_desiredstate(winfo.name, "data_in", k8s_api)
+        except Exception as exc:
+            handle_exception(fh, winfo.setup_rpc, exc)
     elif state_complete(workflow, "data_in"):
-        # move workflow to next stage
-        move_workflow_desiredstate(fh, winfo.setup_rpc, jobid, "pre_run", k8s_api)
+        # move workflow to next stage, pre_run
+        try:
+            move_workflow_desiredstate(winfo.name, "pre_run", k8s_api)
+        except Exception as exc:
+            handle_exception(fh, winfo.setup_rpc, exc)
     elif state_complete(workflow, "pre_run"):
         # tell DWS jobtap plugin that the job can start
         fh.respond(
@@ -286,16 +252,46 @@ def workflow_state_change_cb(event, fh, k8s_api):
         )
         winfo.setup_rpc = None
     elif state_complete(workflow, "post_run"):
-        # move workflow to next stage
-        move_workflow_desiredstate(fh, winfo.post_run_rpc, jobid, "data_out", k8s_api)
+        # move workflow to next stage, data_out
+        try:
+            move_workflow_desiredstate(winfo.name, "data_out", k8s_api)
+        except Exception as exc:
+            handle_exception(fh, winfo.post_run_rpc, exc)
     elif state_complete(workflow, "data_out"):
-        # move workflow to next stage
-        move_workflow_desiredstate(fh, winfo.post_run_rpc, jobid, "teardown", k8s_api)
-    elif state_complete(workflow, "teardown"):
-        # delete workflow object and tell DWS jobtap plugin that the job is done
-        k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
-        fh.respond(winfo.post_run_rpc, {"success": True})
-        del _WORKFLOWINFO_CACHE[jobid]
+        # move workflow to next stage, teardown
+        try:
+            move_workflow_desiredstate(winfo.name, "teardown", k8s_api)
+        except Exception as exc:
+            handle_exception(fh, winfo.post_run_rpc, exc)
+
+
+def rabbit_state_change_cb(event, fh, rabbits):
+    obj = event["object"]
+    name = obj["metadata"]["name"]
+    capacity = obj["data"]["capacity"]
+    status = obj["data"]["status"]
+
+    try:
+        curr_rabbit = rabbits[name]
+    except KeyError:
+        fh.log(
+            syslog.LOG_DEBUG,
+            f"Just encountered an unknown Storage object ({name}) in the event stream",
+        )
+        # TODO: should never happen, but if it does,
+        # insert the rabbit into the resource graph
+        return
+
+    if curr_rabbit["data"]["status"] != status:
+        fh.log(syslog.LOG_DEBUG, f"Storage {name} status changed to {status}")
+        # TODO: update status of vertex in resource graph
+    if curr_rabbit["data"]["capacity"] != capacity:
+        fh.log(
+            syslog.LOG_DEBUG, f"Storage {name} capacity changed to {capacity}",
+        )
+        # TODO: update "percentDegraded" property of vertex in resource graph
+        # TODO: update capacity of rabbit in resource graph (mark some slices down?)
+    rabbits[name] = obj
 
 
 def init_rabbits(k8s_api, fh, watchers):
@@ -332,18 +328,23 @@ def main():
                 "You must be logged in to the K8s or OpenShift cluster to continue"
             )
         raise
-    api_response = k8s_api.list_cluster_custom_object(STORAGE_CRD.group, STORAGE_CRD.version, STORAGE_CRD.plural)
+    api_response = k8s_api.list_cluster_custom_object(
+        STORAGE_CRD.group, STORAGE_CRD.version, STORAGE_CRD.plural
+    )
     for nnf in api_response["items"]:
         for compute in nnf["data"]["access"]["computes"]:
             hostname = compute["name"]
             if hostname in _HOSTNAMES_TO_RABBITS:
-                raise KeyError(f"Same hostname ({hostname}) cannot be associated with "
+                raise KeyError(
+                    f"Same hostname ({hostname}) cannot be associated with "
                     f"both {nnf['metadata']['name']} and "
-                    f"{_HOSTNAMES_TO_RABBITS[hostname]}")
+                    f"{_HOSTNAMES_TO_RABBITS[hostname]}"
+                )
             _HOSTNAMES_TO_RABBITS[hostname] = nnf["metadata"]["name"]
     fh = flux.Flux()
-    serv_reg_fut = fh.service_register("dws")
 
+    # register dws.create, dws.setup, and dws.post_run services.
+    serv_reg_fut = fh.service_register("dws")
     create_watcher = fh.msg_watcher_create(
         create_cb, FLUX_MSGTYPE_REQUEST, "dws.create", args=k8s_api
     )
