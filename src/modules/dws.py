@@ -12,6 +12,8 @@ import json
 import re
 import functools
 import argparse
+import logging
+import traceback
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
@@ -26,10 +28,11 @@ from flux_k8s.watch import Watchers, Watch
 from flux_k8s.directivebreakdown import apply_breakdowns, build_allocation_sets
 
 
-_WORKFLOWINFO_CACHE = {}
+_WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
 # Regex will match only rack-local allocations due to the rack\d+/ part
 _XFS_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
-_HOSTNAMES_TO_RABBITS = {}
+_HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
+LOGGER = logging.getLogger(__name__)
 
 
 class WorkflowInfo:
@@ -45,11 +48,6 @@ class WorkflowInfo:
         self.breakdowns = None
 
 
-def handle_exception(fh, msg, exc):
-    fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {exc}")
-    fh.respond(msg, {"success": False, "errstr": str(exc)})
-
-
 def message_callback_wrapper(func):
     """Decorator for msg_watcher callbacks.
 
@@ -61,7 +59,9 @@ def message_callback_wrapper(func):
         try:
             func(fh, t, msg, k8s_api)
         except Exception as exc:
-            handle_exception(fh, msg, exc)
+            fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {exc}")
+            fh.respond(msg, {"success": False, "errstr": str(exc)})
+            LOGGER.exception("Error in responding to RPC: ")
 
     return wrapper
 
@@ -211,30 +211,45 @@ def workflow_state_change_cb(event, fh, k8s_api):
         jobid = workflow["spec"]["jobID"]
         winfo = _WORKFLOWINFO_CACHE[jobid]
     except KeyError:
+        LOGGER.info(
+            "Invalid workflow in event stream, or unrecognized job ID: %s",
+            traceback.format_exc(),
+        )
+        return
+    if event.get("TYPE") == "DELETED":
+        # the workflow has been deleted, we can forget about it
+        del _WORKFLOWINFO_CACHE[jobid]
         return
     try:
         _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api)
     except Exception as exc:
+        LOGGER.exception(
+            "Failed to process event update for workflow with jobid %s:", jobid
+        )
         try:
             move_workflow_desiredstate(winfo.name, "teardown", k8s_api)
         except Exception:
-            pass
+            LOGGER.exception(
+                "Failed to move workflow with jobid %s to 'teardown' "
+                "state after error: ",
+                jobid,
+            )
         winfo.toredown = True
-        fh.job_raise(jobid, "exception", 0, f"DWS interactions failed: {exc}")
+        fh.job_raise(jobid, "exception", 0, "DWS/Rabbit interactions failed")
 
 
 def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
-    if state_complete(workflow, "teardown"):
-        # delete workflow object and tell DWS jobtap plugin that the job is done
-        k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
-        fh.respond(winfo.post_run_rpc, {"success": True})  # ATM, does nothing
-        del _WORKFLOWINFO_CACHE[jobid]
-    elif winfo.toredown:
+    if winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
         # Without this early 'return', this function may try to
         # move a 'teardown' workflow to an earlier state because the
         # 'teardown' update is still in the k8s update queue.
         return
+    elif state_complete(workflow, "teardown"):
+        # delete workflow object and tell DWS jobtap plugin that the job is done
+        k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
+        fh.respond(winfo.post_run_rpc, {"success": True})  # ATM, does nothing
+        winfo.toredown = True
     elif state_complete(workflow, "proposal"):
         winfo.computes = workflow["status"]["computes"]
         resources = winfo.create_rpc.payload["resources"]
@@ -314,7 +329,12 @@ def init_rabbits(k8s_api, fh, watchers):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--watch-interval", type=int, default=5)
+    parser.add_argument("--verbose", "-v", action="count", default=0)
     args = parser.parse_args()
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        level=(logging.INFO if args.verbose else logging.WARNING),
+    )
 
     k8s_client = k8s.config.new_client_from_config()
     try:
