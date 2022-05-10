@@ -33,6 +33,7 @@ class ElCapResourcePoolV1(FluxionResourcePoolV1):
             "globalnnfmdt",
             "globalnnfmgt",
             "mgt_ip",
+            "ssd_partition",
         ] or super(ElCapResourcePoolV1, ElCapResourcePoolV1).constraints(resType)
 
     @property
@@ -51,7 +52,7 @@ class Coral2Graph(FluxionResourceGraphV1):
     CORAL2 Graph:  extend jsongraph's Graph class
     """
 
-    def __init__(self, rv1, nnfs, chunks_per_nnf):
+    def __init__(self, rv1, nnfs, chunks_per_nnf, partitions_per_nnf):
         """Constructor
         rv1 -- RV1 Dictorary that conforms to Flux RFC 20:
                    Resource Set Specification Version 1
@@ -59,6 +60,7 @@ class Coral2Graph(FluxionResourceGraphV1):
         assert len(rv1["execution"]["R_lite"]) == 1
         self._nnfs = nnfs
         self._chunks_per_nnf = chunks_per_nnf
+        self._partitions_per_nnf = partitions_per_nnf
         self._rackids = 0
         self._rankids = itertools.count()
         # Call super().__init__() last since it calls __encode
@@ -131,6 +133,33 @@ class Coral2Graph(FluxionResourceGraphV1):
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
         self._add_and_tick_uniq_id(vtx, edg)
 
+    def _encode_ssd_partitions(self, parent):
+        """Each rabbit can only have *N* different partitions, AKA namespaces.
+
+        The number of partitions is defined by the hardware.
+
+        In order to accomodate this restriction, add N ssd_partition types
+        to the graph.
+        """
+        res_type = "ssd_partition"
+        for i in range(self._partitions_per_nnf):
+            res_name = f"{res_type}{i}"
+            vtx = ElCapResourcePoolV1(
+                self._uniqId,
+                res_type,
+                res_type,
+                res_name,
+                self._rackids,
+                self._uniqId,
+                -1,
+                True,
+                "",
+                1,
+                f"{parent.path}/{res_name}",
+            )
+            edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
+            self._add_and_tick_uniq_id(vtx, edg)
+
     def _encode_nnf(self, parent, global_nnf_list, nnf):
         res_type = "nnf"
         res_name = nnf["metadata"]["name"]
@@ -155,6 +184,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             self.add_edge(edg2)
         self._encode_ssds(vtx, nnf["data"])
         self._encode_mgt_ip(vtx)
+        self._encode_ssd_partitions(vtx)
         children = self._rv1NoSched["execution"]["R_lite"][0]["children"]
         for node in nnf["data"]["access"]["computes"]:
             self._encode_rank(parent, next(self._rankids), children, node["name"])
@@ -225,8 +255,8 @@ def to_gibibytes(byt):
     return byt // (1024 ** 3)
 
 
-def encode(rv1, nnfs, chunks_per_nnf):
-    graph = Coral2Graph(rv1, nnfs, chunks_per_nnf)
+def encode(rv1, nnfs, chunks_per_nnf, partitions_per_nnf):
+    graph = Coral2Graph(rv1, nnfs, chunks_per_nnf, partitions_per_nnf)
     rv1["scheduling"] = graph.to_JSON()
     return rv1
 
@@ -269,7 +299,23 @@ def main():
     )
     parser.add_argument(
         "--chunks-per-nnf",
-        help="The number of ways to split a rabbit/nnf",
+        "-c",
+        help=(
+            "The number of ways to split a rabbit/nnf for Flux scheduling. "
+            "Higher numbers allow finer-grained scheduling at the possible cost "
+            "of scheduler performance."
+        ),
+        default=32,
+        metavar="N",
+        type=int,
+    )
+    parser.add_argument(
+        "--partitions-per-nnf",
+        "-p",
+        help=(
+            "The maximum number of allocations/partitions per rabbit/nnf. "
+            "Unlike --chunks-per-nnf, this is a constraint imposed by the rabbits."
+        ),
         default=32,
         metavar="N",
         type=int,
@@ -294,7 +340,7 @@ def main():
         raise ValueError(
             f"Host(s) {dws_computes} found in DWS but not in R passed through stdin"
         )
-    print(json.dumps(encode(input_r, nnfs, args.chunks_per_nnf)))
+    json.dump(encode(input_r, nnfs, args.chunks_per_nnf, args.partitions_per_nnf), sys.stdout)
 
 
 if __name__ == "__main__":
