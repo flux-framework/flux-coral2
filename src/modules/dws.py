@@ -275,6 +275,12 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
     elif state_complete(workflow, "data_out"):
         # move workflow to next stage, teardown
         move_workflow_desiredstate(winfo.name, "teardown", k8s_api)
+    elif workflow["status"]["message"]:
+        # TODO: if there is a message it is assumed to be an error message
+        # HPE says to dump the whole workflow
+        # LOGGER.error("DWS has error set, workflow is %s", workflow)
+        # raise RuntimeError(f"DWS has error set: {workflow['status']['message']}")
+        pass
 
 
 def rabbit_state_change_cb(event, fh, rabbits):
