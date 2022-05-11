@@ -116,7 +116,10 @@ def _get_nnf_resource(capacity, mgt=False):
     ret = {
         "type": "nnf",
         "count": 1,
-        "with": [{"type": "ssd", "count": capacity, "exclusive": True}],
+        "with": [
+            {"type": "ssd", "count": capacity, "exclusive": True},
+            {"type": "ssd_partition", "count": 1},
+        ],
     }
     if mgt:
         ret["with"].append({"type": "mgt_ip", "count": 1})
