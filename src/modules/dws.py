@@ -23,7 +23,7 @@ from flux.job import JobspecV1
 from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
-from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD, COMPUTE_CRD, SERVER_CRD, STORAGE_CRD
+from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD, COMPUTE_CRD, SERVER_CRD
 from flux_k8s.watch import Watchers, Watch
 from flux_k8s.directivebreakdown import apply_breakdowns, build_allocation_sets
 
@@ -157,7 +157,7 @@ def setup_cb(fh, t, msg, k8s_api):
     )
     for breakdown in workflow.breakdowns:
         allocation_sets = build_allocation_sets(
-            breakdown["status"]["allocationSet"], local_allocations, nodes_per_nnf
+            breakdown["status"]["storage"]["allocationSets"], local_allocations, nodes_per_nnf
         )
         k8s_api.patch_namespaced_custom_object(
             SERVER_CRD.group,
@@ -352,7 +352,7 @@ def main():
             )
         raise
     api_response = k8s_api.list_cluster_custom_object(
-        STORAGE_CRD.group, STORAGE_CRD.version, STORAGE_CRD.plural
+        RABBIT_CRD.group, RABBIT_CRD.version, RABBIT_CRD.plural
     )
     for nnf in api_response["items"]:
         for compute in nnf["data"]["access"]["computes"]:

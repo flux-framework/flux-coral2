@@ -59,13 +59,13 @@ def apply_breakdowns(k8s_api, workflow, resources):
             raise ValueError(f"unsupported breakdown kind {breakdown['kind']!r}")
         if not breakdown["status"]["ready"]:
             raise RuntimeError("Breakdown marked as not ready")
-        for allocation in breakdown["status"]["allocationSet"]:
+        for allocation in breakdown["status"]["storage"]["allocationSets"]:
             _apply_allocation(allocation, resources)
             # aggregate per-compute storage
             if allocation["label"] in PER_COMPUTE_TYPES:
                 per_compute_total += allocation["minimumCapacity"]
     for breakdown in breakdown_list:
-        for allocation in breakdown["status"]["allocationSet"]:
+        for allocation in breakdown["status"]["storage"]["allocationSets"]:
             if allocation["label"] in PER_COMPUTE_TYPES:
                 allocation["percentage_of_total"] = (
                     allocation["minimumCapacity"] / per_compute_total
