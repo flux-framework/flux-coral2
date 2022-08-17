@@ -162,9 +162,9 @@ def setup_cb(fh, t, msg, k8s_api):
         k8s_api.patch_namespaced_custom_object(
             SERVER_CRD.group,
             SERVER_CRD.version,
-            breakdown["status"]["servers"]["namespace"],
+            breakdown["status"]["storage"]["reference"]["namespace"],
             SERVER_CRD.plural,
-            breakdown["status"]["servers"]["name"],
+            breakdown["status"]["storage"]["reference"]["name"],
             {"spec": {"allocationSets": allocation_sets}},
         )
     workflow.setup_rpc = msg
@@ -181,7 +181,12 @@ def post_run_cb(fh, t, msg, k8s_api):
     If the job did not reach the RUN state (exception path), move
     the workflow directly to `teardown`.
     """
-    winfo = _WORKFLOWINFO_CACHE[msg.payload["jobid"]]
+    jobid = msg.payload["jobid"]
+    if jobid not in _WORKFLOWINFO_CACHE:
+        LOGGER.info("Missing workflow cache entry for %i, which is only "
+            "expected if a workflow object could not be created for the job", jobid)
+        return
+    winfo = _WORKFLOWINFO_CACHE[jobid]
     run_started = msg.payload["run_started"]
     winfo.post_run_rpc = msg
     if winfo.toredown:
@@ -190,7 +195,6 @@ def post_run_cb(fh, t, msg, k8s_api):
     if not run_started:
         # the job hit an exception before beginning to run; transition
         # the workflow immediately to 'teardown'
-        winfo.toredown = True
         move_workflow_desiredstate(winfo.name, "teardown", k8s_api)
     else:
         move_workflow_desiredstate(winfo.name, "post_run", k8s_api)
@@ -337,11 +341,15 @@ def main():
     parser.add_argument("--watch-interval", type=int, default=5)
     parser.add_argument("--verbose", "-v", action="count", default=0)
     args = parser.parse_args()
+    log_level = logging.WARNING
+    if args.verbose > 1:
+        log_level = logging.INFO
+    if args.verbose > 2:
+        log_level = logging.DEBUG
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(message)s",
-        level=(logging.INFO if args.verbose else logging.WARNING),
+        level=log_level,
     )
-
     k8s_client = k8s.config.new_client_from_config()
     try:
         k8s_api = k8s.client.CustomObjectsApi(k8s_client)
@@ -355,7 +363,7 @@ def main():
         RABBIT_CRD.group, RABBIT_CRD.version, RABBIT_CRD.plural
     )
     for nnf in api_response["items"]:
-        for compute in nnf["data"]["access"]["computes"]:
+        for compute in nnf["data"]["access"].get("computes", []):
             hostname = compute["name"]
             if hostname in _HOSTNAMES_TO_RABBITS:
                 raise KeyError(
