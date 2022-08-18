@@ -65,13 +65,14 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
+            [],
             hPath,
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
         self._add_and_tick_uniq_id(vtx, edg)
         for key, val in children.items():
             for i in IDset(val):
-                self._encode_child(vtx.get_id(), hPath, rank, str(key), i)
+                self._encode_child(vtx.get_id(), hPath, rank, str(key), i, {})
 
     def _encode_nnf(self, parent, global_nnf, nnf):
         res_type = "nnf"
@@ -87,6 +88,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
+            [],
             f"{parent.path}/{res_name}",
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
@@ -111,6 +113,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
+            [],
             f"{parent.path}/{res_name}",
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
@@ -133,6 +136,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
+            [],
             "/ElCapitan0",
         )
         self._add_and_tick_uniq_id(vtx)
@@ -147,6 +151,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
+            [],
             "/ElCapitan0/globalnnf0",
         )
         edg = ElCapResourceRelationshipV1(vtx.get_id(), global_nnf.get_id())
