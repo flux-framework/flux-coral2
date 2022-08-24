@@ -12,9 +12,18 @@ test_under_flux 2 job
 
 flux setattr log-stderr-level 1
 
+test_expect_success 'job-manager: load cray_pals_port_distributor plugin with invalid config' '
+	test_expect_code 1 flux jobtap load ${JOBTAP_PLUGINPATH}/cray_pals_port_distributor.so \
+		port-min=0 port-max=12000 &&
+	test_expect_code 1 flux jobtap load ${JOBTAP_PLUGINPATH}/cray_pals_port_distributor.so \
+		port-min=11000 port-max=120000 &&
+	test_expect_code 1 flux jobtap load ${JOBTAP_PLUGINPATH}/cray_pals_port_distributor.so \
+		port-min=11000 port-max=11010
+'
+
 test_expect_success 'job-manager: load cray_pals_port_distributor plugin' '
 	flux jobtap load ${JOBTAP_PLUGINPATH}/cray_pals_port_distributor.so \
-	    port-min=11000 port-max=12000 &&
+		port-min=11000 port-max=12000 &&
 	flux jobtap list -a | grep cray_pals_port_distributor.so
 '
 
