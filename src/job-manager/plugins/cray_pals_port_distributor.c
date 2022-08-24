@@ -24,9 +24,9 @@
 #define CRAY_PALS_AUX_NAME "cray::libpals::ports"
 
 struct port_range {
-    int *available_ports;
-    int fill;
-    int maxsize;
+    json_int_t *available_ports;
+    json_int_t fill;
+    json_int_t maxsize;
 };
 
 struct plugin_range_jobid_triple {
@@ -35,7 +35,7 @@ struct plugin_range_jobid_triple {
     flux_jobid_t jobid;
 };  // for passing to flux_future_t callback
 
-static int get_port (struct port_range *range)
+static json_int_t get_port (struct port_range *range)
 {
     if (range->fill <= 0) {
         return -1;
@@ -44,7 +44,7 @@ static int get_port (struct port_range *range)
     return range->available_ports[range->fill];
 }
 
-static int set_port (struct port_range *range, int port)
+static json_int_t set_port (struct port_range *range, json_int_t port)
 {
     if (range->fill >= range->maxsize) {
         return -1;
@@ -87,7 +87,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
     struct plugin_range_jobid_triple *triple = arg;
     json_t *nodelist;
     struct hostlist *hlist = NULL;
-    int port1, port2;
+    json_int_t port1, port2;
     flux_t *h;
     json_t *arr = NULL;
 
@@ -110,7 +110,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
     }
     // assign ports to the job
     if ((port1 = get_port (triple->range)) < 0 || (port2 = get_port (triple->range)) < 0
-        || !(arr = json_pack ("[i, i]", port1, port2))
+        || !(arr = json_pack ("[I, I]", port1, port2))
         || flux_jobtap_event_post_pack (triple->plugin,
                                         triple->jobid,
                                         "cray_port_distribution",
@@ -198,7 +198,7 @@ static int cleanup_cb (flux_plugin_t *p,
     struct port_range *range = arg;
     flux_t *h;
     json_t *array, *value;
-    int portnum;
+    json_int_t portnum;
     size_t index;
 
     if (!(h = flux_jobtap_get_flux (p)))
@@ -214,7 +214,7 @@ static int cleanup_cb (flux_plugin_t *p,
     }
     json_array_foreach (array, index, value)
     {
-        if ((portnum = (int)json_integer_value (value)) == 0) {
+        if ((portnum = json_integer_value (value)) == 0) {
             flux_log_error (h,
                             "cray_pals_port_distributor: "
                             "Malformed cray_port_distribution event");
@@ -242,13 +242,13 @@ static void port_range_destroy (struct port_range *range)
 int flux_plugin_init (flux_plugin_t *p)
 {
     struct port_range *range = NULL;
-    int i, port_min, port_max, size;
+    json_int_t port_min, port_max, size;
     flux_t *h;
 
     if (!(h = flux_jobtap_get_flux (p)) || flux_plugin_set_name (p, "cray-pals") < 0)
         return -1;
     if (flux_plugin_conf_unpack (p,
-                                 "{s:i, s:i}",
+                                 "{s:I, s:I}",
                                  "port-min",
                                  &port_min,
                                  "port-max",
@@ -258,19 +258,28 @@ int flux_plugin_init (flux_plugin_t *p)
         flux_log (h,
                   LOG_NOTICE,
                   "Port range not specified in config with port-min and port-max. "
-                  "Using defaults of %d and %d.",
+                  "Using defaults of %" JSON_INTEGER_FORMAT " and %" JSON_INTEGER_FORMAT ".",
                   port_min,
                   port_max);
     }
-    size = (port_max - port_min);
 
-    if (size < 10)
+    // check that port range falls within acceptable bounds
+    // ports less than 1024 require root, max port is 2^16 -
+    if (port_min < 1024 || port_max < 1024 || port_max > (1 << 16)) {
+        flux_log_error (h, "cray_pals_port_distributor: invalid port min/max");
+        return -1;
+    }
+    size = (port_max - port_min);
+    if (size < 50) {
         flux_log_error (h,
                         "cray_pals_port_distributor: "
-                        "Not enough ports specified: %d",
+                        "Not enough ports specified: %" JSON_INTEGER_FORMAT,
                         size);
+        return -1;
+    }
+
     if (!(range = malloc (sizeof (struct port_range)))
-        || !(range->available_ports = malloc (size * sizeof (i)))) {
+        || !(range->available_ports = malloc (size * sizeof (port_min)))) {
         free (range);
         flux_log_error (h,
                         "cray_pals_port_distributor: "
