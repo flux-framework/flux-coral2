@@ -23,6 +23,8 @@
 
 #define CRAY_PALS_AUX_NAME "cray::libpals::ports"
 
+#define PLUGIN_NAME "cray_pals_port_distributor"
+
 struct port_range {
     json_int_t *available_ports;
     json_int_t fill;
@@ -101,7 +103,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
                                     &nodelist) < 0
         || !(hlist = hostlist_from_array (nodelist))) {
         flux_log_error (h,
-                        "cray_pals_port_distributor: "
+                        PLUGIN_NAME ": "
                         "Error fetching R from shell-counting future");
         goto cleanup;
     }
@@ -125,7 +127,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
         if (arr)
             json_decref (arr);
         flux_log_error (h,
-                        "cray_pals_port_distributor: "
+                        PLUGIN_NAME ": "
                         "Failed to post ports to job");
         goto cleanup;
     }
@@ -136,7 +138,7 @@ cleanup:
                                    "cray-pals-port-distributor",
                                    0) < 0)
         flux_log_error (h,
-                        "cray_pals_port_distributor: prolog_finish");
+                        PLUGIN_NAME ": prolog_finish");
     if (hlist)
         hostlist_destroy (hlist);
     flux_future_destroy (fut);
@@ -172,12 +174,12 @@ static int run_cb (flux_plugin_t *p,
         if (fut)
             flux_future_destroy (fut);
         flux_log_error (h,
-                        "cray_pals_port_distributor: "
+                        PLUGIN_NAME ": "
                         "Error creating shell-counting future");
         goto error;
     }
     if (flux_jobtap_prolog_start (p, "cray-pals-port-distributor") < 0) {
-        flux_log_error (h, "cray_pals_port_distributor: prolog_start");
+        flux_log_error (h, PLUGIN_NAME ": prolog_start");
         goto error;
     }
     // 'triple' freed in callback
@@ -208,7 +210,7 @@ static int cleanup_cb (flux_plugin_t *p,
         return 0;
     if (!json_is_array (array)) {
         flux_log_error (h,
-                        "cray_pals_port_distributor: " CRAY_PALS_AUX_NAME
+                        PLUGIN_NAME ": " CRAY_PALS_AUX_NAME
                         " aux is not array");
         return -1;
     }
@@ -216,12 +218,12 @@ static int cleanup_cb (flux_plugin_t *p,
     {
         if ((portnum = json_integer_value (value)) == 0) {
             flux_log_error (h,
-                            "cray_pals_port_distributor: "
+                            PLUGIN_NAME ": "
                             "Malformed cray_port_distribution event");
             return -1;
         }
         if (set_port (range, portnum) < 0) {
-            flux_log_error (h, "cray_pals_port_distributor: Port overflow");
+            flux_log_error (h, PLUGIN_NAME ": Port overflow");
             return -1;
         }
     }
@@ -266,13 +268,13 @@ int flux_plugin_init (flux_plugin_t *p)
     // check that port range falls within acceptable bounds
     // ports less than 1024 require root, max port is 2^16 -
     if (port_min < 1024 || port_max < 1024 || port_max > (1 << 16)) {
-        flux_log_error (h, "cray_pals_port_distributor: invalid port min/max");
+        flux_log_error (h, PLUGIN_NAME ": invalid port min/max");
         return -1;
     }
     size = (port_max - port_min);
     if (size < 50) {
         flux_log_error (h,
-                        "cray_pals_port_distributor: "
+                        PLUGIN_NAME ": "
                         "Not enough ports specified: %" JSON_INTEGER_FORMAT,
                         size);
         return -1;
@@ -282,7 +284,7 @@ int flux_plugin_init (flux_plugin_t *p)
         || !(range->available_ports = malloc (size * sizeof (port_min)))) {
         free (range);
         flux_log_error (h,
-                        "cray_pals_port_distributor: "
+                        PLUGIN_NAME ": "
                         "Error allocating port range");
         return -1;
     }
