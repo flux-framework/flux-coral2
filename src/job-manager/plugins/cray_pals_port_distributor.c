@@ -23,10 +23,12 @@
 
 #define CRAY_PALS_AUX_NAME "cray::libpals::ports"
 
+#define PLUGIN_NAME "cray_pals_port_distributor"
+
 struct port_range {
-    int *available_ports;
-    int fill;
-    int maxsize;
+    json_int_t *available_ports;
+    json_int_t fill;
+    json_int_t maxsize;
 };
 
 struct plugin_range_jobid_triple {
@@ -35,7 +37,7 @@ struct plugin_range_jobid_triple {
     flux_jobid_t jobid;
 };  // for passing to flux_future_t callback
 
-static int get_port (struct port_range *range)
+static json_int_t get_port (struct port_range *range)
 {
     if (range->fill <= 0) {
         return -1;
@@ -44,7 +46,7 @@ static int get_port (struct port_range *range)
     return range->available_ports[range->fill];
 }
 
-static int set_port (struct port_range *range, int port)
+static json_int_t set_port (struct port_range *range, json_int_t port)
 {
     if (range->fill >= range->maxsize) {
         return -1;
@@ -87,7 +89,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
     struct plugin_range_jobid_triple *triple = arg;
     json_t *nodelist;
     struct hostlist *hlist = NULL;
-    int port1, port2;
+    json_int_t port1, port2;
     flux_t *h;
     json_t *arr = NULL;
 
@@ -101,7 +103,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
                                     &nodelist) < 0
         || !(hlist = hostlist_from_array (nodelist))) {
         flux_log_error (h,
-                        "cray_pals_port_distributor: "
+                        PLUGIN_NAME ": "
                         "Error fetching R from shell-counting future");
         goto cleanup;
     }
@@ -110,7 +112,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
     }
     // assign ports to the job
     if ((port1 = get_port (triple->range)) < 0 || (port2 = get_port (triple->range)) < 0
-        || !(arr = json_pack ("[i, i]", port1, port2))
+        || !(arr = json_pack ("[I, I]", port1, port2))
         || flux_jobtap_event_post_pack (triple->plugin,
                                         triple->jobid,
                                         "cray_port_distribution",
@@ -125,7 +127,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
         if (arr)
             json_decref (arr);
         flux_log_error (h,
-                        "cray_pals_port_distributor: "
+                        PLUGIN_NAME ": "
                         "Failed to post ports to job");
         goto cleanup;
     }
@@ -136,7 +138,7 @@ cleanup:
                                    "cray-pals-port-distributor",
                                    0) < 0)
         flux_log_error (h,
-                        "cray_pals_port_distributor: prolog_finish");
+                        PLUGIN_NAME ": prolog_finish");
     if (hlist)
         hostlist_destroy (hlist);
     flux_future_destroy (fut);
@@ -172,12 +174,12 @@ static int run_cb (flux_plugin_t *p,
         if (fut)
             flux_future_destroy (fut);
         flux_log_error (h,
-                        "cray_pals_port_distributor: "
+                        PLUGIN_NAME ": "
                         "Error creating shell-counting future");
         goto error;
     }
     if (flux_jobtap_prolog_start (p, "cray-pals-port-distributor") < 0) {
-        flux_log_error (h, "cray_pals_port_distributor: prolog_start");
+        flux_log_error (h, PLUGIN_NAME ": prolog_start");
         goto error;
     }
     // 'triple' freed in callback
@@ -198,7 +200,7 @@ static int cleanup_cb (flux_plugin_t *p,
     struct port_range *range = arg;
     flux_t *h;
     json_t *array, *value;
-    int portnum;
+    json_int_t portnum;
     size_t index;
 
     if (!(h = flux_jobtap_get_flux (p)))
@@ -208,20 +210,20 @@ static int cleanup_cb (flux_plugin_t *p,
         return 0;
     if (!json_is_array (array)) {
         flux_log_error (h,
-                        "cray_pals_port_distributor: " CRAY_PALS_AUX_NAME
+                        PLUGIN_NAME ": " CRAY_PALS_AUX_NAME
                         " aux is not array");
         return -1;
     }
     json_array_foreach (array, index, value)
     {
-        if ((portnum = (int)json_integer_value (value)) == 0) {
+        if ((portnum = json_integer_value (value)) == 0) {
             flux_log_error (h,
-                            "cray_pals_port_distributor: "
+                            PLUGIN_NAME ": "
                             "Malformed cray_port_distribution event");
             return -1;
         }
         if (set_port (range, portnum) < 0) {
-            flux_log_error (h, "cray_pals_port_distributor: Port overflow");
+            flux_log_error (h, PLUGIN_NAME ": Port overflow");
             return -1;
         }
     }
@@ -242,13 +244,13 @@ static void port_range_destroy (struct port_range *range)
 int flux_plugin_init (flux_plugin_t *p)
 {
     struct port_range *range = NULL;
-    int i, port_min, port_max, size;
+    json_int_t port_min, port_max, size;
     flux_t *h;
 
     if (!(h = flux_jobtap_get_flux (p)) || flux_plugin_set_name (p, "cray-pals") < 0)
         return -1;
     if (flux_plugin_conf_unpack (p,
-                                 "{s:i, s:i}",
+                                 "{s:I, s:I}",
                                  "port-min",
                                  &port_min,
                                  "port-max",
@@ -258,22 +260,31 @@ int flux_plugin_init (flux_plugin_t *p)
         flux_log (h,
                   LOG_NOTICE,
                   "Port range not specified in config with port-min and port-max. "
-                  "Using defaults of %d and %d.",
+                  "Using defaults of %" JSON_INTEGER_FORMAT " and %" JSON_INTEGER_FORMAT ".",
                   port_min,
                   port_max);
     }
-    size = (port_max - port_min);
 
-    if (size < 10)
+    // check that port range falls within acceptable bounds
+    // ports less than 1024 require root, max port is 2^16 -
+    if (port_min < 1024 || port_max < 1024 || port_max > (1 << 16)) {
+        flux_log_error (h, PLUGIN_NAME ": invalid port min/max");
+        return -1;
+    }
+    size = (port_max - port_min);
+    if (size < 50) {
         flux_log_error (h,
-                        "cray_pals_port_distributor: "
-                        "Not enough ports specified: %d",
+                        PLUGIN_NAME ": "
+                        "Not enough ports specified: %" JSON_INTEGER_FORMAT,
                         size);
+        return -1;
+    }
+
     if (!(range = malloc (sizeof (struct port_range)))
-        || !(range->available_ports = malloc (size * sizeof (i)))) {
+        || !(range->available_ports = malloc (size * sizeof (port_min)))) {
         free (range);
         flux_log_error (h,
-                        "cray_pals_port_distributor: "
+                        PLUGIN_NAME ": "
                         "Error allocating port range");
         return -1;
     }
