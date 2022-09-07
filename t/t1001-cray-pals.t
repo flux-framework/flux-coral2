@@ -79,6 +79,13 @@ test_expect_success 'shell: pals shell plugin creates apinfo file' '
 	&& test ! -z \$PALS_APINFO && test -f \$PALS_APINFO"
 '
 
+test_expect_success 'shell: pals shell plugin handles resource oversubscription' '
+	flux mini run -o userrc=$(pwd)/$USERRC_NAME -N1 -n2 -oper-resource.type=core -oper-resource.count=2 \
+	env | grep PALS_RANKID=3 &&
+	flux mini run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 -oper-resource.type=node -oper-resource.count=6 \
+	env | grep PALS_RANKID=5
+'
+
 test_expect_success 'shell: pals shell plugin ignores missing jobtap plugin' '
 	flux jobtap remove cray_pals_port_distributor.so &&
 	flux mini run -o verbose -o userrc=$(pwd)/$USERRC_NAME \

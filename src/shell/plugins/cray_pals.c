@@ -554,33 +554,14 @@ cleanup:
     return ret;
 }
 
-static int get_ntasks (flux_shell_t *shell)
+static int get_cores_per_task (flux_shell_t *shell, int ntasks)
 {
-    int version, ntasks;
+    int version, task_slots, cores_per_slot;
 
     if (flux_shell_jobspec_info_unpack (shell,
-                                        "{s:i, s:i}",
+                                        "{s:i, s:i, s:i}",
                                         "version",
                                         &version,
-                                        "ntasks",
-                                        &ntasks) < 0
-        || version != 1) {
-        shell_log_error ("Error unpacking 'ntasks' from jobspec");
-        return -1;
-    }
-    return ntasks;
-}
-
-static int get_cores_per_task (flux_shell_t *shell)
-{
-    int version, ntasks, task_slots, cores_per_slot;
-
-    if (flux_shell_jobspec_info_unpack (shell,
-                                        "{s:i, s:i, s:i, s:i}",
-                                        "version",
-                                        &version,
-                                        "ntasks",
-                                        &ntasks,
                                         "nslots",
                                         &task_slots,
                                         "cores_per_slot",
@@ -609,9 +590,11 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
 
     // Get shell size and hostlist
     if (flux_shell_info_unpack (shell,
-                                "{s:i, s:{s:{s:o}}}",
+                                "{s:i, s:i, s:{s:{s:o}}}",
                                 "size",
                                 &shell_size,
+                                "ntasks",
+                                &ntasks,
                                 "R",
                                 "execution",
                                 "nodelist",
@@ -626,8 +609,7 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
     if (nnodes < 1
         || !(placement =
                  get_task_placement (shell, nnodes, shell_size, hlist, hlist_uniq))
-        || (ntasks = get_ntasks (shell)) < 1
-        || (cores_per_task = get_cores_per_task (shell)) < 1) {
+        || (cores_per_task = get_cores_per_task (shell, ntasks)) < 0) {
         shell_log_error ("Error calculating task placement");
         goto error;
     }
