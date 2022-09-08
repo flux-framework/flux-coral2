@@ -79,6 +79,42 @@ test_expect_success 'shell: pals shell plugin creates apinfo file' '
 	&& test ! -z \$PALS_APINFO && test -f \$PALS_APINFO"
 '
 
+test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for one task' '
+	apinfo=$(flux mini run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 ${PYTHON:-python3} \
+	${SHARNESS_TEST_SRCDIR}/scripts/apinfo_checker.py) &&
+	echo "$apinfo" | jq -e ".version == 1" &&
+	echo "$apinfo" | jq -e ".cmds[0].npes == 1" &&
+	echo "$apinfo" | jq -e ".pes[0].localidx == 0" &&
+	echo "$apinfo" | jq -e ".pes[0].cmdidx == 0" &&
+	echo "$apinfo" | jq -e ".pes[0].nodeidx == 0" &&
+	echo "$apinfo" | jq -e ".nodes[0].id == 0" &&
+	test $(hostname) = $(echo "$apinfo" | jq -r .nodes[0].hostname) &&
+	echo "$apinfo" | jq ".nics | length == 0" &&
+	echo "$apinfo" | jq ".comm_profiles | length == 0" &&
+	echo "$apinfo" | jq -e ".nodes | length == 1" &&
+	echo "$apinfo" | jq -e ".cmds | length == 1" &&
+	echo "$apinfo" | jq -e ".pes | length == 1"
+'
+
+test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for multiple tasks' '
+	apinfo=$(flux mini run -o userrc=$(pwd)/$USERRC_NAME -N1 -n2 --label-io \
+	${PYTHON:-python3} ${SHARNESS_TEST_SRCDIR}/scripts/apinfo_checker.py \
+	| sed -n "s/^1: //p") &&
+	echo "$apinfo" | jq -e ".cmds[0].npes == 2" &&
+	echo "$apinfo" | jq -e ".cmds[0].pes_per_node == 2" &&
+	echo "$apinfo" | jq -e ".pes[0].localidx == 0" &&
+	echo "$apinfo" | jq -e ".pes[1].localidx == 1" &&
+	echo "$apinfo" | jq -e ".pes[0].cmdidx == 0" &&
+	echo "$apinfo" | jq -e ".pes[1].cmdidx == 0" &&
+	echo "$apinfo" | jq -e ".pes[0].nodeidx == 0" &&
+	echo "$apinfo" | jq -e ".pes[1].nodeidx == 0" &&
+	echo "$apinfo" | jq -e ".nics | length == 0" &&
+	echo "$apinfo" | jq -e ".comm_profiles | length == 0" &&
+	echo "$apinfo" | jq -e ".nodes | length ==1" &&
+	echo "$apinfo" | jq -e ".cmds | length == 1" &&
+	echo "$apinfo" | jq -e ".pes | length == 2"
+'
+
 test_expect_success 'shell: pals shell plugin handles resource oversubscription' '
 	flux mini run -o userrc=$(pwd)/$USERRC_NAME -N1 -n2 -oper-resource.type=core -oper-resource.count=2 \
 	env | grep PALS_RANKID=3 &&
