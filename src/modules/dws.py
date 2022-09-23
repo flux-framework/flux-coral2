@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 """
-Script that acts as an intermediate between flux-core plugins and DataWarp Services.
+Script that acts as an intermediate between flux-core plugins and
+Data Workflow Services.
 
-DataWarp Services is DWS for short.
+Data Workflow Services is DWS for short.
 """
 
 import os
