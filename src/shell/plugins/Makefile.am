@@ -7,7 +7,7 @@ AM_LDFLAGS = \
 	$(CODE_COVERAGE_LIBS)
 
 shell_plugindir = \
-    $(fluxlibdir)/shell/plugins/
+    $(fluxlibdir)/shell/plugins/coral2/
 
 shell_plugin_LTLIBRARIES = cray_pals.la
 
