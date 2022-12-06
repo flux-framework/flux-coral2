@@ -93,7 +93,7 @@ def create_cb(fh, t, msg, api_instance):
         )
     workflow_name = f"dws-workflow-test-{jobid}"
     spec = {
-        "desiredState": "proposal",
+        "desiredState": "Proposal",
         "dwDirectives": dw_directives,
         "jobID": jobid,
         "userID": userid,
@@ -169,7 +169,7 @@ def setup_cb(fh, t, msg, k8s_api):
             {"spec": {"allocationSets": allocation_sets}},
         )
     workflow.setup_rpc = msg
-    move_workflow_desiredstate(workflow.name, "setup", k8s_api)
+    move_workflow_desiredstate(workflow.name, "Setup", k8s_api)
 
 
 @message_callback_wrapper
@@ -196,9 +196,9 @@ def post_run_cb(fh, t, msg, k8s_api):
     if not run_started:
         # the job hit an exception before beginning to run; transition
         # the workflow immediately to 'teardown'
-        move_workflow_desiredstate(winfo.name, "teardown", k8s_api)
+        move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
     else:
-        move_workflow_desiredstate(winfo.name, "post_run", k8s_api)
+        move_workflow_desiredstate(winfo.name, "PostRun", k8s_api)
 
 
 def state_complete(workflow, state):
@@ -232,7 +232,7 @@ def workflow_state_change_cb(event, fh, k8s_api):
             "Failed to process event update for workflow with jobid %s:", jobid
         )
         try:
-            move_workflow_desiredstate(winfo.name, "teardown", k8s_api)
+            move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
         except Exception:
             LOGGER.exception(
                 "Failed to move workflow with jobid %s to 'teardown' "
@@ -250,36 +250,36 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         # move a 'teardown' workflow to an earlier state because the
         # 'teardown' update is still in the k8s update queue.
         return
-    elif state_complete(workflow, "teardown"):
+    elif state_complete(workflow, "Teardown"):
         # delete workflow object and tell DWS jobtap plugin that the job is done
         k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
         fh.respond(winfo.post_run_rpc, {"success": True})  # ATM, does nothing
         winfo.toredown = True
-    elif state_complete(workflow, "proposal"):
+    elif state_complete(workflow, "Proposal"):
         winfo.computes = workflow["status"]["computes"]
         resources = winfo.create_rpc.payload["resources"]
         winfo.breakdowns = apply_breakdowns(k8s_api, workflow, resources)
         fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
         winfo.create_rpc = None
-    elif state_complete(workflow, "setup"):
-        # move workflow to next stage, data_in
-        move_workflow_desiredstate(winfo.name, "data_in", k8s_api)
-    elif state_complete(workflow, "data_in"):
-        # move workflow to next stage, pre_run
-        move_workflow_desiredstate(winfo.name, "pre_run", k8s_api)
-    elif state_complete(workflow, "pre_run"):
+    elif state_complete(workflow, "Setup"):
+        # move workflow to next stage, DataIn
+        move_workflow_desiredstate(winfo.name, "DataIn", k8s_api)
+    elif state_complete(workflow, "DataIn"):
+        # move workflow to next stage, PreRun
+        move_workflow_desiredstate(winfo.name, "PreRun", k8s_api)
+    elif state_complete(workflow, "PreRun"):
         # tell DWS jobtap plugin that the job can start
         fh.respond(
             winfo.setup_rpc,
             {"success": True, "variables": workflow["status"].get("env", {})},
         )
         winfo.setup_rpc = None
-    elif state_complete(workflow, "post_run"):
-        # move workflow to next stage, data_out
-        move_workflow_desiredstate(winfo.name, "data_out", k8s_api)
-    elif state_complete(workflow, "data_out"):
+    elif state_complete(workflow, "PostRun"):
+        # move workflow to next stage, DataOut
+        move_workflow_desiredstate(winfo.name, "DataOut", k8s_api)
+    elif state_complete(workflow, "DataOut"):
         # move workflow to next stage, teardown
-        move_workflow_desiredstate(winfo.name, "teardown", k8s_api)
+        move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
     elif workflow["status"]["message"]:
         # TODO: if there is a message it is assumed to be an error message
         # HPE says to dump the whole workflow
