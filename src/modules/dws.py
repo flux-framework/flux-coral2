@@ -158,7 +158,9 @@ def setup_cb(fh, t, msg, k8s_api):
     )
     for breakdown in workflow.breakdowns:
         allocation_sets = build_allocation_sets(
-            breakdown["status"]["storage"]["allocationSets"], local_allocations, nodes_per_nnf
+            breakdown["status"]["storage"]["allocationSets"],
+            local_allocations,
+            nodes_per_nnf,
         )
         k8s_api.patch_namespaced_custom_object(
             SERVER_CRD.group,
@@ -184,8 +186,11 @@ def post_run_cb(fh, t, msg, k8s_api):
     """
     jobid = msg.payload["jobid"]
     if jobid not in _WORKFLOWINFO_CACHE:
-        LOGGER.info("Missing workflow cache entry for %i, which is only "
-            "expected if a workflow object could not be created for the job", jobid)
+        LOGGER.info(
+            "Missing workflow cache entry for %i, which is only "
+            "expected if a workflow object could not be created for the job",
+            jobid,
+        )
         return
     winfo = _WORKFLOWINFO_CACHE[jobid]
     run_started = msg.payload["run_started"]
@@ -244,17 +249,18 @@ def workflow_state_change_cb(event, fh, k8s_api):
 
 
 def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
-    if winfo.toredown:
+    if state_complete(workflow, "Teardown"):
+        # delete workflow object and tell DWS jobtap plugin that the job is done
+        k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
+        if winfo.post_run_rpc is not None:
+            fh.respond(winfo.post_run_rpc, {"success": True})  # ATM, does nothing
+        winfo.toredown = True
+    elif winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
         # Without this early 'return', this function may try to
         # move a 'teardown' workflow to an earlier state because the
         # 'teardown' update is still in the k8s update queue.
         return
-    elif state_complete(workflow, "Teardown"):
-        # delete workflow object and tell DWS jobtap plugin that the job is done
-        k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
-        fh.respond(winfo.post_run_rpc, {"success": True})  # ATM, does nothing
-        winfo.toredown = True
     elif state_complete(workflow, "Proposal"):
         winfo.computes = workflow["status"]["computes"]
         resources = winfo.create_rpc.payload["resources"]
@@ -280,12 +286,13 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
     elif state_complete(workflow, "DataOut"):
         # move workflow to next stage, teardown
         move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
-    elif workflow["status"]["message"]:
-        # TODO: if there is a message it is assumed to be an error message
+    elif workflow["status"].get("status") == "Error":
         # HPE says to dump the whole workflow
-        # LOGGER.error("DWS has error set, workflow is %s", workflow)
-        # raise RuntimeError(f"DWS has error set: {workflow['status']['message']}")
-        pass
+        LOGGER.error("DWS has error set, workflow is %s", workflow)
+        raise RuntimeError(
+            "DWS has error set: "
+            f"{workflow['status'].get('message', 'no error message provided')}"
+        )
 
 
 def rabbit_state_change_cb(event, fh, rabbits):
@@ -348,8 +355,7 @@ def main():
     if args.verbose > 2:
         log_level = logging.DEBUG
     logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        level=log_level,
+        format="%(asctime)s - %(levelname)s - %(message)s", level=log_level,
     )
     k8s_client = k8s.config.new_client_from_config()
     try:
