@@ -11,7 +11,7 @@ class AllocationStrategy(enum.Enum):
 
 
 PER_COMPUTE_TYPES = ("xfs", "gfs2", "raw")
-LUSTRE_TYPES = ("ost", "mdt", "mgt")
+LUSTRE_TYPES = ("ost", "mdt", "mgt", "mgtmdt")
 
 
 def build_allocation_sets(allocation_sets, local_allocations, nodes_per_nnf):
@@ -96,6 +96,7 @@ def _apply_allocation(allocation, resources):
         "ost": AllocationStrategy.ACROSS_SERVERS.value,
         "mdt": AllocationStrategy.SINGLE_SERVER.value,
         "mgt": AllocationStrategy.SINGLE_SERVER.value,
+        "mgtmdt": AllocationStrategy.SINGLE_SERVER.value,
     }
     capacity_gb = max(1, allocation["minimumCapacity"] // (1024 ** 3))
     if allocation["allocationStrategy"] != expected_alloc_strats[allocation["label"]]:
@@ -107,7 +108,7 @@ def _apply_allocation(allocation, resources):
     if allocation["label"] in PER_COMPUTE_TYPES:
         _apply_alloc_per_compute(capacity_gb, resources)
     elif allocation["label"] in LUSTRE_TYPES:
-        _apply_lustre(capacity_gb, resources, allocation["label"] == "mgt")
+        _apply_lustre(capacity_gb, resources, allocation["label"] in ("mgt", "mgtmdt"))
     else:
         raise ValueError(f"Unknown label {allocation['label']!r}")
 
