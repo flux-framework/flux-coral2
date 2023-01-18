@@ -15,6 +15,7 @@ import functools
 import argparse
 import logging
 import traceback
+import pwd
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
@@ -97,6 +98,7 @@ def create_cb(fh, t, msg, api_instance):
         "dwDirectives": dw_directives,
         "jobID": jobid,
         "userID": userid,
+        "groupID": pwd.getpwuid(userid).pw_gid,
         "wlmID": str(jobid),
     }
     body = {
