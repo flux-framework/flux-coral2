@@ -94,9 +94,9 @@ def _apply_allocation(allocation, resources):
         "raw": AllocationStrategy.PER_COMPUTE.value,
         "gfs2": AllocationStrategy.PER_COMPUTE.value,
         "ost": AllocationStrategy.ACROSS_SERVERS.value,
-        "mdt": AllocationStrategy.SINGLE_SERVER.value,
+        "mdt": AllocationStrategy.ACROSS_SERVERS.value,
         "mgt": AllocationStrategy.SINGLE_SERVER.value,
-        "mgtmdt": AllocationStrategy.SINGLE_SERVER.value,
+        "mgtmdt": AllocationStrategy.ACROSS_SERVERS.value,
     }
     capacity_gb = max(1, allocation["minimumCapacity"] // (1024 ** 3))
     if allocation["allocationStrategy"] != expected_alloc_strats[allocation["label"]]:
