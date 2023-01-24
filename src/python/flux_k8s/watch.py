@@ -1,9 +1,13 @@
 import syslog
+import logging
 
 from flux.constants import FLUX_MSGTYPE_REQUEST
 import kubernetes as k8s
 
 from flux.core.watchers import fd_handler_wrapper
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Watch:
@@ -24,6 +28,16 @@ class Watch:
         for event in k8s.watch.Watch().stream(
             self.api.list_namespaced_custom_object, *self.crd, **kwargs
         ):
+            # when there are only old workflows lying around and no new ones,
+            # the resourceversion will be > 0 but too old for kubernetes to accept it
+            if event["type"] == "ERROR" and event["object"]["code"] == 410:
+                LOGGER.debug(
+                    "Resource version too old in watch, restarting "
+                    "from resourceVersion = 0: %s",
+                    event["object"]["message"]
+                )
+                self.resource_version = 0
+                return
             event_version = int(event["object"]["metadata"]["resourceVersion"])
             self.resource_version = max(event_version, self.resource_version)
             self.cb(event, *self.cb_args, **self.cb_kwargs)
