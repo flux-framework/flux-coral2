@@ -251,7 +251,11 @@ def workflow_state_change_cb(event, fh, k8s_api):
 
 
 def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
-    if state_complete(workflow, "Teardown"):
+    if "state" not in workflow["status"]:
+        # workflow was just submitted, DWS still needs to give workflow
+        # a state of 'Proposal'
+        return
+    elif state_complete(workflow, "Teardown"):
         # delete workflow object and tell DWS jobtap plugin that the job is done
         k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
         if winfo.post_run_rpc is not None:
@@ -289,8 +293,14 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         # move workflow to next stage, teardown
         move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
     elif workflow["status"].get("status") == "Error":
+        # some errors are fatal, others are recoverable
         # HPE says to dump the whole workflow
-        LOGGER.error("DWS has error set, workflow is %s", workflow)
+        LOGGER.warning(
+            "Workflow %s has error set, message is '%s', workflow is %s",
+            winfo.name,
+            workflow["status"].get("message", ""),
+            workflow,
+        )
         raise RuntimeError(
             "DWS has error set: "
             f"{workflow['status'].get('message', 'no error message provided')}"
