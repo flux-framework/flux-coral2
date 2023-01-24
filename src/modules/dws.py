@@ -300,8 +300,8 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
 def rabbit_state_change_cb(event, fh, rabbits):
     obj = event["object"]
     name = obj["metadata"]["name"]
-    capacity = obj["data"]["capacity"]
-    status = obj["data"]["status"]
+    capacity = obj["status"]["capacity"]
+    status = obj["status"]["status"]
 
     try:
         curr_rabbit = rabbits[name]
@@ -314,10 +314,10 @@ def rabbit_state_change_cb(event, fh, rabbits):
         # insert the rabbit into the resource graph
         return
 
-    if curr_rabbit["data"]["status"] != status:
+    if curr_rabbit["status"]["status"] != status:
         fh.log(syslog.LOG_DEBUG, f"Storage {name} status changed to {status}")
         # TODO: update status of vertex in resource graph
-    if curr_rabbit["data"]["capacity"] != capacity:
+    if curr_rabbit["status"]["capacity"] != capacity:
         fh.log(
             syslog.LOG_DEBUG, f"Storage {name} capacity changed to {capacity}",
         )
@@ -372,7 +372,7 @@ def main():
         RABBIT_CRD.group, RABBIT_CRD.version, RABBIT_CRD.plural
     )
     for nnf in api_response["items"]:
-        for compute in nnf["data"]["access"].get("computes", []):
+        for compute in nnf["status"]["access"].get("computes", []):
             hostname = compute["name"]
             if hostname in _HOSTNAMES_TO_RABBITS:
                 raise KeyError(
