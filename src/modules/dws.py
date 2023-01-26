@@ -223,12 +223,14 @@ def workflow_state_change_cb(event, fh, k8s_api):
     try:
         workflow = event["object"]
         jobid = workflow["spec"]["jobID"]
+        workflow_name = workflow["metadata"]["name"]
+    except KeyError:
+        LOGGER.exception("Invalid workflow in event stream: ")
+        return
+    try:
         winfo = _WORKFLOWINFO_CACHE[jobid]
     except KeyError:
-        LOGGER.info(
-            "Invalid workflow in event stream, or unrecognized job ID: %s",
-            traceback.format_exc(),
-        )
+        LOGGER.info("unrecognized workflow '%s' in event stream", workflow_name)
         return
     if event.get("TYPE") == "DELETED":
         # the workflow has been deleted, we can forget about it
