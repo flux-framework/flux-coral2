@@ -46,6 +46,7 @@ class WorkflowInfo:
         self.setup_rpc = None
         self.post_run_rpc = None
         self.toredown = False
+        self.deleted = False
         self.computes = None
         self.breakdowns = None
 
@@ -204,6 +205,7 @@ def post_run_cb(fh, t, msg, k8s_api):
         # the job hit an exception before beginning to run; transition
         # the workflow immediately to 'teardown'
         move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
+        winfo.toredown = True
     else:
         move_workflow_desiredstate(winfo.name, "PostRun", k8s_api)
 
@@ -246,7 +248,8 @@ def workflow_state_change_cb(event, fh, k8s_api):
                 "state after error: ",
                 jobid,
             )
-        winfo.toredown = True
+        else:
+            winfo.toredown = True
         fh.job_raise(jobid, "exception", 0, "DWS/Rabbit interactions failed")
 
 
@@ -255,12 +258,15 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         # workflow was just submitted, DWS still needs to give workflow
         # a state of 'Proposal'
         return
+    elif winfo.deleted:
+        # deletion request has been submitted, nothing to do
+        return
     elif state_complete(workflow, "Teardown"):
         # delete workflow object and tell DWS jobtap plugin that the job is done
         k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
+        winfo.deleted = True
         if winfo.post_run_rpc is not None:
             fh.respond(winfo.post_run_rpc, {"success": True})  # ATM, does nothing
-        winfo.toredown = True
     elif winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
         # Without this early 'return', this function may try to
@@ -292,6 +298,7 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
     elif state_complete(workflow, "DataOut"):
         # move workflow to next stage, teardown
         move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
+        winfo.toredown = True
     elif workflow["status"].get("status") == "Error":
         # some errors are fatal, others are recoverable
         # HPE says to dump the whole workflow
