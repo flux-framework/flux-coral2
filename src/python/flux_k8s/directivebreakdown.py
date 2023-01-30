@@ -109,8 +109,6 @@ def _apply_allocation(allocation, resources):
         _apply_alloc_per_compute(capacity_gb, resources)
     elif allocation["label"] in LUSTRE_TYPES:
         _apply_lustre(capacity_gb, resources, allocation["label"] in ("mgt", "mgtmdt"))
-    else:
-        raise ValueError(f"Unknown label {allocation['label']!r}")
 
 
 def _get_nnf_resource(capacity, mgt=False):
@@ -129,25 +127,23 @@ def _get_nnf_resource(capacity, mgt=False):
 
 def _apply_alloc_per_compute(capacity, resources):
     """Apply XFS (node-local storage) to a jobspec's ``resources``."""
-    if len(resources) == 2 and resources[1]["type"] == "nnf":
+    if not resources:
+        raise ValueError(f"Empty resources: {resources}")
+    elif len(resources) == 2 and resources[1]["type"] == "nnf":
         resources[1]["with"][0]["count"] += capacity
     elif len(resources) > 1 or resources[0]["type"] != "node":
-        raise ValueError("jobspec resources must have a single top-level 'node' entry")
+        raise ValueError(
+            "jobspec resources must have a single top-level 'node' entry, "
+            f"got {len(resources)} entries, first entry {resources[0]['type']!r}"
+        )
     else:
         node = resources[0]
         nodecount = node["count"]
         resources.append(_get_nnf_resource(capacity))
-        # node["count"] = 1
-        # resources[0] = {"type": "slot", "label": "foobar", "count": nodecount, "with": [node, _get_nnf_resource(capacity)]}
 
 
 def _apply_lustre(capacity, resources, mgt):
     """Apply Lustre OST/MGT/MDT to a jobspec's ``resources`` dictionary."""
-    # if there is already a `rabbit-label[storage]` entry, add to its `count` field
-    # for entry in resources:
-    #     if entry["type"] == f"rabbit-{allocation['label']}":
-    #         _aggregate_resources(entry["with"], allocation["minimumCapacity"])
-    #         return
     resources.append(
         {"type": "globalnnf", "count": 1, "with": [_get_nnf_resource(capacity, mgt)]}
     )

@@ -128,7 +128,7 @@ class TAPTestResult(unittest.TestResult):
         self.ok(test)
 
     def addUnexpectedSuccess(self, test):
-        super(TAPTestResult, self).addUnexpectedSuccess(self, test)
+        super(TAPTestResult, self).addUnexpectedSuccess(test)
         self.not_ok(test)
 
     def printErrors(self):

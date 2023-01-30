@@ -15,7 +15,8 @@ status:
     kind: Servers
     name: job456-0
     namespace: default
-  allocationSet:
-  - allocationStategy: AllocatePerCompute
-    minimumCapacity: 1000000
-    label: xfs
+  storage:
+    allocationSets:
+    - allocationStrategy: AllocatePerCompute
+      minimumCapacity: 1000000
+      label: xfs

@@ -14,13 +14,14 @@ status:
     kind: Servers
     name: job456-0
     namespace: default
-  allocationSet:
-  - allocationStategy: AllocateSingleServer
-    minimumCapacity: 2000000000
-    label: mgt
-  - allocationStategy: AllocateSingleServer
-    minimumCapacity: 2000000000000
-    label: mdt
-  - allocationStategy: AllocateAcrossServers
-    minimumCapacity: 10000000000000
-    label: ost
+  storage:
+    allocationSets:
+    - allocationStrategy: AllocateSingleServer
+      minimumCapacity: 2000000000
+      label: mgt
+    - allocationStrategy: AllocateAcrossServers
+      minimumCapacity: 2000000000000
+      label: mdt
+    - allocationStrategy: AllocateAcrossServers
+      minimumCapacity: 10000000000000
+      label: ost
