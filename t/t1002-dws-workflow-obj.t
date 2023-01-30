@@ -4,8 +4,8 @@ test_description='Test DWS Workflow Objection Creation'
 
 . $(dirname $0)/sharness.sh
 
-if test_have_prereq NO_HPE_VM; then
-    skip_all='skipping DWS workflow tests due to no HPE VM'
+if test_have_prereq NO_DWS_K8S; then
+    skip_all='skipping DWS workflow tests due to no DWS K8s'
     test_done
 fi
 

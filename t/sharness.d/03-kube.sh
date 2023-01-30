@@ -3,10 +3,10 @@
 
 export KUBECONFIG=${REAL_HOME}/.kube/config
 
-#  Set HPE_VM or NO_HPE_VM prereq
+#  Set DWS_K8S or NO_DWS_K8S prereq
 if type "kubectl" > /dev/null \
-   && kubectl get crd 2> /dev/null | grep -q dwdirectiverules; then
-    test_set_prereq HPE_VM
+   && kubectl get crd 2> /dev/null | grep -q dws.cray.hpe.com; then
+    test_set_prereq DWS_K8S
 else
-    test_set_prereq NO_HPE_VM
+    test_set_prereq NO_DWS_K8S
 fi
