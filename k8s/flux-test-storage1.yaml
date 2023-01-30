@@ -1,5 +1,7 @@
 apiVersion: dws.cray.hpe.com/v1alpha1
-data:
+spec:
+  state: Enabled
+status:
   access:
     computes:
     - name: Compute16
