@@ -18,6 +18,11 @@ check_dmesg_for_pattern() {
 	flux dmesg | grep -q "$1" || return 1
 }
 
+if test_have_prereq NO_DWS_K8S; then
+    skip_all='skipping DWS workflow tests due to no DWS K8s'
+    test_done
+fi
+
 test_expect_success 'job-manager: load alloc-bypass plugin' '
 	flux jobtap load alloc-bypass.so
 '
