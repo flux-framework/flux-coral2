@@ -8,7 +8,8 @@ AM_LDFLAGS = \
 AM_TESTS_ENVIRONMENT = \
 	test -n "$$FLUX_TEST_INSTALLED_PATH" && \
 	export PYTHON="${PYTHON}";\
-	export PATH="$(FLUX_PREFIX)/bin:$(PATH)";
+	export PATH="$(FLUX_PREFIX)/bin:$(PATH)";\
+	export PYTHONPATH="$(abs_top_builddir)/src/python:$(PYTHON_SITE_PKG):$$PYTHONPATH";
 
 TEST_EXTENSIONS = .t .py
 T_LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) \
@@ -25,7 +26,8 @@ TESTSCRIPTS = \
 	t1001-cray-pals.t \
 	t1002-dws-workflow-obj.t \
 	t1003-dws-nnf-watch.t \
-	t2000-dws2jgf.t
+	t2000-dws2jgf.t \
+	python/t0001-directive-breakdown.py
 
 # make check runs these TAP tests directly (both scripts and programs)
 TESTS = \

@@ -38,18 +38,6 @@ jobs:
        ref: ${{ github.event.pull_request.head.sha }}
        fetch-depth: 0
 
-    - name: Create k8s Kind Cluster
-      uses: helm/kind-action@v1.1.0
-      with:
-        config: ./kind/kind-config.yaml
-
-    - name: Install CRDs
-      run: |
-        # Add the NNF CRD
-        kubectl apply -f ./k8s/NearNodeFlash.yaml
-        # Add all of the NNF instances
-        kubectl apply -f ./k8s/
-
     - name: docker-run-checks
       run: ./src/test/docker/docker-run-checks.sh -i ${{ matrix.image }} --
 

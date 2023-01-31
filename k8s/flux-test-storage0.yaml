@@ -1,0 +1,51 @@
+apiVersion: dws.cray.hpe.com/v1alpha1
+spec:
+  state: Enabled
+status:
+  access:
+    computes:
+    - name: Compute0
+      status: Ready
+    - name: Compute1
+      status: Ready
+    - name: Compute2
+      status: Ready
+    - name: Compute3
+      status: Ready
+    - name: Compute4
+      status: Ready
+    - name: Compute5
+      status: Ready
+    - name: Compute6
+      status: Ready
+    - name: Compute7
+      status: Ready
+    - name: Compute8
+      status: Ready
+    - name: Compute9
+      status: Ready
+    - name: Compute10
+      status: Ready
+    - name: Compute11
+      status: Ready
+    - name: Compute12
+      status: Ready
+    - name: Compute13
+      status: Ready
+    - name: Compute14
+      status: Ready
+    - name: Compute15
+      status: Ready
+    protocol: PCIe
+    servers:
+    - name: Rabbit
+      status: Ready
+  capacity: 39582418599936
+  status: Ready
+  type: NVMe
+kind: Storage
+metadata:
+  labels:
+    dws.cray.hpe.com/storage: Rabbit
+  name: flux-test-storage0
+  namespace: default
