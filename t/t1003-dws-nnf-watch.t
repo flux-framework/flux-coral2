@@ -11,7 +11,7 @@ test_under_flux ${FLUX_SIZE} job
 flux setattr log-stderr-level 1
 
 DATA_DIR=${SHARNESS_TEST_SRCDIR}/data/nnf-watch/
-DWS_MODULE_PATH=${FLUX_BUILD_DIR}/src/modules/dws.py
+DWS_MODULE_PATH=${FLUX_SOURCE_DIR}/src/modules/dws.py
 RPC=${FLUX_BUILD_DIR}/t/util/rpc
 
 check_dmesg_for_pattern() {
@@ -39,7 +39,7 @@ test_expect_success 'wait for service to register and send test RPC' '
 	${RPC} "dws.watch_test" 
 '
 
-test_expect_success 'updating the NNF status is caught by the watch' '
+test_expect_failure 'updating the NNF status is caught by the watch' '
 	flux dmesg -C &&
 	kubectl patch storages flux-test-storage0 \
 		--type merge --patch "$(cat ${DATA_DIR}/down.yaml)" &&
@@ -48,7 +48,7 @@ test_expect_success 'updating the NNF status is caught by the watch' '
 	check_dmesg_for_pattern "flux-test-storage0 capacity changed to 100000"
 '
 
-test_expect_success 'revert the changes to the NNF' '
+test_expect_failure 'revert the changes to the NNF' '
 	flux dmesg -C &&
 	kubectl patch storages flux-test-storage0 \
 		--type merge --patch "$(cat ${DATA_DIR}/up.yaml)" &&

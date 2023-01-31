@@ -34,7 +34,7 @@ class Watch:
                 LOGGER.debug(
                     "Resource version too old in watch, restarting "
                     "from resourceVersion = 0: %s",
-                    event["object"]["message"]
+                    event["object"]["message"],
                 )
                 self.resource_version = 0
                 return
