@@ -309,7 +309,7 @@ static int run_cb (flux_plugin_t *p,
             flux_future_destroy (fetch_R_future);
             flux_log_error (h,
                             "dws-jobtap: "
-                            "Error creating future to send R to dws.py");
+                            "Error creating future to send R to coral2_dws.py");
             dws_prolog_finish (h, p, id, 0, "", prolog_active);
             return -1;
         }

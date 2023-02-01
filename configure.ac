@@ -119,15 +119,15 @@ AC_SUBST(fluxrc1dir)
 AS_VAR_SET(fluxrc3dir, $sysconfdir/flux/rc3.d)
 AC_SUBST(fluxrc3dir)
 
-AS_VAR_SET(fluxcoral2pydir, $pyexecdir/fluxcoral2)
-AC_SUBST(fluxcoral2pydir)
+AS_VAR_SET(fluxk8spydir, $pyexecdir/flux_k8s)
+AC_SUBST(fluxk8spydir)
 
 # Target of PYTHONPATH set by flux(1) cmddriver, so flux(1)
 # doesn't inadvertently insert system python paths (or any
 # other python path for that matter) first in PYTHONPATH.
 #
-AS_VAR_SET(fluxcoral2pylinkdir, $fluxlibdir/python$PYTHON_VERSION)
-AC_SUBST(fluxcoral2pylinkdir)
+AS_VAR_SET(fluxk8spylinkdir, $fluxlibdir/python$PYTHON_VERSION)
+AC_SUBST(fluxk8spylinkdir)
 
 ##
 # Macros to avoid repetition in Makefiles.am's
@@ -147,6 +147,10 @@ AC_CONFIG_FILES([Makefile
   src/job-manager/plugins/Makefile
   src/shell/Makefile
   src/shell/plugins/Makefile
+  src/cmd/Makefile
+  src/modules/Makefile
+  src/python/Makefile
+  src/python/flux_k8s/Makefile
   t/Makefile])
 AC_OUTPUT
 

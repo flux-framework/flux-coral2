@@ -11,7 +11,7 @@ test_under_flux ${FLUX_SIZE} job
 flux setattr log-stderr-level 1
 
 DATA_DIR=${SHARNESS_TEST_SRCDIR}/data/nnf-watch/
-DWS_MODULE_PATH=${FLUX_SOURCE_DIR}/src/modules/dws.py
+DWS_MODULE_PATH=${FLUX_SOURCE_DIR}/src/modules/coral2_dws.py
 RPC=${FLUX_BUILD_DIR}/t/util/rpc
 
 check_dmesg_for_pattern() {

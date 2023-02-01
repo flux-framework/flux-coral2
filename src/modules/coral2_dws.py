@@ -370,6 +370,10 @@ def main():
     parser.add_argument("--watch-interval", type=int, default=5)
     parser.add_argument("--verbose", "-v", action="count", default=0)
     args = parser.parse_args()
+    try:
+        jobid = id_parse(os.environ["FLUX_JOB_ID"])
+    except KeyError as keyerr:
+        raise RuntimeError("this script is meant to be run as a Flux job") from keyerr
     log_level = logging.WARNING
     if args.verbose > 1:
         log_level = logging.INFO
@@ -428,7 +432,6 @@ def main():
         # process starting and the `dws` service being registered. Once
         # https://github.com/flux-framework/flux-core/issues/3821 is
         # implemented/closed, this can be replaced with that solution.
-        jobid = id_parse(os.environ["FLUX_JOB_ID"])
         Future(fh.job_raise(jobid, "exception", 7, "dws watchers setup")).get()
 
         fh.reactor_run()

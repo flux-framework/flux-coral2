@@ -1,6 +1,9 @@
 .NOTPARALLEL:
 
 SUBDIRS = job-manager \
-	shell
+	shell \
+	cmd \
+	modules \
+	python
 
 check-local: all
