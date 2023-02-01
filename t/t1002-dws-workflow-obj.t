@@ -16,7 +16,7 @@ test_under_flux ${FLUX_SIZE} job
 flux setattr log-stderr-level 1
 
 PLUGINPATH=${FLUX_BUILD_DIR}/src/job-manager/plugins/.libs
-DWS_MODULE_PATH=${FLUX_SOURCE_DIR}/src/modules/dws.py
+DWS_MODULE_PATH=${FLUX_SOURCE_DIR}/src/modules/coral2_dws.py
 RPC=${FLUX_BUILD_DIR}/t/util/rpc
 CREATE_DEP_NAME="dws-create"
 

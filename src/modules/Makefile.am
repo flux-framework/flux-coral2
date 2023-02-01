@@ -1,2 +1,2 @@
 dist_bin_SCRIPTS = \
-	dws.py
+	coral2_dws.py
