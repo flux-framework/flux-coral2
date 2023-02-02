@@ -14,7 +14,8 @@ shell_plugin_LTLIBRARIES = \
 	dws_environment.la
 
 cray_pals_la_SOURCES = cray_pals.c \
-	eventlog_helpers.c
+	eventlog_helpers.c \
+	eventlog_helpers.h
 cray_pals_la_CPPFLAGS = $(AM_CPPFLAGS)
 cray_pals_la_LIBADD = \
 	$(FLUX_CORE_LIBS) \
@@ -25,7 +26,8 @@ cray_pals_la_LDFLAGS = \
 	$(fluxplugin_ldflags) -module
 
 dws_environment_la_SOURCES = dws_environment.c \
-	eventlog_helpers.c
+	eventlog_helpers.c \
+	eventlog_helpers.h
 dws_environment_la_CPPFLAGS = $(AM_CPPFLAGS)
 dws_environment_la_LIBADD = \
 	$(FLUX_CORE_LIBS) \
