@@ -62,9 +62,13 @@ def message_callback_wrapper(func):
         try:
             func(fh, t, msg, k8s_api)
         except Exception as exc:
+            try:
+                jobid = msg.payload["jobid"]
+            except Exception:
+                jobid = None
             fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {exc}")
             fh.respond(msg, {"success": False, "errstr": str(exc)})
-            LOGGER.exception("Error in responding to RPC: ")
+            LOGGER.exception(f"Error in responding to RPC for {jobid}:")
 
     return wrapper
 
