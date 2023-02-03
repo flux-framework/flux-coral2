@@ -93,7 +93,7 @@ def create_cb(fh, t, msg, api_instance):
         raise TypeError(
             f"Malformed dw_directives, not list or string: {dw_directives!r}"
         )
-    workflow_name = f"dws-workflow-test-{jobid}"
+    workflow_name = f"fluxjob-{jobid}"
     spec = {
         "desiredState": "Proposal",
         "dwDirectives": dw_directives,
