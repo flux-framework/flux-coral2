@@ -37,9 +37,16 @@ EXTRA_DIST= \
 	aggregate-results.sh \
 	sharness.sh \
 	sharness.d \
+	data \
 	$(T)
 
 dist_check_SCRIPTS = \
+	scripts/run_timeout.py \
+	scripts/apinfo_checker.py \
+	rc/rc1-job \
+	rc/rc3-job \
+	python/pycotap \
+	dws-dependencies/dws.py \
 	$(TESTSCRIPTS)
 
 check_PROGRAMS = \
