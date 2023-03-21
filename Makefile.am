@@ -1,6 +1,6 @@
 .NOTPARALLEL:
 
-SUBDIRS = . src t
+SUBDIRS = . src etc t
 
 EXTRA_DIST = \
 	config/tap-driver.sh \
