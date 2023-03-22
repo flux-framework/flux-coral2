@@ -16,6 +16,7 @@ import argparse
 import logging
 import traceback
 import pwd
+import time
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
@@ -35,6 +36,7 @@ _WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
 _XFS_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
 _HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 LOGGER = logging.getLogger(__name__)
+WORKFLOWS_IN_ERROR = set()
 
 
 class WorkflowInfo:
@@ -49,6 +51,7 @@ class WorkflowInfo:
         self.deleted = False
         self.computes = None
         self.breakdowns = None
+        self.last_error_time = None
 
 
 def message_callback_wrapper(func):
@@ -305,19 +308,21 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         # move workflow to next stage, teardown
         move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
         winfo.toredown = True
-    elif workflow["status"].get("status") == "Error":
+    if workflow["status"].get("status") == "Error":
         # some errors are fatal, others are recoverable
         # HPE says to dump the whole workflow
-        LOGGER.warning(
+        LOGGER.info(
             "Workflow %s has error set, message is '%s', workflow is %s",
             winfo.name,
             workflow["status"].get("message", ""),
             workflow,
         )
-        raise RuntimeError(
-            "DWS has error set: "
-            f"{workflow['status'].get('message', 'no error message provided')}"
-        )
+        if winfo.last_error_time is None:
+            winfo.last_error_time = time.time()
+        WORKFLOWS_IN_ERROR.add(winfo)
+    else:
+        winfo.last_error_time = None
+        WORKFLOWS_IN_ERROR.discard(winfo)
 
 
 def rabbit_state_change_cb(event, fh, rabbits):
@@ -369,10 +374,47 @@ def init_rabbits(k8s_api, fh, watchers):
     return rabbits
 
 
+def kill_workflows_in_error(reactor, watcher, _r, error_timeout):
+    """Callback firing every (error_timeout / 2) seconds.
+
+    Raise exceptions on jobs stuck in Error for more than error_timeout seconds.
+    """
+    curr_time = time.time()
+    for winfo in WORKFLOWS_IN_ERROR:
+        if curr_time - winfo.last_error_time > error_timeout:
+            watcher.flux_handle.job_raise(
+                winfo.jobid,
+                "exception",
+                0,
+                "DWS/Rabbit interactions failed: workflow stuck in Error too long",
+            )
+            WORKFLOWS_IN_ERROR.discard(winfo)
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--watch-interval", type=int, default=5)
-    parser.add_argument("--verbose", "-v", action="count", default=0)
+    parser.add_argument(
+        "--watch-interval",
+        "-w",
+        type=int,
+        default=5,
+        help="Interval in seconds to issue k8s watch requests",
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="count",
+        default=0,
+        help="Increase verbosity of output",
+    )
+    parser.add_argument(
+        "--error-timeout",
+        "-e",
+        type=float,
+        default=10,
+        metavar="N",
+        help="Kill workflows in Error state for more than 'N' seconds",
+    )
     args = parser.parse_args()
     try:
         jobid = id_parse(os.environ["FLUX_JOB_ID"])
@@ -425,6 +467,16 @@ def main():
     )
     post_run_watcher.start()
     serv_reg_fut.get()
+
+    # create a timer watcher for killing workflows that have been stuck in
+    # the "Error" state for too long
+    error_timeout_watch = fh.timer_watcher_create(
+        args.error_timeout / 2,
+        kill_workflows_in_error,
+        repeat=args.error_timeout / 2,
+        args=args.error_timeout,
+    )
+    error_timeout_watch.start()
 
     with Watchers(fh, watch_interval=args.watch_interval) as watchers:
         init_rabbits(k8s_api, fh, watchers)
