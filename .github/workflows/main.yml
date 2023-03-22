@@ -30,8 +30,9 @@ jobs:
     strategy:
       matrix:
         image: ["el8", "focal"]
+        arguments: ["--distcheck", ""]
       fail-fast: false
-    name: ${{ matrix.image }}
+    name: ${{ matrix.image }} ${{ matrix.arguments }}
     steps:
     - uses: actions/checkout@v2
       with:
@@ -39,7 +40,7 @@ jobs:
        fetch-depth: 0
 
     - name: docker-run-checks
-      run: ./src/test/docker/docker-run-checks.sh -i ${{ matrix.image }} --
+      run: ./src/test/docker/docker-run-checks.sh ${{ matrix.arguments }} -i ${{ matrix.image }} --
 
     - name: annotate errors
       if: failure() || cancelled()
