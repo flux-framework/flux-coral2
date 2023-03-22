@@ -20,15 +20,6 @@ DWS_MODULE_PATH=${FLUX_SOURCE_DIR}/src/modules/coral2_dws.py
 RPC=${FLUX_BUILD_DIR}/t/util/rpc
 CREATE_DEP_NAME="dws-create"
 
-test_expect_success 'job submission without DW string works' '
-	jobid=$(flux mini submit -n1 /bin/true) &&
-	flux jobs -o long &&
-	flux resource list &&
-	flux job wait-event -vt 25 ${jobid} finish &&
-	test_must_fail flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add
-'
-
 # TODO: load alloc-bypass plugin once it is working again (flux-core #4900)
 # test_expect_success 'job-manager: load alloc-bypass plugin' '
 # 	flux jobtap load alloc-bypass.so
@@ -57,9 +48,6 @@ test_expect_success 'wait for service to register and send test RPC' '
 
 test_expect_success 'job submission without DW string works' '
 	jobid=$(flux mini submit -n1 /bin/true) &&
-	flux jobtap list &&
-	flux jobs -o long &&
-	flux resource list &&
 	flux job wait-event -vt 25 ${jobid} finish &&
 	test_must_fail flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add
