@@ -9,7 +9,7 @@ AM_TESTS_ENVIRONMENT = \
 	test -n "$$FLUX_TEST_INSTALLED_PATH" && \
 	export PYTHON="${PYTHON}";\
 	export PATH="$(FLUX_PREFIX)/bin:$(PATH)";\
-	export PYTHONPATH="$(abs_top_builddir)/src/python:$(PYTHON_SITE_PKG):$$PYTHONPATH";
+	export PYTHONPATH="$(top_srcdir)/src/python:$(PYTHON_SITE_PKG):$$PYTHONPATH";
 
 TEST_EXTENSIONS = .t .py
 T_LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) \
