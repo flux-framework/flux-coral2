@@ -9,7 +9,9 @@ from flux.future import Future
 parser = argparse.ArgumentParser()
 parser.add_argument('--create-fail', action='store_true')
 parser.add_argument('--setup-fail', action='store_true')
+parser.add_argument('--setup-hang', action='store_true')
 parser.add_argument('--post-run-fail', action='store_true')
+
 args = parser.parse_args()
 
 def create_cb(fh, t, msg, arg):
@@ -22,6 +24,8 @@ def create_cb(fh, t, msg, arg):
         fh.reactor_stop()
 
 def setup_cb(fh, t, msg, arg):
+    if args.setup_hang:
+        return
     payload = {"success": not args.setup_fail, "variables": {}}
     if args.setup_fail:
         payload['errstr'] = "Failed for test purposes"

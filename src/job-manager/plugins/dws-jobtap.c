@@ -453,7 +453,7 @@ static int exception_cb (flux_plugin_t *p,
         return -1;
     }
     if ((prolog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_prolog_active")) && (*prolog_active)){
-        if (flux_jobtap_prolog_finish (p, id, SETUP_PROLOG_NAME, -1) < 0) {
+        if (flux_jobtap_prolog_finish (p, id, SETUP_PROLOG_NAME, 1) < 0) {
             flux_log_error (h,
                             "Failed to finish prolog %s for job %" PRIu64 " after exception",
                             SETUP_PROLOG_NAME,
@@ -463,7 +463,7 @@ static int exception_cb (flux_plugin_t *p,
         *prolog_active = 0;
     }
     if ((epilog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_epilog_active")) && (*epilog_active)){
-        if (flux_jobtap_epilog_finish (p, id, DWS_EPILOG_NAME, -1) < 0) {
+        if (flux_jobtap_epilog_finish (p, id, DWS_EPILOG_NAME, 1) < 0) {
             flux_log_error (h,
                             "Failed to finish epilog %s for job %" PRIu64 " after exception",
                             DWS_EPILOG_NAME,
