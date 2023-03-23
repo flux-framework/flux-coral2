@@ -26,6 +26,7 @@
 
 #define CREATE_DEP_NAME "dws-create"
 #define SETUP_PROLOG_NAME "dws-setup"
+#define DWS_EPILOG_NAME "dws-epilog"
 
 struct create_arg_t {
     flux_plugin_t *p;
@@ -66,6 +67,24 @@ static int dws_prolog_finish (flux_t *h, flux_plugin_t *p, flux_jobid_t id, int 
             flux_log_error (h, "Failed to setup DWS workflow object for job %" PRIu64, id);
             return raise_job_exception (h, id, SETUP_PROLOG_NAME, errstr);
         }
+    }
+    return 0;
+}
+
+static int dws_epilog_finish (flux_t *h, flux_plugin_t *p, flux_jobid_t id, int success, const char *errstr, int *epilog_active){
+    if (*epilog_active){
+        if (flux_jobtap_epilog_finish (p, id, DWS_EPILOG_NAME, !success) < 0) {
+            flux_log_error (h,
+                            "Failed to finish epilog %s for job %" PRIu64,
+                            DWS_EPILOG_NAME,
+                            id);
+            return -1;
+        }
+    }
+    *epilog_active = 0;
+    if (!success) {
+        flux_log_error (h, "Failed to clean up DWS workflow object for job %" PRIu64, id);
+        return raise_job_exception (h, id, DWS_EPILOG_NAME, errstr);
     }
     return 0;
 }
@@ -122,7 +141,7 @@ static int depend_cb (flux_plugin_t *p,
     json_t *resources;
     json_t *jobspec;
     int userid;
-    int *prolog_active;
+    int *prolog_active, *epilog_active;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -144,15 +163,21 @@ static int depend_cb (flux_plugin_t *p,
         // subscribe to exception events
         if (flux_jobtap_job_subscribe (p, FLUX_JOBTAP_CURRENT_JOB) < 0
             || !(prolog_active = malloc(sizeof (int)))
+            || !(epilog_active = malloc(sizeof (int)))
             || flux_jobtap_job_aux_set (p,
                                      FLUX_JOBTAP_CURRENT_JOB,
-                                     "dws_job_status",
+                                     "dws_prolog_active",
                                      prolog_active,
+                                     free) < 0
+            || flux_jobtap_job_aux_set (p,
+                                     FLUX_JOBTAP_CURRENT_JOB,
+                                     "dws_epilog_active",
+                                     epilog_active,
                                      free) < 0){
             flux_log_error (h, "dws-jobtap: error initializing exception-monitoring");
             return -1;
         }
-        *prolog_active = 0;
+        *prolog_active = *epilog_active = 0;
         flux_future_t *create_fut = flux_rpc_pack (
             h, "dws.create", FLUX_NODEID_ANY, 0, "{s:O, s:I, s:O, s:i}", "dw_directives", dw, "jobid", id, "resources", resources, "userid", userid
         );
@@ -289,7 +314,7 @@ static int run_cb (flux_plugin_t *p,
         return -1;
     }
     if (dw) {
-        if (flux_jobtap_prolog_start (p, SETUP_PROLOG_NAME) < 0 || !(prolog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_job_status"))) {
+        if (flux_jobtap_prolog_start (p, SETUP_PROLOG_NAME) < 0 || !(prolog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_prolog_active"))) {
             flux_log_error (h, "Failed to start jobtap prolog for dws");
             return -1;
         }
@@ -317,6 +342,38 @@ static int run_cb (flux_plugin_t *p,
     return 0;
 }
 
+static void post_run_rpc_callback (flux_future_t *f, void *arg)
+{
+    flux_t *h = flux_future_get_flux(f);
+    struct create_arg_t *args;
+    int success = false;
+    int *epilog_active = NULL;
+    const char *errstr = NULL;
+
+    if (!(args = flux_future_aux_get (f, "flux::create_args")) || !(epilog_active = flux_future_aux_get (f, "flux::epilog_active"))) {
+        flux_log_error (h, "create args missing in future aux");
+        goto done;
+    }
+
+    if (flux_rpc_get_unpack (f,
+                             "{s:b, s?s}",
+                             "success", &success,
+                             "errstr", &errstr) < 0)
+    {
+        dws_epilog_finish (h, args->p, args->id, 0, "Failed to send dws.post_run RPC", epilog_active);
+        goto done;
+    }
+    if (success) {
+        dws_epilog_finish (h, args->p, args->id, 1, "success!", epilog_active);
+    }
+    else {
+        dws_epilog_finish (h, args->p, args->id, 0, errstr, epilog_active);
+    }
+
+done:
+    flux_future_destroy (f);
+}
+
 static int cleanup_cb (flux_plugin_t *p,
                       const char *topic,
                       flux_plugin_arg_t *args,
@@ -327,6 +384,8 @@ static int cleanup_cb (flux_plugin_t *p,
     flux_future_t *post_run_fut;
     flux_t *h = flux_jobtap_get_flux (p);
     int dws_run_started = 0;
+    int *epilog_active;
+    struct create_arg_t *create_args;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -340,16 +399,39 @@ static int cleanup_cb (flux_plugin_t *p,
         return -1;
     }
     if (dw) {
-        if (flux_jobtap_job_aux_get(p, FLUX_JOBTAP_CURRENT_JOB, "flux::dws_run_started")){
+        if (!(create_args = calloc (sizeof (struct create_arg_t), 1))) {
+            flux_log_error (h, "error allocating arg struct");
+            return -1;
+        }
+        create_args->p = p;
+        create_args->id = id;
+
+        if (flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "flux::dws_run_started")) {
             dws_run_started = 1;
         }
+        if (flux_jobtap_epilog_start (p, DWS_EPILOG_NAME) < 0
+            || !(epilog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_epilog_active"))) {
+            flux_log_error (h, "Failed to start jobtap epilog");
+            return -1;
+        }
+        *epilog_active = 1;
         if (!(post_run_fut = flux_rpc_pack (
-            h, "dws.post_run", FLUX_NODEID_ANY, 0, "{s:I, s:b}", "jobid", id, "run_started", dws_run_started
-        ))) {
+            h,
+            "dws.post_run",
+            FLUX_NODEID_ANY,
+            0,
+            "{s:I, s:b}",
+            "jobid", id,
+            "run_started", dws_run_started))
+            || flux_future_aux_set (post_run_fut, "flux::create_args", create_args, free) < 0
+            || flux_future_aux_set (post_run_fut, "flux::epilog_active", epilog_active, NULL)
+            || flux_future_then (post_run_fut, -1., post_run_rpc_callback, NULL) < 0) {
+
+            flux_future_destroy (post_run_fut);
+            dws_epilog_finish (h, p, id, 0, "Failed to send dws.post_run RPC", epilog_active);
             flux_log_error (h, "Failed to send dws.post_run RPC");
             return -1;
         }
-        flux_future_destroy (post_run_fut);
     }
     return 0;
 }
@@ -361,7 +443,7 @@ static int exception_cb (flux_plugin_t *p,
 {
     flux_jobid_t id;
     flux_t *h = flux_jobtap_get_flux (p);
-    int *prolog_active;
+    int *prolog_active, *epilog_active;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -370,11 +452,21 @@ static int exception_cb (flux_plugin_t *p,
         flux_log_error (h, "Failed to unpack args");
         return -1;
     }
-    if ((prolog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_job_status")) && (*prolog_active)){
+    if ((prolog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_prolog_active")) && (*prolog_active)){
         if (flux_jobtap_prolog_finish (p, id, SETUP_PROLOG_NAME, -1) < 0) {
             flux_log_error (h,
                             "Failed to finish prolog %s for job %" PRIu64 " after exception",
                             SETUP_PROLOG_NAME,
+                            id);
+            return -1;
+        }
+        *prolog_active = 0;
+    }
+    if ((epilog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_epilog_active")) && (*epilog_active)){
+        if (flux_jobtap_epilog_finish (p, id, DWS_EPILOG_NAME, -1) < 0) {
+            flux_log_error (h,
+                            "Failed to finish epilog %s for job %" PRIu64 " after exception",
+                            DWS_EPILOG_NAME,
                             id);
             return -1;
         }

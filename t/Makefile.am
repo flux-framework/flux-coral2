@@ -46,7 +46,7 @@ dist_check_SCRIPTS = \
 	rc/rc1-job \
 	rc/rc3-job \
 	python/pycotap \
-	dws-dependencies/dws.py \
+	dws-dependencies/coral2_dws.py \
 	$(TESTSCRIPTS)
 
 check_PROGRAMS = \
