@@ -31,7 +31,7 @@ test_expect_success 'job-manager: load dws-jobtap plugin' '
 
 test_expect_success 'exec dws service-providing script' '
 	R=$(flux R encode -r 0) &&
-	jobid=$(flux mini submit \
+	jobid=$(flux submit \
 	        --setattr=system.alloc-bypass.R="$R" \
 	        -o per-resource.type=node --output=dws.out --error=dws.err \
 	        flux python ${DWS_MODULE_PATH}) &&
@@ -47,14 +47,14 @@ test_expect_success 'wait for service to register and send test RPC' '
 '
 
 test_expect_success 'job submission without DW string works' '
-	jobid=$(flux mini submit -n1 /bin/true) &&
+	jobid=$(flux submit -n1 /bin/true) &&
 	flux job wait-event -vt 25 ${jobid} finish &&
 	test_must_fail flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add
 '
 
 test_expect_success 'job submission with valid DW string works' '
-	jobid=$(flux mini submit --setattr=system.dw="#DW jobdw capacity=10KiB type=xfs name=project1" \
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10KiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
 	flux job wait-event -vt 25 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
@@ -66,7 +66,7 @@ test_expect_success 'job submission with valid DW string works' '
 '
 
 test_expect_success 'job-manager: dependency plugin works when validation fails' '
-	jobid=$(flux mini submit --setattr=system.dw="foo" hostname) &&
+	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
 	flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
 	flux job wait-event -vt 10 ${jobid} exception

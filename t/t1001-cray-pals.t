@@ -28,21 +28,21 @@ test_expect_success 'job-manager: load cray_pals_port_distributor plugin' '
 '
 
 test_expect_success 'job-manager: pals port distributor works' '
-	jobid=$(flux mini submit -N2 -n2 true) &&
+	jobid=$(flux submit -N2 -n2 true) &&
 	flux job wait-event -vt 15 ${jobid} cray_port_distribution &&
 	flux job wait-event -mports=[11999,11998] ${jobid} cray_port_distribution &&
 	flux job wait-event -vt 5 ${jobid} clean
 '
 
 test_expect_success 'job-manager: pals port distributor saves ports for multi-shell jobs' '
-	jobid=$(flux mini submit -n1 true) &&
+	jobid=$(flux submit -n1 true) &&
 	test_must_fail flux job wait-event -vt 15 ${jobid} cray_port_distribution
 '
 
 # as long as it's only ever one job at a time the ports should be deterministic
 test_expect_success 'job-manager: pals port distributor reclaims ports' '
-	flux mini run -N2 -n2 true &&
-	jobid=$(flux mini submit -N2 -n2 true) &&
+	flux run -N2 -n2 true &&
+	jobid=$(flux submit -N2 -n2 true) &&
 	flux job wait-event -vt 15 ${jobid} cray_port_distribution &&
 	(flux job wait-event -mports=[11999,11998] ${jobid} cray_port_distribution ||
 	flux job wait-event -mports=[11998,11999] ${jobid} cray_port_distribution) &&
@@ -53,7 +53,7 @@ test_expect_success 'shell: pals shell plugin sets environment' '
 	echo "
 	plugin.load { file = \"$SHELL_PLUGINPATH/cray_pals.so\", conf = { } }
 	" > $USERRC_NAME &&
-	environment=$(flux mini run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 env) &&
+	environment=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 env) &&
 	echo "$environment" | grep PALS_NODEID=0 &&
 	echo "$environment" | grep PALS_RANKID=0 &&
 	echo "$environment" | grep PALS_APID &&
@@ -63,7 +63,7 @@ test_expect_success 'shell: pals shell plugin sets environment' '
 '
 
 test_expect_success 'shell: pals shell plugin sets PMI_CONTROL_PORT' '
-	environment=$(flux mini run -o userrc=$(pwd)/$USERRC_NAME -N2 -n4 env) &&
+	environment=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N2 -n4 env) &&
 	(echo "$environment" | grep PMI_CONTROL_PORT=11999,11998 ||
 	echo "$environment" | grep PMI_CONTROL_PORT=11998,11999) &&
 	echo "$environment" | grep PALS_NODEID=0 &&
@@ -74,13 +74,13 @@ test_expect_success 'shell: pals shell plugin sets PMI_CONTROL_PORT' '
 '
 
 test_expect_success 'shell: pals shell plugin creates apinfo file' '
-	flux mini run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 /bin/bash -c \
+	flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 /bin/bash -c \
 	"test ! -z \$PALS_SPOOL_DIR && test -d \$PALS_SPOOL_DIR \
 	&& test ! -z \$PALS_APINFO && test -f \$PALS_APINFO"
 '
 
 test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for one task' '
-	apinfo=$(flux mini run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 ${PYTHON:-python3} \
+	apinfo=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 ${PYTHON:-python3} \
 	${SHARNESS_TEST_SRCDIR}/scripts/apinfo_checker.py) &&
 	echo "$apinfo" | jq -e ".version == 1" &&
 	echo "$apinfo" | jq -e ".cmds[0].npes == 1" &&
@@ -97,7 +97,7 @@ test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for one task'
 '
 
 test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for multiple tasks' '
-	apinfo=$(flux mini run -o userrc=$(pwd)/$USERRC_NAME -N1 -n2 --label-io \
+	apinfo=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n2 --label-io \
 	${PYTHON:-python3} ${SHARNESS_TEST_SRCDIR}/scripts/apinfo_checker.py \
 	| sed -n "s/^1: //p") &&
 	echo "$apinfo" | jq -e ".cmds[0].npes == 2" &&
@@ -116,15 +116,15 @@ test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for multiple 
 '
 
 test_expect_success 'shell: pals shell plugin handles resource oversubscription' '
-	flux mini run -o userrc=$(pwd)/$USERRC_NAME -N1 -n2 -oper-resource.type=core -oper-resource.count=2 \
+	flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n2 -oper-resource.type=core -oper-resource.count=2 \
 	env | grep PALS_RANKID=3 &&
-	flux mini run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 -oper-resource.type=node -oper-resource.count=6 \
+	flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 -oper-resource.type=node -oper-resource.count=6 \
 	env | grep PALS_RANKID=5
 '
 
 test_expect_success 'shell: pals shell plugin ignores missing jobtap plugin' '
 	flux jobtap remove cray_pals_port_distributor.so &&
-	flux mini run -o verbose -o userrc=$(pwd)/$USERRC_NAME \
+	flux run -o verbose -o userrc=$(pwd)/$USERRC_NAME \
 		-N2 -n2 hostname > no-jobtap.log 2>&1 &&
 	test_debug "cat no-jobtap.log" &&
 	grep "jobtap plugin not loaded" no-jobtap.log
