@@ -30,7 +30,7 @@ test_expect_success 'job-manager: load alloc-bypass plugin' '
 test_expect_success 'exec nnf watching script' '
 	echo $PYTHONPATH >&2 &&
 	R=$(flux R encode -r 0) &&
-	jobid=$(flux mini submit \
+	jobid=$(flux submit \
 	        --setattr=system.alloc-bypass.R="$R" \
 	        -o per-resource.type=node flux python ${DWS_MODULE_PATH}) &&
 	flux job wait-event -vt 15 -p guest.exec.eventlog ${jobid} shell.start
