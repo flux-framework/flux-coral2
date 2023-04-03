@@ -138,7 +138,7 @@ static int depend_cb (flux_plugin_t *p,
     json_t *resources;
     json_t *jobspec;
     int userid;
-    int *prolog_active;
+    int *prolog_active = NULL;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -165,6 +165,7 @@ static int depend_cb (flux_plugin_t *p,
                                      "dws_prolog_active",
                                      prolog_active,
                                      free) < 0){
+            free (prolog_active);
             flux_log_error (h, "dws-jobtap: error initializing exception-monitoring");
             return -1;
         }
