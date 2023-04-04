@@ -28,7 +28,7 @@ from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
 from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD, COMPUTE_CRD, SERVER_CRD
 from flux_k8s.watch import Watchers, Watch
-from flux_k8s.directivebreakdown import apply_breakdowns, build_allocation_sets
+from flux_k8s import directivebreakdown
 
 
 _WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
@@ -121,23 +121,6 @@ def create_cb(fh, t, msg, api_instance):
     _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg)
 
 
-def aggregate_local_allocations(sched_vertices):
-    """Find all node-local allocations associated with each NNF and aggregate them.
-
-    Return a mapping from NNF name to allocation size in bytes.
-    """
-    allocations = {}
-    for vtx in sched_vertices:
-        if vtx["metadata"]["type"] == "ssd":
-            nnf_name = re.search(
-                _XFS_REGEX, vtx["metadata"]["paths"]["containment"]
-            ).group(1)
-            allocations[nnf_name] = (
-                vtx["metadata"]["size"] * (1024 ** 3)
-            ) + allocations.get(nnf_name, 0)
-    return allocations
-
-
 @message_callback_wrapper
 def setup_cb(fh, t, msg, k8s_api):
     """dws.setup RPC callback.
@@ -150,10 +133,8 @@ def setup_cb(fh, t, msg, k8s_api):
     """
     jobid = msg.payload["jobid"]
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
-    sched_vertices = msg.payload["R"]["scheduling"]["graph"]["nodes"]
     workflow = _WORKFLOWINFO_CACHE[jobid]
     compute_nodes = [{"name": hostname} for hostname in hlist]
-    local_allocations = aggregate_local_allocations(sched_vertices)
     nodes_per_nnf = {}
     for hostname in hlist:
         nnf_name = _HOSTNAMES_TO_RABBITS[hostname]
@@ -167,11 +148,30 @@ def setup_cb(fh, t, msg, k8s_api):
         {"data": compute_nodes},
     )
     for breakdown in workflow.breakdowns:
-        allocation_sets = build_allocation_sets(
-            breakdown["status"]["storage"]["allocationSets"],
-            local_allocations,
-            nodes_per_nnf,
-        )
+        allocation_sets = []
+        for alloc_set in breakdown["status"]["storage"]["allocationSets"]:
+            storage_field = []
+            server_alloc_set = {
+                "allocationSize": alloc_set["minimumCapacity"],
+                "label": alloc_set["label"],
+                "storage": storage_field,
+            }
+            if (
+                alloc_set["allocationStrategy"]
+                == directivebreakdown.AllocationStrategy.PER_COMPUTE.value
+            ):
+                # make an allocation on every rabbit attached to compute nodes
+                # in the job
+                for nnf_name in nodes_per_nnf.keys():
+                    storage_field.append(
+                        {"allocationCount": nodes_per_nnf[nnf_name], "name": nnf_name}
+                    )
+            else:
+                # make a single allocation on a random rabbit
+                storage_field.append(
+                    {"allocationCount": 1, "name": next(iter(nodes_per_nnf.keys()))}
+                )
+            allocation_sets.append(server_alloc_set)
         k8s_api.patch_namespaced_custom_object(
             SERVER_CRD.group,
             SERVER_CRD.version,
@@ -285,7 +285,9 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
     elif state_complete(workflow, "Proposal"):
         winfo.computes = workflow["status"]["computes"]
         resources = winfo.create_rpc.payload["resources"]
-        winfo.breakdowns = apply_breakdowns(k8s_api, workflow, resources)
+        winfo.breakdowns = list(
+            directivebreakdown._fetch_breakdowns(k8s_api, workflow)
+        )
         fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
         winfo.create_rpc = None
     elif state_complete(workflow, "Setup"):
