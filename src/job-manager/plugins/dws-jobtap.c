@@ -89,7 +89,7 @@ static int dws_epilog_finish (flux_t *h, flux_plugin_t *p, flux_jobid_t id, int 
 static void create_cb (flux_future_t *f, void *arg)
 {
     int success = false;
-    char *errstr = NULL;
+    const char *errstr = NULL;
     flux_t *h = flux_future_get_flux(f);
     struct create_arg_t *args = flux_future_aux_get (f, "flux::create_args");
     json_t *jobspec = arg, *resources = NULL;
@@ -119,7 +119,12 @@ static void create_cb (flux_future_t *f, void *arg)
             goto done;
         }
     } else {
-        raise_job_exception (h, args->id, CREATE_DEP_NAME, "dws.create RPC returned failure");
+        if (errstr){
+            raise_job_exception (h, args->id, CREATE_DEP_NAME, errstr);
+        }
+        else {
+            raise_job_exception (h, args->id, CREATE_DEP_NAME, "dws.create RPC returned failure");
+        }
     }
 
 done:
@@ -199,7 +204,7 @@ static void setup_rpc_cb (flux_future_t *f, void *arg)
 {
     int success = false;
     json_t *env = NULL;
-    //char *errstr = NULL;
+    const char *errstr = NULL;
     flux_t *h = flux_future_get_flux(f);
     struct create_arg_t *args = flux_future_aux_get (f, "flux::setup_args");
     int *prolog_active = flux_future_aux_get(f, "flux::prolog_active");
@@ -210,8 +215,8 @@ static void setup_rpc_cb (flux_future_t *f, void *arg)
     }
 
     if (flux_rpc_get_unpack (f,
-                             "{s:b, s?o}",
-                             "success", &success, "variables", &env) < 0)
+                             "{s:b, s?o, s?s}",
+                             "success", &success, "variables", &env, "errstr", &errstr) < 0)
     {
         dws_prolog_finish (h, args->p, args->id, 0, "Failed to unpack dws.setup RPC", prolog_active);
         goto done;
@@ -233,7 +238,12 @@ static void setup_rpc_cb (flux_future_t *f, void *arg)
         }
     }
     else {
-        dws_prolog_finish (h, args->p, args->id, 0, "dws.setup RPC returned failure", prolog_active);
+        if (errstr){
+            dws_prolog_finish (h, args->p, args->id, 0, errstr, prolog_active);
+        }
+        else {
+            dws_prolog_finish (h, args->p, args->id, 0, "dws.setup RPC returned failure", prolog_active);
+        }
     }
 
 done:
