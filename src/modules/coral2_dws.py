@@ -53,6 +53,7 @@ class WorkflowInfo:
         self.computes = None
         self.breakdowns = None
         self.last_error_time = None
+        self.last_error_message = None
 
 
 def message_callback_wrapper(func):
@@ -330,9 +331,11 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         )
         if winfo.last_error_time is None:
             winfo.last_error_time = time.time()
+        winfo.last_error_message = workflow["status"].get("message", "")
         WORKFLOWS_IN_ERROR.add(winfo)
     else:
         winfo.last_error_time = None
+        winfo.last_error_message = None
         WORKFLOWS_IN_ERROR.discard(winfo)
 
 
@@ -400,7 +403,8 @@ def kill_workflows_in_error(reactor, watcher, _r, error_timeout):
                 winfo.jobid,
                 "exception",
                 0,
-                "DWS/Rabbit interactions failed: workflow stuck in Error too long",
+                "DWS/Rabbit interactions failed: workflow in 'Error' state too long: "
+                f"{winfo.last_error_message}",
             )
             WORKFLOWS_IN_ERROR.discard(winfo)
 
