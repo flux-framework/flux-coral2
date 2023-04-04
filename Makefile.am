@@ -44,3 +44,7 @@ check-prep: all
 	cd src && $(MAKE) check
 	cd doc && $(MAKE) check
 	cd t && $(MAKE) check-prep
+
+
+dist_fluxrc1_SCRIPTS = \
+	etc/01-coral2-rc
