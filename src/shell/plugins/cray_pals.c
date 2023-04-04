@@ -9,6 +9,9 @@
 \************************************************************/
 #define FLUX_SHELL_PLUGIN_NAME "pmi-cray-pals"
 
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
