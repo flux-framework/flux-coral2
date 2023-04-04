@@ -69,9 +69,15 @@ def message_callback_wrapper(func):
                 jobid = msg.payload["jobid"]
             except Exception:
                 jobid = None
-            fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {exc}")
-            fh.respond(msg, {"success": False, "errstr": str(exc)})
-            LOGGER.exception(f"Error in responding to RPC for {jobid}:")
+            try:
+                # only k8s APIExceptions will have a JSON message body,
+                # but try to extract it out of every exception for simplicity
+                errstr = json.loads(exc.body)["message"]
+            except Exception:
+                errstr = str(exc)
+            fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {errstr}")
+            fh.respond(msg, {"success": False, "errstr": errstr})
+            LOGGER.error("Error in responding to RPC for %s: %s", jobid, errstr)
 
     return wrapper
 
