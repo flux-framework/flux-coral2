@@ -42,9 +42,10 @@ WORKFLOWS_IN_ERROR = set()
 class WorkflowInfo:
     """Represents and holds information about a specific workflow object."""
 
-    def __init__(self, name, create_rpc):
+    def __init__(self, name, create_rpc, jobid):
         self.name = name
         self.create_rpc = create_rpc
+        self.jobid = jobid
         self.setup_rpc = None
         self.post_run_rpc = None
         self.toredown = False
@@ -126,7 +127,7 @@ def create_cb(fh, t, msg, api_instance):
     api_instance.create_namespaced_custom_object(
         *WORKFLOW_CRD, body,
     )
-    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg)
+    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg, jobid)
 
 
 @message_callback_wrapper
@@ -390,7 +391,10 @@ def kill_workflows_in_error(reactor, watcher, _r, error_timeout):
     Raise exceptions on jobs stuck in Error for more than error_timeout seconds.
     """
     curr_time = time.time()
-    for winfo in WORKFLOWS_IN_ERROR:
+    # iterate over a copy of the set
+    # otherwise an exception occurs because we modify the set as we
+    # iterate over it.
+    for winfo in WORKFLOWS_IN_ERROR.copy():
         if curr_time - winfo.last_error_time > error_timeout:
             watcher.flux_handle.job_raise(
                 winfo.jobid,
