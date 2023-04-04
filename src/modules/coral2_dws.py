@@ -101,7 +101,7 @@ def create_cb(fh, t, msg, api_instance):
     jobid = msg.payload["jobid"]
     userid = msg.payload["userid"]
     if isinstance(dw_directives, str):
-        dw_directives = [dw_directives]
+        dw_directives = dw_directives.splitlines()
     if not isinstance(dw_directives, list):
         raise TypeError(
             f"Malformed dw_directives, not list or string: {dw_directives!r}"
