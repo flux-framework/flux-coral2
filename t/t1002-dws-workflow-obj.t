@@ -37,7 +37,7 @@ test_expect_success 'exec dws service-providing script' '
 	jobid=$(flux submit \
 	        --setattr=system.alloc-bypass.R="$R" \
 	        -o per-resource.type=node --output=dws.out --error=dws.err \
-	        flux python ${DWS_MODULE_PATH}) &&
+	        python ${DWS_MODULE_PATH} -e1) &&
 	flux job wait-event -vt 15 -p guest.exec.eventlog ${jobid} shell.start
 '
 
@@ -124,6 +124,16 @@ test_expect_success 'job-manager: dependency plugin works when validation fails'
 	flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
 	flux job wait-event -vt 10 ${jobid} exception
+'
+
+test_expect_success 'workflows in Error are killed properly' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10KiB type=xfs name=project1
+		#DW copy_in source=/some/fake/dir destination=$DW_JOB_project1/" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 10 ${jobid} exception &&
+	flux job wait-event -vt 5 ${jobid} clean
 '
 
 test_done
