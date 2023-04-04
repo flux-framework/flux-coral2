@@ -58,6 +58,25 @@ test_expect_success 'shell: create shell initrc for testing' "
 	EOT
 "
 
+test_expect_success 'shell: cray-pals is active when userrc is loaded' '
+	flux run -o userrc=$(pwd)/$USERRC_NAME \
+	    printenv PALS_RANKID
+'
+test_expect_success 'shell: cray-pals is inactive with -opmi=off' '
+	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=off \
+	    printenv PALS_RANKID
+'
+test_expect_success 'shell: cray-pals is active with -opmi=cray-pals' '
+	flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=cray-pals \
+	    printenv PALS_RANKID
+'
+test_expect_success 'shell: cray-pals is active with -opmi includes cray-pals' '
+	flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=simple,cray-pals \
+	    printenv PALS_RANKID &&
+	flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=cray-pals,simple \
+	    printenv PALS_RANKID
+'
+
 test_expect_success 'shell: pals shell plugin sets environment' '
 	environment=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 env) &&
 	echo "$environment" | grep PALS_NODEID=0 &&
