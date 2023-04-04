@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: LGPL-3.0
 \************************************************************/
-#define FLUX_SHELL_PLUGIN_NAME "libpals"
+#define FLUX_SHELL_PLUGIN_NAME "pmi-cray-pals"
 
 #include <errno.h>
 #include <fcntl.h>
