@@ -1,0 +1,2 @@
+["#DW jobdw capacity=10GiB type=xfs name=project1",
+ "#DW jobdw capacity=10GiB type=lustre name=project2"]
