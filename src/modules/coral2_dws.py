@@ -42,9 +42,10 @@ WORKFLOWS_IN_ERROR = set()
 class WorkflowInfo:
     """Represents and holds information about a specific workflow object."""
 
-    def __init__(self, name, create_rpc):
+    def __init__(self, name, create_rpc, jobid):
         self.name = name
         self.create_rpc = create_rpc
+        self.jobid = jobid
         self.setup_rpc = None
         self.post_run_rpc = None
         self.toredown = False
@@ -52,6 +53,7 @@ class WorkflowInfo:
         self.computes = None
         self.breakdowns = None
         self.last_error_time = None
+        self.last_error_message = None
 
 
 def message_callback_wrapper(func):
@@ -126,7 +128,7 @@ def create_cb(fh, t, msg, api_instance):
     api_instance.create_namespaced_custom_object(
         *WORKFLOW_CRD, body,
     )
-    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg)
+    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg, jobid)
 
 
 @message_callback_wrapper
@@ -329,9 +331,11 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         )
         if winfo.last_error_time is None:
             winfo.last_error_time = time.time()
+        winfo.last_error_message = workflow["status"].get("message", "")
         WORKFLOWS_IN_ERROR.add(winfo)
     else:
         winfo.last_error_time = None
+        winfo.last_error_message = None
         WORKFLOWS_IN_ERROR.discard(winfo)
 
 
@@ -390,13 +394,17 @@ def kill_workflows_in_error(reactor, watcher, _r, error_timeout):
     Raise exceptions on jobs stuck in Error for more than error_timeout seconds.
     """
     curr_time = time.time()
-    for winfo in WORKFLOWS_IN_ERROR:
+    # iterate over a copy of the set
+    # otherwise an exception occurs because we modify the set as we
+    # iterate over it.
+    for winfo in WORKFLOWS_IN_ERROR.copy():
         if curr_time - winfo.last_error_time > error_timeout:
             watcher.flux_handle.job_raise(
                 winfo.jobid,
                 "exception",
                 0,
-                "DWS/Rabbit interactions failed: workflow stuck in Error too long",
+                "DWS/Rabbit interactions failed: workflow in 'Error' state too long: "
+                f"{winfo.last_error_message}",
             )
             WORKFLOWS_IN_ERROR.discard(winfo)
 
