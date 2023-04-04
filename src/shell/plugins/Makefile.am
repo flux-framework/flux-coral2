@@ -7,10 +7,13 @@ AM_LDFLAGS = \
 	$(CODE_COVERAGE_LIBS)
 
 shell_plugindir = \
-    $(fluxlibdir)/shell/plugins/coral2/
+    $(fluxlibdir)/shell/plugins
+shell_plugin_subdir = \
+    $(shell_plugindir)/coral2
 
 shell_plugin_LTLIBRARIES = \
-	cray_pals.la \
+	cray_pals.la
+shell_plugin_sub_LTLIBRARIES = \
 	dws_environment.la
 
 cray_pals_la_SOURCES = cray_pals.c \
