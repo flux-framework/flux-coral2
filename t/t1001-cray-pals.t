@@ -49,10 +49,16 @@ test_expect_success 'job-manager: pals port distributor reclaims ports' '
 	flux job wait-event -vt 5 ${jobid} clean
 '
 
-test_expect_success 'shell: pals shell plugin sets environment' '
-	echo "
+test_expect_success 'shell: create shell initrc for testing' "
+	cat >$USERRC_NAME <<-EOT
+	if shell.options['pmi'] == nil then
+	    shell.options['pmi'] = 'cray-pals'
+	end
 	plugin.load { file = \"$SHELL_PLUGINPATH/cray_pals.so\", conf = { } }
-	" > $USERRC_NAME &&
+	EOT
+"
+
+test_expect_success 'shell: pals shell plugin sets environment' '
 	environment=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 env) &&
 	echo "$environment" | grep PALS_NODEID=0 &&
 	echo "$environment" | grep PALS_RANKID=0 &&
