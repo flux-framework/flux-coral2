@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <argz.h>
 
 #include <jansson.h>
 
@@ -734,12 +735,49 @@ static int libpals_task_init (flux_plugin_t *p,
     return 0;
 }
 
+static bool member_of_csv (const char *list, const char *name)
+{
+    char *argz = NULL;
+    size_t argz_len;
+
+    if (argz_create_sep (list, ',', &argz, &argz_len) == 0) {
+        const char *entry = NULL;
+
+        while ((entry = argz_next (argz, argz_len, entry))) {
+            if (!strcmp (entry, name)) {
+                free (argz);
+                return true;
+            }
+        }
+        free (argz);
+    }
+    return false;
+}
+
 int flux_plugin_init (flux_plugin_t *p)
 {
-    if (flux_plugin_set_name (p, FLUX_SHELL_PLUGIN_NAME) < 0
-        || flux_plugin_add_handler (p, "shell.init", libpals_init, NULL) < 0
-        || flux_plugin_add_handler (p, "task.init", libpals_task_init, NULL) < 0) {
+    const char *pmi_opt = NULL;
+    flux_shell_t *shell;
+
+    if (!(shell = flux_plugin_get_shell (p))
+        || flux_plugin_set_name (p, FLUX_SHELL_PLUGIN_NAME) < 0)
+        return -1;
+
+    if (flux_shell_getopt_unpack (shell, "pmi", "s", &pmi_opt) < 0) {
+        shell_log_error ("pmi shell option must be a string");
         return -1;
     }
+    if (!pmi_opt || !member_of_csv (pmi_opt, "cray-pals"))
+        return 0; // plugin disabled
+
+    shell_debug ("enabled");
+
+    if (flux_plugin_add_handler (p, "shell.init", libpals_init, NULL) < 0
+        || flux_plugin_add_handler (p,
+                                    "task.init",
+                                    libpals_task_init,
+                                     NULL) < 0)
+        return -1;
+
     return 0;
 }
