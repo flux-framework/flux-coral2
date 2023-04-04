@@ -589,7 +589,8 @@ static int read_future (flux_future_t *fut, char *buf, size_t bufsize)
             /*  'start' event with no cray_port_distribution event.
              *  assume cray-pals jobtap plugin is not loaded.
              */
-            shell_debug ("jobtap plugin not loaded: disabling operation");
+            shell_debug ("cray_pals_port_distributor jobtap plugin is not "
+                         "loaded: proceeding without PMI_CONTROL_PORT set");
             return 0;
         }
         if (!strcmp (name, "cray_port_distribution")) {

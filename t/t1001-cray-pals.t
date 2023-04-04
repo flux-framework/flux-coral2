@@ -133,7 +133,7 @@ test_expect_success 'shell: pals shell plugin ignores missing jobtap plugin' '
 	flux run -o verbose -o userrc=$(pwd)/$USERRC_NAME \
 		-N2 -n2 hostname > no-jobtap.log 2>&1 &&
 	test_debug "cat no-jobtap.log" &&
-	grep "jobtap plugin not loaded" no-jobtap.log
+	grep "jobtap plugin is not loaded" no-jobtap.log
 '
 
 test_done
