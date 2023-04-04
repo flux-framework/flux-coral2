@@ -69,9 +69,15 @@ def message_callback_wrapper(func):
                 jobid = msg.payload["jobid"]
             except Exception:
                 jobid = None
-            fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {exc}")
-            fh.respond(msg, {"success": False, "errstr": str(exc)})
-            LOGGER.exception(f"Error in responding to RPC for {jobid}:")
+            try:
+                # only k8s APIExceptions will have a JSON message body,
+                # but try to extract it out of every exception for simplicity
+                errstr = json.loads(exc.body)["message"]
+            except Exception:
+                errstr = str(exc)
+            fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {errstr}")
+            fh.respond(msg, {"success": False, "errstr": errstr})
+            LOGGER.error("Error in responding to RPC for %s: %s", jobid, errstr)
 
     return wrapper
 
@@ -95,7 +101,9 @@ def create_cb(fh, t, msg, api_instance):
     jobid = msg.payload["jobid"]
     userid = msg.payload["userid"]
     if isinstance(dw_directives, str):
-        dw_directives = [dw_directives]
+        # assume different directives are on different lines and remove
+        # any blank lines
+        dw_directives = [dw for dw in dw_directives.splitlines() if dw]
     if not isinstance(dw_directives, list):
         raise TypeError(
             f"Malformed dw_directives, not list or string: {dw_directives!r}"
