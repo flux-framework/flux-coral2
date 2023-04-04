@@ -77,7 +77,9 @@ test_expect_success 'job submission with valid DW string works' '
 '
 
 test_expect_success 'job submission with multiple valid DW strings on different lines works' '
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10KiB type=xfs name=project1
+	jobid=$(flux submit --setattr=system.dw="
+											 #DW jobdw capacity=10KiB type=xfs name=project1
+
 											 #DW jobdw capacity=20KiB type=gfs2 name=project2" \
 		    -N1 -n1 hostname) &&
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
