@@ -434,10 +434,6 @@ def main():
         help="Kill workflows in Error state for more than 'N' seconds",
     )
     args = parser.parse_args()
-    try:
-        jobid = id_parse(os.environ["FLUX_JOB_ID"])
-    except KeyError as keyerr:
-        raise RuntimeError("this script is meant to be run as a Flux job") from keyerr
     log_level = logging.WARNING
     if args.verbose > 1:
         log_level = logging.INFO
@@ -501,12 +497,16 @@ def main():
         watchers.add_watch(
             Watch(k8s_api, WORKFLOW_CRD, 0, workflow_state_change_cb, fh, k8s_api)
         )
-
-        # This job event is used to close the race condition between the python
-        # process starting and the `dws` service being registered. Once
-        # https://github.com/flux-framework/flux-core/issues/3821 is
-        # implemented/closed, this can be replaced with that solution.
-        Future(fh.job_raise(jobid, "exception", 7, "dws watchers setup")).get()
+        try:
+            jobid = id_parse(os.environ["FLUX_JOB_ID"])
+        except KeyError as keyerr:
+            pass
+        else:
+            # This job event is used to close the race condition between the python
+            # process starting and the `dws` service being registered. Once
+            # https://github.com/flux-framework/flux-core/issues/3821 is
+            # implemented/closed, this can be replaced with that solution.
+            Future(fh.job_raise(jobid, "exception", 7, "dws watchers setup")).get()
 
         fh.reactor_run()
 
