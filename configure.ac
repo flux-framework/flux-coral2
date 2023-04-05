@@ -113,12 +113,6 @@ AC_SUBST(fluxrc1dir)
 AS_VAR_SET(fluxrc3dir, $sysconfdir/flux/rc3.d)
 AC_SUBST(fluxrc3dir)
 
-AS_VAR_SET(fluxrc1dir, $sysconfdir/flux/rc1.d)
-AC_SUBST(fluxrc1dir)
-
-AS_VAR_SET(fluxrc3dir, $sysconfdir/flux/rc3.d)
-AC_SUBST(fluxrc3dir)
-
 AS_VAR_SET(fluxk8spydir, $pyexecdir/flux_k8s)
 AC_SUBST(fluxk8spydir)
 
