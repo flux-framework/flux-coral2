@@ -135,6 +135,9 @@ AC_SUBST(fluxplugin_ldflags)
 fluxlib_ldflags="-shared -export-dynamic --disable-static -Wl,--no-undefined"
 AC_SUBST(fluxlib_ldflags)
 
+
+X_AC_EXPAND_INSTALL_DIRS
+
 ##
 # Check for systemd
 ##
