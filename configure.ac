@@ -135,6 +135,14 @@ AC_SUBST(fluxplugin_ldflags)
 fluxlib_ldflags="-shared -export-dynamic --disable-static -Wl,--no-undefined"
 AC_SUBST(fluxlib_ldflags)
 
+
+X_AC_EXPAND_INSTALL_DIRS
+
+##
+# Check for systemd
+##
+RRA_WITH_SYSTEMD_UNITDIR
+
 AC_CONFIG_FILES([Makefile
   src/Makefile
   src/job-manager/Makefile
@@ -145,6 +153,8 @@ AC_CONFIG_FILES([Makefile
   src/modules/Makefile
   src/python/Makefile
   src/python/flux_k8s/Makefile
+  etc/Makefile
+  etc/flux-coral2-dws.service
   t/Makefile])
 AC_OUTPUT
 

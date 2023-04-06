@@ -1,0 +1,18 @@
+[Unit]
+Description=Flux-DWS communication service
+Requires=flux.service
+After=flux.service
+
+[Service]
+TimeoutStopSec=90
+KillMode=mixed
+ExecStart=@X_BINDIR@/flux python @X_BINDIR@/coral2_dws.py
+SyslogIdentifier=flux-coral2-dws
+Restart=always
+RestartSec=10s
+
+User=flux
+Group=flux
+
+[Install]
+WantedBy=flux.service
