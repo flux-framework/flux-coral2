@@ -8,12 +8,9 @@ AM_LDFLAGS = \
 
 shell_plugindir = \
     $(fluxlibdir)/shell/plugins
-shell_plugin_subdir = \
-    $(shell_plugindir)/coral2
 
 shell_plugin_LTLIBRARIES = \
-	cray_pals.la
-shell_plugin_sub_LTLIBRARIES = \
+	cray_pals.la \
 	dws_environment.la
 
 cray_pals_la_SOURCES = cray_pals.c \
