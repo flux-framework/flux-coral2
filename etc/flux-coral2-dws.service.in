@@ -1,6 +1,6 @@
 [Unit]
 Description=Flux-DWS communication service
-Requires=flux.service
+BindsTo=flux.service
 After=flux.service
 
 [Service]
