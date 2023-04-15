@@ -36,3 +36,9 @@ The next step is to add the objects to your cluster with `kubectl apply -f ./k8s
 Once you have a k8s server up and running and the proper credentials in your `~/.kube/config` file, you can launch a container that runs the full testsuite with `./src/test/docker/docker-run-checks.sh --`.  This script not only builds a test container on top of the flux-sched image and running the testsuite, but it also handles mounting and tweaking the k8s credentials on your host to work within the container.  You can also use the container interactively by passing the `-I` flag to `docker-run-checks.sh`.
 
 Note: Some of the tests interact with a single, shared K8s cluster.  While the tests as a whole are designed to be idempotent, their interactions with K8s are not atomic. Thus it is advised that the testsuite be run serially (e.g., `make check`) as opposed to in parallel (e.g., `make -j check`) to avoid tests conflicting with one another's expected K8s state.
+
+#### Release
+
+SPDX-License-Identifier: LGPL-3.0
+
+LLNL-CODE-764420
