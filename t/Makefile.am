@@ -26,6 +26,7 @@ TESTSCRIPTS = \
 	t1001-cray-pals.t \
 	t1002-dws-workflow-obj.t \
 	t1003-dws-nnf-watch.t \
+	t1004-dws-environment.t \
 	t2000-dws2jgf.t \
 	python/t0001-directive-breakdown.py
 
