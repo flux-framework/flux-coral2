@@ -103,9 +103,10 @@ def create_cb(fh, t, msg, api_instance):
     jobid = msg.payload["jobid"]
     userid = msg.payload["userid"]
     if isinstance(dw_directives, str):
-        # assume different directives are on different lines and remove
-        # any blank lines
-        dw_directives = [dw for dw in dw_directives.splitlines() if dw]
+        # the string may contain multiple #DW directives
+        dw_directives = dw_directives.split("#DW ")
+        # remove any blank entries that resulted and add back "#DW "
+        dw_directives = ["#DW " + dw.strip() for dw in dw_directives if dw.strip()]
     if not isinstance(dw_directives, list):
         raise TypeError(
             f"Malformed dw_directives, not list or string: {dw_directives!r}"
