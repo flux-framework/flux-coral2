@@ -12,6 +12,8 @@ test_under_flux 2 job
 
 flux setattr log-stderr-level 1
 
+unset PALS_RANKID PALS_NODEID PMI_CONTROL_PORT
+
 test_expect_success 'job-manager: load cray_pals_port_distributor plugin with invalid config' '
 	test_expect_code 1 flux jobtap load ${JOBTAP_PLUGINPATH}/cray_pals_port_distributor.so \
 		port-min=0 port-max=12000 &&
@@ -75,6 +77,15 @@ test_expect_success 'shell: cray-pals is active with -opmi includes cray-pals' '
 	    printenv PALS_RANKID &&
 	flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=cray-pals,simple \
 	    printenv PALS_RANKID
+'
+test_expect_success 'shell: cray-pals unsets PALS variables when inactive' '
+	(export PALS_RANKID=0 PMI_CONTROL_PORT=6 && PALS_NODEID=1 &&
+	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
+		printenv PALS_RANKID &&
+	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
+		printenv PALS_NODEID &&
+	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
+		printenv PMI_CONTROL_PORT)
 '
 
 test_expect_success 'shell: pals shell plugin sets environment' '

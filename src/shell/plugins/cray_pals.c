@@ -758,6 +758,21 @@ static bool member_of_csv (const char *list, const char *name)
     return false;
 }
 
+/*
+ * Unset all PALS_* variables.
+ */
+static int unset_pals_env (flux_shell_t *shell)
+{
+    char *pals_env[] = { "PALS_NODEID", "PALS_RANKID",
+                         "PALS_APINFO", "PALS_APID",
+                         "PALS_SPOOL_DIR", "PMI_CONTROL_PORT" };
+    for (int i = 0; i < sizeof (pals_env) / sizeof (pals_env[0]); i++)
+    {
+        flux_shell_unsetenv (shell, pals_env[i]);
+    }
+    return 0;
+}
+
 int flux_plugin_init (flux_plugin_t *p)
 {
     const char *pmi_opt = NULL;
@@ -772,7 +787,9 @@ int flux_plugin_init (flux_plugin_t *p)
         return -1;
     }
     if (!pmi_opt || !member_of_csv (pmi_opt, "cray-pals"))
-        return 0; // plugin disabled
+        // plugin disabled, unset all inherited PALS_ variables
+        // otherwise libPALS might pick up and try to use them
+        return unset_pals_env (shell);
 
     shell_debug ("enabled");
 
