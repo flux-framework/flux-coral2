@@ -434,6 +434,13 @@ def main():
         metavar="N",
         help="Kill workflows in Error state for more than 'N' seconds",
     )
+    parser.add_argument(
+        "--kubeconfig",
+        "-k",
+        default=None,
+        metavar="FILE",
+        help="Path to kubeconfig file to use",
+    )
     args = parser.parse_args()
     log_level = logging.WARNING
     if args.verbose > 1:
@@ -443,7 +450,7 @@ def main():
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(message)s", level=log_level,
     )
-    k8s_client = k8s.config.new_client_from_config()
+    k8s_client = k8s.config.new_client_from_config(config_file=args.kubeconfig)
     try:
         k8s_api = k8s.client.CustomObjectsApi(k8s_client)
     except ApiException as rest_exception:
