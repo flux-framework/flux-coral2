@@ -130,6 +130,7 @@ def create_cb(fh, t, msg, api_instance):
         *WORKFLOW_CRD, body,
     )
     _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg, jobid)
+    fh.rpc("job-manager.memo", payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}})
 
 
 @message_callback_wrapper

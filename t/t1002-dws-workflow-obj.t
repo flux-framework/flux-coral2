@@ -63,6 +63,8 @@ test_expect_success 'job submission with valid DW string works' '
 		${jobid} dependency-add &&
 	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
+	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
+		${jobid} memo &&
 	flux job wait-event -vt 5 ${jobid} depend &&
 	flux job wait-event -vt 5 ${jobid} priority &&
 	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
@@ -86,6 +88,8 @@ test_expect_success 'job submission with multiple valid DW strings on different 
 		${jobid} dependency-add &&
 	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
+	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
+		${jobid} memo &&
 	flux job wait-event -vt 5 ${jobid} depend &&
 	flux job wait-event -vt 5 ${jobid} priority &&
 	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
@@ -129,6 +133,8 @@ test_expect_success 'job submission with multiple valid DW strings in a JSON fil
 		${jobid} dependency-remove &&
 	flux job wait-event -vt 5 ${jobid} depend &&
 	flux job wait-event -vt 5 ${jobid} priority &&
+	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
+		${jobid} memo &&
 	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
 	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
