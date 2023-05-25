@@ -207,7 +207,7 @@ def post_run_cb(fh, t, msg, k8s_api):
     """
     jobid = msg.payload["jobid"]
     if jobid not in _WORKFLOWINFO_CACHE:
-        LOGGER.info(
+        LOGGER.warning(
             "Missing workflow cache entry for %i, which is only "
             "expected if a workflow object could not be created for the job",
             jobid,
@@ -248,7 +248,7 @@ def workflow_state_change_cb(event, fh, k8s_api):
     try:
         winfo = _WORKFLOWINFO_CACHE[jobid]
     except KeyError:
-        LOGGER.info("unrecognized workflow '%s' in event stream", workflow_name)
+        LOGGER.warning("unrecognized workflow '%s' in event stream", workflow_name)
         return
     if event.get("TYPE") == "DELETED":
         # the workflow has been deleted, we can forget about it
@@ -324,7 +324,7 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
     if workflow["status"].get("status") == "Error":
         # some errors are fatal, others are recoverable
         # HPE says to dump the whole workflow
-        LOGGER.info(
+        LOGGER.warning(
             "Workflow %s has error set, message is '%s', workflow is %s",
             winfo.name,
             workflow["status"].get("message", ""),
