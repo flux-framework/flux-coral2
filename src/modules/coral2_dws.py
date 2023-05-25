@@ -118,7 +118,7 @@ def create_cb(fh, t, msg, api_instance):
         "jobID": jobid,
         "userID": userid,
         "groupID": pwd.getpwuid(userid).pw_gid,
-        "wlmID": str(jobid),
+        "wlmID": "flux",
     }
     body = {
         "kind": "Workflow",
