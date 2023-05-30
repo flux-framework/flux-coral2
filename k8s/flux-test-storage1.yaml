@@ -1,4 +1,4 @@
-apiVersion: dws.cray.hpe.com/v1alpha1
+apiVersion: dws.cray.hpe.com/v1alpha2
 spec:
   state: Enabled
 status:
