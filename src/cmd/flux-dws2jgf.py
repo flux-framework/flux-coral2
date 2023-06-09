@@ -273,7 +273,7 @@ def get_storage():
         raise
 
     group = "dws.cray.hpe.com"
-    version = "v1alpha1"
+    version = "v1alpha2"
     plural = "storages"
     try:
         api_response = api_instance.list_cluster_custom_object(group, version, plural)

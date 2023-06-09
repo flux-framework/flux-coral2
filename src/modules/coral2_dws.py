@@ -115,7 +115,7 @@ def create_cb(fh, t, msg, api_instance):
     spec = {
         "desiredState": "Proposal",
         "dwDirectives": dw_directives,
-        "jobID": jobid,
+        "jobID": flux.job.JobID(jobid).f58.replace("ƒ", "f"),
         "userID": userid,
         "groupID": pwd.getpwuid(userid).pw_gid,
         "wlmID": "flux",
@@ -241,7 +241,7 @@ def workflow_state_change_cb(event, fh, k8s_api):
     """Exception-catching wrapper around _workflow_state_change_cb_inner."""
     try:
         workflow = event["object"]
-        jobid = workflow["spec"]["jobID"]
+        jobid = int(flux.job.JobID(workflow["spec"]["jobID"]))
         workflow_name = workflow["metadata"]["name"]
     except KeyError:
         LOGGER.exception("Invalid workflow in event stream: ")
