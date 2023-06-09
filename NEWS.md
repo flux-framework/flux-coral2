@@ -1,3 +1,25 @@
+flux-coral2 0.5.0 - 2023-06-09
+------------------------------
+
+### New Features
+
+ * dws: set string job IDs in workflows (#74)
+ * dws: add workflow name memo to jobs (#73)
+ * dws: install shell plugin to main dir (#60)
+ * dws: kubeconfig command-line option (#71)
+ * dws: split directives by DW token (#63)
+
+### Fixes
+
+ * dws: increase the log level of some messages (#73)
+ * dws: change systemd service Requires to BindTo (#61)
+ * pals: unset PALS_ variables by default in shell plugin (#68)
+
+### Testsuite
+
+ * testsuite: fix test timeout (#73)
+
+
 flux-coral2 0.4.0 - 2023-04-07
 ------------------------------
 
