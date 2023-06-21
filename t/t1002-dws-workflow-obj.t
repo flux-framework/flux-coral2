@@ -57,7 +57,7 @@ test_expect_success 'job submission without DW string works' '
 '
 
 test_expect_success 'job submission with valid DW string works' '
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10KiB type=xfs name=project1" \
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
@@ -65,25 +65,25 @@ test_expect_success 'job submission with valid DW string works' '
 		${jobid} dependency-remove &&
 	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
 		${jobid} memo &&
-	flux job wait-event -vt 5 ${jobid} depend &&
-	flux job wait-event -vt 5 ${jobid} priority &&
-	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 15 ${jobid} depend &&
+	flux job wait-event -vt 15 ${jobid} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
-	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-finish &&
-	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
-	flux job wait-event -vt 5 ${jobid} clean
+	flux job wait-event -vt 15 ${jobid} clean
 '
 
 test_expect_success 'job submission with multiple valid DW strings on different lines works' '
 	jobid=$(flux submit --setattr=system.dw="
-											 #DW jobdw capacity=10KiB type=xfs name=project1
+											 #DW jobdw capacity=10GiB type=xfs name=project1
 
-											 #DW jobdw capacity=20KiB type=gfs2 name=project2" \
+											 #DW jobdw capacity=20GiB type=gfs2 name=project2" \
 		    -N1 -n1 hostname) &&
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
@@ -91,40 +91,40 @@ test_expect_success 'job submission with multiple valid DW strings on different 
 		${jobid} dependency-remove &&
 	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
 		${jobid} memo &&
-	flux job wait-event -vt 5 ${jobid} depend &&
-	flux job wait-event -vt 5 ${jobid} priority &&
-	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 15 ${jobid} depend &&
+	flux job wait-event -vt 15 ${jobid} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
-	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-finish &&
-	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
-	flux job wait-event -vt 5 ${jobid} clean
+	flux job wait-event -vt 15 ${jobid} clean
 '
 
 test_expect_success 'job submission with multiple valid DW strings on the same line works' '
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10KiB type=xfs name=project1 \
-			#DW jobdw capacity=20KiB type=gfs2 name=project2" \
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1 \
+			#DW jobdw capacity=20GiB type=gfs2 name=project2" \
 		-N1 -n1 hostname) &&
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
 	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
-	flux job wait-event -vt 5 ${jobid} depend &&
-	flux job wait-event -vt 5 ${jobid} priority &&
-	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 15 ${jobid} depend &&
+	flux job wait-event -vt 15 ${jobid} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
-	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-finish &&
-	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
-	flux job wait-event -vt 5 ${jobid} clean
+	flux job wait-event -vt 15 ${jobid} clean
 '
 
 test_expect_success 'job submission with multiple valid DW strings in a JSON file works' '
@@ -134,20 +134,20 @@ test_expect_success 'job submission with multiple valid DW strings in a JSON fil
 		${jobid} dependency-add &&
 	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
-	flux job wait-event -vt 5 ${jobid} depend &&
-	flux job wait-event -vt 5 ${jobid} priority &&
+	flux job wait-event -vt 15 ${jobid} depend &&
+	flux job wait-event -vt 15 ${jobid} priority &&
 	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
 		${jobid} memo &&
-	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
-	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-finish &&
-	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
-	flux job wait-event -vt 5 ${jobid} clean
+	flux job wait-event -vt 15 ${jobid} clean
 '
 
 test_expect_success 'job-manager: dependency plugin works when validation fails' '
@@ -158,7 +158,7 @@ test_expect_success 'job-manager: dependency plugin works when validation fails'
 '
 
 test_expect_success 'dws service kills workflows in Error properly' '
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10KiB type=xfs name=project1
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1
 		#DW copy_in source=/some/fake/dir destination=$DW_JOB_project1/" \
 		-N1 -n1 hostname) &&
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
@@ -179,7 +179,7 @@ test_expect_success 'exec dws service-providing script with custom config path' 
 '
 
 test_expect_success 'job submission with valid DW string works after config change' '
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10KiB type=xfs name=project1" \
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
 	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
