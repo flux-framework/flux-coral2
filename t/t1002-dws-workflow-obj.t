@@ -188,8 +188,33 @@ test_expect_success 'job submission with valid DW string works after config chan
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
-	flux job wait-event -vt 15 ${jobid} clean &&
-	flux job cancel ${DWS_JOBID}
+	flux job wait-event -vt 15 ${jobid} clean
+'
+
+test_expect_success 'job submission with persistent DW string works' '
+	flux run --setattr=system.dw="#DW create_persistent capacity=10GiB type=lustre name=project1" \
+		-N1 -n1 -c1 hostname &&
+	jobid=$(flux submit --setattr=system.dw="#DW persistentdw name=project1" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 30 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 30 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 30 ${jobid} clean &&
+	jobid=$(flux submit --setattr=system.dw="#DW persistentdw name=project1" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 30 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 30 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 30 ${jobid} clean &&
+	jobid=$(flux submit --setattr=system.dw="#DW destroy_persistent name=project1" \
+		-N1 -n1 -c1 hostname) &&
+	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 30 ${jobid} clean
 '
 
 test_done
