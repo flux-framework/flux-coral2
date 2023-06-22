@@ -69,8 +69,9 @@ def message_callback_wrapper(func):
         except Exception as exc:
             try:
                 jobid = msg.payload["jobid"]
+                topic = msg.topic
             except Exception:
-                jobid = None
+                topic = jobid = None
             try:
                 # only k8s APIExceptions will have a JSON message body,
                 # but try to extract it out of every exception for simplicity
@@ -79,7 +80,7 @@ def message_callback_wrapper(func):
                 errstr = str(exc)
             fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {errstr}")
             fh.respond(msg, {"success": False, "errstr": errstr})
-            LOGGER.error("Error in responding to RPC for %s: %s", jobid, errstr)
+            LOGGER.error("Error in responding to %s RPC for %s: %s", topic, jobid, errstr)
 
     return wrapper
 
@@ -160,38 +161,41 @@ def setup_cb(fh, t, msg, k8s_api):
         {"data": compute_nodes},
     )
     for breakdown in workflow.breakdowns:
-        allocation_sets = []
-        for alloc_set in breakdown["status"]["storage"]["allocationSets"]:
-            storage_field = []
-            server_alloc_set = {
-                "allocationSize": alloc_set["minimumCapacity"],
-                "label": alloc_set["label"],
-                "storage": storage_field,
-            }
-            if (
-                alloc_set["allocationStrategy"]
-                == directivebreakdown.AllocationStrategy.PER_COMPUTE.value
-            ):
-                # make an allocation on every rabbit attached to compute nodes
-                # in the job
-                for nnf_name in nodes_per_nnf.keys():
+        # if a breakdown doesn't have a storage field (e.g. persistentdw) directives
+        # ignore it and proceed
+        if "storage" in breakdown["status"]:
+            allocation_sets = []
+            for alloc_set in breakdown["status"]["storage"]["allocationSets"]:
+                storage_field = []
+                server_alloc_set = {
+                    "allocationSize": alloc_set["minimumCapacity"],
+                    "label": alloc_set["label"],
+                    "storage": storage_field,
+                }
+                if (
+                    alloc_set["allocationStrategy"]
+                    == directivebreakdown.AllocationStrategy.PER_COMPUTE.value
+                ):
+                    # make an allocation on every rabbit attached to compute nodes
+                    # in the job
+                    for nnf_name in nodes_per_nnf.keys():
+                        storage_field.append(
+                            {"allocationCount": nodes_per_nnf[nnf_name], "name": nnf_name}
+                        )
+                else:
+                    # make a single allocation on a random rabbit
                     storage_field.append(
-                        {"allocationCount": nodes_per_nnf[nnf_name], "name": nnf_name}
+                        {"allocationCount": 1, "name": next(iter(nodes_per_nnf.keys()))}
                     )
-            else:
-                # make a single allocation on a random rabbit
-                storage_field.append(
-                    {"allocationCount": 1, "name": next(iter(nodes_per_nnf.keys()))}
-                )
-            allocation_sets.append(server_alloc_set)
-        k8s_api.patch_namespaced_custom_object(
-            SERVER_CRD.group,
-            SERVER_CRD.version,
-            breakdown["status"]["storage"]["reference"]["namespace"],
-            SERVER_CRD.plural,
-            breakdown["status"]["storage"]["reference"]["name"],
-            {"spec": {"allocationSets": allocation_sets}},
-        )
+                allocation_sets.append(server_alloc_set)
+            k8s_api.patch_namespaced_custom_object(
+                SERVER_CRD.group,
+                SERVER_CRD.version,
+                breakdown["status"]["storage"]["reference"]["namespace"],
+                SERVER_CRD.plural,
+                breakdown["status"]["storage"]["reference"]["name"],
+                {"spec": {"allocationSets": allocation_sets}},
+            )
     workflow.setup_rpc = msg
     move_workflow_desiredstate(workflow.name, "Setup", k8s_api)
 

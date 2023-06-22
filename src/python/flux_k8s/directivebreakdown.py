@@ -76,7 +76,7 @@ def apply_breakdowns(k8s_api, workflow, resources):
 def _fetch_breakdowns(k8s_api, workflow):
     """Fetch all of the directive breakdowns associated with a workflow."""
     if not workflow["status"].get("directiveBreakdowns"):
-        raise ValueError(f"workflow {workflow} has no directive breakdowns")
+        return []  # destroy_persistent DW directives have no breakdowns
     for breakdown in workflow["status"]["directiveBreakdowns"]:
         yield k8s_api.get_namespaced_custom_object(
             DIRECTIVEBREAKDOWN_CRD.group,
