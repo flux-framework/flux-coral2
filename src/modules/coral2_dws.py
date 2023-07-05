@@ -50,7 +50,6 @@ class WorkflowInfo:
         self.post_run_rpc = None
         self.toredown = False
         self.deleted = False
-        self.computes = None
         self.breakdowns = None
         self.last_error_time = None
         self.last_error_message = None
@@ -146,7 +145,8 @@ def setup_cb(fh, t, msg, k8s_api):
     """
     jobid = msg.payload["jobid"]
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
-    workflow = _WORKFLOWINFO_CACHE[jobid]
+    winfo = _WORKFLOWINFO_CACHE[jobid]
+    workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
     compute_nodes = [{"name": hostname} for hostname in hlist]
     nodes_per_nnf = {}
     for hostname in hlist:
@@ -155,12 +155,12 @@ def setup_cb(fh, t, msg, k8s_api):
     k8s_api.patch_namespaced_custom_object(
         COMPUTE_CRD.group,
         COMPUTE_CRD.version,
-        workflow.computes["namespace"],
+        workflow["status"]["computes"]["namespace"],
         COMPUTE_CRD.plural,
-        workflow.computes["name"],
+        workflow["status"]["computes"]["name"],
         {"data": compute_nodes},
     )
-    for breakdown in workflow.breakdowns:
+    for breakdown in winfo.breakdowns:
         # if a breakdown doesn't have a storage field (e.g. persistentdw) directives
         # ignore it and proceed
         if "storage" in breakdown["status"]:
@@ -196,8 +196,8 @@ def setup_cb(fh, t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    workflow.setup_rpc = msg
-    move_workflow_desiredstate(workflow.name, "Setup", k8s_api)
+    winfo.setup_rpc = msg
+    move_workflow_desiredstate(winfo.name, "Setup", k8s_api)
 
 
 @message_callback_wrapper
@@ -299,7 +299,6 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         # 'teardown' update is still in the k8s update queue.
         return
     elif state_complete(workflow, "Proposal"):
-        winfo.computes = workflow["status"]["computes"]
         resources = winfo.create_rpc.payload["resources"]
         winfo.breakdowns = list(
             directivebreakdown.fetch_breakdowns(k8s_api, workflow)
