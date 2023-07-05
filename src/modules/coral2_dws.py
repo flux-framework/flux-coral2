@@ -37,14 +37,18 @@ _XFS_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
 _HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 LOGGER = logging.getLogger(__name__)
 WORKFLOWS_IN_ERROR = set()
+WORKFLOW_NAME_FORMAT = "fluxjob-{jobid}"
 
 
 class WorkflowInfo:
     """Represents and holds information about a specific workflow object."""
 
-    def __init__(self, name, jobid):
-        self.name = name
+    def __init__(self, jobid, name=None):
         self.jobid = jobid
+        if name is None:
+            self.name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
+        else:
+            self.name = name
         self.toredown = False
         self.deleted = False
         self.last_error_time = None
@@ -107,7 +111,7 @@ def create_cb(fh, t, msg, api_instance):
         raise TypeError(
             f"Malformed dw_directives, not list or string: {dw_directives!r}"
         )
-    workflow_name = f"fluxjob-{jobid}"
+    workflow_name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
     spec = {
         "desiredState": "Proposal",
         "dwDirectives": dw_directives,
@@ -125,7 +129,7 @@ def create_cb(fh, t, msg, api_instance):
     api_instance.create_namespaced_custom_object(
         *WORKFLOW_CRD, body,
     )
-    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, jobid)
+    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(jobid, workflow_name)
     fh.rpc(
         "job-manager.memo",
         payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}},
