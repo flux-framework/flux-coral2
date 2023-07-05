@@ -302,7 +302,7 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         winfo.computes = workflow["status"]["computes"]
         resources = winfo.create_rpc.payload["resources"]
         winfo.breakdowns = list(
-            directivebreakdown._fetch_breakdowns(k8s_api, workflow)
+            directivebreakdown.fetch_breakdowns(k8s_api, workflow)
         )
         fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
         winfo.create_rpc = None
