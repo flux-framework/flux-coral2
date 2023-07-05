@@ -42,12 +42,9 @@ WORKFLOWS_IN_ERROR = set()
 class WorkflowInfo:
     """Represents and holds information about a specific workflow object."""
 
-    def __init__(self, name, create_rpc, jobid):
+    def __init__(self, name, jobid):
         self.name = name
-        self.create_rpc = create_rpc
         self.jobid = jobid
-        self.setup_rpc = None
-        self.post_run_rpc = None
         self.toredown = False
         self.deleted = False
         self.last_error_time = None
@@ -128,8 +125,11 @@ def create_cb(fh, t, msg, api_instance):
     api_instance.create_namespaced_custom_object(
         *WORKFLOW_CRD, body,
     )
-    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg, jobid)
-    fh.rpc("job-manager.memo", payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}})
+    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, jobid)
+    fh.rpc(
+        "job-manager.memo",
+        payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}},
+    )
 
 
 @message_callback_wrapper
@@ -195,7 +195,6 @@ def setup_cb(fh, t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    winfo.setup_rpc = msg
     move_workflow_desiredstate(winfo.name, "Setup", k8s_api)
 
 
@@ -219,7 +218,6 @@ def post_run_cb(fh, t, msg, k8s_api):
         return
     winfo = _WORKFLOWINFO_CACHE[jobid]
     run_started = msg.payload["run_started"]
-    winfo.post_run_rpc = msg
     if winfo.toredown:
         # workflow has already been transitioned to 'teardown', do nothing
         return
@@ -289,8 +287,7 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         # delete workflow object and tell DWS jobtap plugin that the job is done
         k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
         winfo.deleted = True
-        if winfo.post_run_rpc is not None:
-            fh.respond(winfo.post_run_rpc, {"success": True})  # ATM, does nothing
+        fh.rpc("job-manager.dws.epilog-remove", payload={"id": jobid})
     elif winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
         # Without this early 'return', this function may try to
@@ -299,8 +296,10 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         return
     elif state_complete(workflow, "Proposal"):
         resources = winfo.create_rpc.payload["resources"]
-        fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
-        winfo.create_rpc = None
+        fh.rpc(
+            "job-manager.dws.resource-update",
+            payload={"id": jobid, "resources": resources},
+        )
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
         move_workflow_desiredstate(winfo.name, "DataIn", k8s_api)
@@ -309,11 +308,10 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         move_workflow_desiredstate(winfo.name, "PreRun", k8s_api)
     elif state_complete(workflow, "PreRun"):
         # tell DWS jobtap plugin that the job can start
-        fh.respond(
-            winfo.setup_rpc,
-            {"success": True, "variables": workflow["status"].get("env", {})},
+        fh.rpc(
+            "job-manager.dws.prolog-remove",
+            payload={"id": jobid, "variables": workflow["status"].get("env", {})},
         )
-        winfo.setup_rpc = None
     elif state_complete(workflow, "PostRun"):
         # move workflow to next stage, DataOut
         move_workflow_desiredstate(winfo.name, "DataOut", k8s_api)
