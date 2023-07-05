@@ -50,7 +50,6 @@ class WorkflowInfo:
         self.post_run_rpc = None
         self.toredown = False
         self.deleted = False
-        self.breakdowns = None
         self.last_error_time = None
         self.last_error_message = None
 
@@ -160,7 +159,7 @@ def setup_cb(fh, t, msg, k8s_api):
         workflow["status"]["computes"]["name"],
         {"data": compute_nodes},
     )
-    for breakdown in winfo.breakdowns:
+    for breakdown in directivebreakdown.fetch_breakdowns(k8s_api, workflow):
         # if a breakdown doesn't have a storage field (e.g. persistentdw) directives
         # ignore it and proceed
         if "storage" in breakdown["status"]:
@@ -300,9 +299,6 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         return
     elif state_complete(workflow, "Proposal"):
         resources = winfo.create_rpc.payload["resources"]
-        winfo.breakdowns = list(
-            directivebreakdown.fetch_breakdowns(k8s_api, workflow)
-        )
         fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
         winfo.create_rpc = None
     elif state_complete(workflow, "Setup"):
