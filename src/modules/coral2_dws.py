@@ -49,11 +49,11 @@ class WorkflowInfo:
         if name is None:
             self.name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
         else:
-            self.name = name
-        self.toredown = False
-        self.deleted = False
-        self.last_error_time = None
-        self.last_error_message = None
+            self.name = name  # name of the k8s workflow
+        self.toredown = False  # True if workflows has been moved to teardown
+        self.deleted = False  # True if delete request has been sent to k8s
+        self.last_error_time = None  # time in seconds of last Error
+        self.last_error_message = None  # message associated with last error
 
 
 def message_callback_wrapper(func):
@@ -207,21 +207,14 @@ def setup_cb(fh, t, msg, k8s_api):
 def post_run_cb(fh, t, msg, k8s_api):
     """dws.post_run RPC callback.
 
-    The dws.setup RPC is sent when the job has reached the CLEANUP state.
+    The dws.post_run RPC is sent when the job has reached the CLEANUP state.
 
     If the job reached the RUN state, move the workflow to `post_run`.
     If the job did not reach the RUN state (exception path), move
     the workflow directly to `teardown`.
     """
     jobid = msg.payload["jobid"]
-    if jobid not in _WORKFLOWINFO_CACHE:
-        LOGGER.warning(
-            "Missing workflow cache entry for %i, which is only "
-            "expected if a workflow object could not be created for the job",
-            jobid,
-        )
-        return
-    winfo = _WORKFLOWINFO_CACHE[jobid]
+    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
     run_started = msg.payload["run_started"]
     if winfo.toredown:
         # workflow has already been transitioned to 'teardown', do nothing
