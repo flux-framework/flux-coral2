@@ -37,7 +37,8 @@ _XFS_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
 _HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 LOGGER = logging.getLogger(__name__)
 WORKFLOWS_IN_ERROR = set()
-WORKFLOW_NAME_FORMAT = "fluxjob-{jobid}"
+WORKFLOW_NAME_PREFIX = "fluxjob-"
+WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
 
 
 class WorkflowInfo:
@@ -148,8 +149,8 @@ def setup_cb(fh, t, msg, k8s_api):
     """
     jobid = msg.payload["jobid"]
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
-    winfo = _WORKFLOWINFO_CACHE[jobid]
-    workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
+    workflow_name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
+    workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, workflow_name)
     compute_nodes = [{"name": hostname} for hostname in hlist]
     nodes_per_nnf = {}
     for hostname in hlist:
@@ -199,7 +200,7 @@ def setup_cb(fh, t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    move_workflow_desiredstate(winfo.name, "Setup", k8s_api)
+    move_workflow_desiredstate(workflow_name, "Setup", k8s_api)
 
 
 @message_callback_wrapper
@@ -251,11 +252,10 @@ def workflow_state_change_cb(event, fh, k8s_api):
     except KeyError:
         LOGGER.exception("Invalid workflow in event stream: ")
         return
-    try:
-        winfo = _WORKFLOWINFO_CACHE[jobid]
-    except KeyError:
+    if not workflow_name.startswith(WORKFLOW_NAME_PREFIX):
         LOGGER.warning("unrecognized workflow '%s' in event stream", workflow_name)
         return
+    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
     if event.get("TYPE") == "DELETED":
         # the workflow has been deleted, we can forget about it
         del _WORKFLOWINFO_CACHE[jobid]
