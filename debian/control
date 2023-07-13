@@ -1,0 +1,21 @@
+Source: flux-coral2
+Section: devel
+Priority: optional
+Maintainer: James Corbett <corbett8@llnl.gov>
+Standards-Version: 4.1.2
+Build-Depends:
+  debhelper (>= 10),
+  flux-core (>= 0.49.0),
+  python3-dev,
+  python3-kubernetes,
+  pylint3,
+  jq
+
+Homepage: https://github.com/flux-framework/flux-core
+Package: flux-coral2
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description:  support for the Flux resource manager framework on Cray CORAL2
+ flux-coral2 adds various plugins to support the Cray CORAL2 stack.
+ Note: This package is for testing purposes only and may not comply
+ with all Debian packaging guidelines.
