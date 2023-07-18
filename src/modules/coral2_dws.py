@@ -44,12 +44,13 @@ WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
 class WorkflowInfo:
     """Represents and holds information about a specific workflow object."""
 
-    def __init__(self, jobid, name=None):
+    def __init__(self, jobid, name=None, resources=None):
         self.jobid = jobid
         if name is None:
             self.name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
         else:
             self.name = name  # name of the k8s workflow
+        self.resources = resources  # jobspec 'resources' field
         self.toredown = False  # True if workflows has been moved to teardown
         self.deleted = False  # True if delete request has been sent to k8s
         self.last_error_time = None  # time in seconds of last Error
@@ -130,7 +131,7 @@ def create_cb(fh, t, msg, api_instance):
     api_instance.create_namespaced_custom_object(
         *WORKFLOW_CRD, body,
     )
-    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(jobid, workflow_name)
+    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(jobid, workflow_name, msg.payload["resources"])
     fh.rpc(
         "job-manager.memo",
         payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}},
@@ -292,7 +293,9 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         # 'teardown' update is still in the k8s update queue.
         return
     elif state_complete(workflow, "Proposal"):
-        resources = winfo.create_rpc.payload["resources"]
+        resources = winfo.resources
+        if resources is None:
+            resources = flux.job.kvslookup.job_kvs_lookup(fh, jobid)["jobspec"]["resources"]
         fh.rpc(
             "job-manager.dws.resource-update",
             payload={"id": jobid, "resources": resources},
