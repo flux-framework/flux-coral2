@@ -15,27 +15,41 @@ parser.add_argument('--post-run-fail', action='store_true')
 args = parser.parse_args()
 
 def create_cb(fh, t, msg, arg):
-    payload = {"success": not args.create_fail, "resources": msg.payload["resources"]}
-    if args.create_fail:
-        payload['errstr'] = "Failed for test purposes"
+    payload = {
+        "success": not args.create_fail,
+        "errstr": "create RPC failed for test purposes"
+    }
     fh.respond(msg, payload)
     print(f"Responded to create request with {payload}")
     if args.create_fail:
         fh.reactor_stop()
+        return
+    fh.rpc(
+        "job-manager.dws.resource-update",
+        payload={"id": msg.payload["jobid"], "resources": msg.payload["resources"]},
+    )
 
 def setup_cb(fh, t, msg, arg):
     if args.setup_hang:
         return
-    payload = {"success": not args.setup_fail, "variables": {}}
+    payload = {"success": not args.setup_fail}
     if args.setup_fail:
-        payload['errstr'] = "Failed for test purposes"
+        payload['errstr'] = "setup RPC failed for test purposes"
     fh.respond(msg, payload)
+    fh.rpc(
+        "job-manager.dws.prolog-remove",
+        payload={"id": msg.payload["jobid"], "variables": {}},
+    )
 
 def post_run_cb(fh, t, msg, arg):
     payload = {"success": not args.post_run_fail}
     if args.post_run_fail:
-        payload['errstr'] = "Failed for test purposes"
+        payload['errstr'] = "post_run RPC failed for test purposes"
     fh.respond(msg, payload)
+    fh.rpc(
+        "job-manager.dws.epilog-remove",
+        payload={"id": msg.payload["jobid"]},
+    )
     fh.reactor_stop()
 
 fh = flux.Flux()
