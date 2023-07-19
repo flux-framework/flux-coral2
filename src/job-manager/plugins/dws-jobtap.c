@@ -17,6 +17,7 @@
 #endif
 
 #include <stdio.h>
+#include <syslog.h>
 #include <stdint.h>
 #include <inttypes.h>
 #include <jansson.h>
@@ -53,34 +54,56 @@ static int raise_job_exception(flux_t *h, flux_jobid_t id, const char *exception
     return 0;
 }
 
-static int dws_prolog_finish (flux_t *h, flux_plugin_t *p, flux_jobid_t id, int success, const char *errstr, int *prolog_active){
+static int dws_prolog_finish (flux_t *h,
+                              flux_plugin_t *p,
+                              flux_jobid_t id,
+                              int success,
+                              const char *errstr,
+                              int *prolog_active)
+{
     if (*prolog_active){
         if (flux_jobtap_prolog_finish (p, id, SETUP_PROLOG_NAME, !success) < 0) {
             flux_log_error (h,
-                            "Failed to finish prolog %s for job %" PRIu64,
+                            "Failed to finish prolog %s for job %" PRIu64
+                            " with errstr '%s'",
                             SETUP_PROLOG_NAME,
-                            id);
+                            id,
+                            errstr);
             return -1;
         }
         *prolog_active = 0;
         if (!success) {
-            flux_log_error (h, "Failed to setup DWS workflow object for job %" PRIu64, id);
+            flux_log (h,
+                      LOG_ERR,
+                      "Failed to setup DWS workflow object for job %"
+                      PRIu64,
+                      id);
             return raise_job_exception (h, id, SETUP_PROLOG_NAME, errstr);
         }
     }
     return 0;
 }
 
-static int dws_epilog_finish (flux_t *h, flux_plugin_t *p, flux_jobid_t id, int success, const char *errstr){
+static int dws_epilog_finish (flux_t *h,
+                              flux_plugin_t *p,
+                              flux_jobid_t id,
+                              int success,
+                              const char *errstr)
+{
     if (flux_jobtap_epilog_finish (p, id, DWS_EPILOG_NAME, !success) < 0) {
         flux_log_error (h,
-                        "Failed to finish epilog %s for job %" PRIu64,
+                        "Failed to finish epilog %s for job %" PRIu64
+                        " with errstr '%s'",
                         DWS_EPILOG_NAME,
-                        id);
+                        id,
+                        errstr);
         return -1;
     }
     if (!success) {
-        flux_log_error (h, "Failed to clean up DWS workflow object for job %" PRIu64, id);
+        flux_log (h,
+                  LOG_ERR,
+                  "Failed to clean up DWS workflow object for job %" PRIu64,
+                  id);
         return raise_job_exception (h, id, DWS_EPILOG_NAME, errstr);
     }
     return 0;
