@@ -439,7 +439,7 @@ static int exception_cb (flux_plugin_t *p,
         flux_log_error (h, "Failed to unpack args");
         return -1;
     }
-    if ((prolog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_prolog_active")) && (*prolog_active)){
+    if ((prolog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_prolog_active")) && (*prolog_active)) {
         if (flux_jobtap_prolog_finish (p, id, SETUP_PROLOG_NAME, 1) < 0) {
             flux_log_error (h,
                             "Failed to finish prolog %s for job %" PRIu64 " after exception",
@@ -483,11 +483,23 @@ static void prolog_remove_msg_cb (flux_t *h,
     flux_plugin_t *p = (flux_plugin_t *) arg;
     json_int_t jobid;
     json_t *env = NULL;
-    int prolog_active = 1;
+    int *prolog_active, junk_prolog_active = 1;
 
     if (flux_msg_unpack (msg, "{s:I, s:o}", "id", &jobid, "variables", &env) < 0){
         flux_log_error (h, "received malformed dws.prolog-remove RPC");
         return;
+    }
+    if (!(prolog_active = flux_jobtap_job_aux_get (p,
+                                                   (flux_jobid_t) jobid,
+                                                   "dws_prolog_active"))) {
+        // if we can't fetch the aux, proceed as normal.
+        // the aux is only in place to ensure the prolog is removed when
+        // an exception occurs
+        prolog_active = &junk_prolog_active; // at least it's a valid address
+        flux_log_error (h,
+                        "failed to fetch 'dws_prolog_active' aux for %"
+                        JSON_INTEGER_FORMAT,
+                        jobid);
     }
     if (flux_jobtap_event_post_pack (p,
                                      jobid,
@@ -495,12 +507,11 @@ static void prolog_remove_msg_cb (flux_t *h,
                                      "{s:O}",
                                      "variables",
                                      env) < 0
-        || flux_jobtap_job_aux_set (p, jobid, "flux::dws_run_started", (void *) 1, NULL) < 0){
-        dws_prolog_finish (h, p, jobid, 0, "failed to post dws_environment event", &prolog_active);
+        || flux_jobtap_job_aux_set (p, jobid, "flux::dws_run_started", (void *) 1, NULL) < 0) {
+        dws_prolog_finish (h, p, jobid, 0, "failed to post dws_environment event", prolog_active);
     }
     else {
-        dws_prolog_finish (h, p, jobid, 1, "success!", &prolog_active);
-
+        dws_prolog_finish (h, p, jobid, 1, "success!", prolog_active);
     }
 }
 
