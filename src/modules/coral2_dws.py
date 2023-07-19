@@ -82,6 +82,8 @@ def message_callback_wrapper(func):
             fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {errstr}")
             fh.respond(msg, {"success": False, "errstr": errstr})
             LOGGER.error("Error in responding to %s RPC for %s: %s", topic, jobid, errstr)
+        else:
+            fh.respond(msg, {"success": True})
 
     return wrapper
 
