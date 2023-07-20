@@ -435,6 +435,10 @@ static int cleanup_cb (flux_plugin_t *p,
     return 0;
 }
 
+/*
+ * In the event of a severity-0 exception, check if the prolog is running,
+ * and remove it if so.
+ */
 static int exception_cb (flux_plugin_t *p,
                          const char *topic,
                          flux_plugin_arg_t *args,
@@ -442,14 +446,18 @@ static int exception_cb (flux_plugin_t *p,
 {
     flux_jobid_t id;
     flux_t *h = flux_jobtap_get_flux (p);
-    int *prolog_active;
+    int *prolog_active, severity;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:I}",
-                                "id", &id) < 0){
+                                "{s:I s:{s:{s:i}}}",
+                                "id", &id,
+                                "entry", "context", "severity", &severity) < 0){
         flux_log_error (h, "Failed to unpack args");
         return -1;
+    }
+    if (severity != 0){
+        return 0;  // Do nothing for severity > 0 exceptions
     }
     if ((prolog_active = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_prolog_active")) && (*prolog_active)) {
         if (flux_jobtap_prolog_finish (p, id, SETUP_PROLOG_NAME, 1) < 0) {
