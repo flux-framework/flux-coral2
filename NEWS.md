@@ -1,3 +1,16 @@
+flux-coral2 0.6.0 - 2023-07-20
+------------------------------
+
+### New Features
+
+ * dws: handle service crashes (#81)
+ * build: add `make deb` target for test packaging (#80)
+ * dws: handle persistent allocations (#78)
+
+### Testsuite
+
+ * testsuite: add tests for persistent allocations (#78)
+
 flux-coral2 0.5.0 - 2023-06-09
 ------------------------------
 
