@@ -160,19 +160,17 @@ static int depend_cb (flux_plugin_t *p,
     json_t *dw = NULL;
     flux_t *h = flux_jobtap_get_flux (p);
     json_t *resources;
-    json_t *jobspec;
     int userid;
     int *prolog_active = NULL;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:I s:{s:{s:{s?o}}} s:o s:{s:o} s:i}",
+                                "{s:I s:{s:{s:{s?o}}} s:{s:o} s:i}",
                                 "id", &id,
                                 "jobspec",
                                 "attributes",
                                 "system",
                                 "dw", &dw,
-                                "jobspec", &jobspec,
                                 "jobspec", "resources", &resources,
                                 "userid", &userid) < 0)
         return -1;
