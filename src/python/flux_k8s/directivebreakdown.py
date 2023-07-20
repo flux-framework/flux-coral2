@@ -52,7 +52,7 @@ def build_allocation_sets(allocation_sets, local_allocations, nodes_per_nnf):
 
 def apply_breakdowns(k8s_api, workflow, resources):
     """Apply all of the directive breakdown information to a jobspec's `resources`."""
-    breakdown_list = list(_fetch_breakdowns(k8s_api, workflow))
+    breakdown_list = list(fetch_breakdowns(k8s_api, workflow))
     per_compute_total = 0  # total bytes of per-compute storage
     for breakdown in breakdown_list:
         if breakdown["kind"] != "DirectiveBreakdown":
@@ -73,7 +73,7 @@ def apply_breakdowns(k8s_api, workflow, resources):
     return breakdown_list
 
 
-def _fetch_breakdowns(k8s_api, workflow):
+def fetch_breakdowns(k8s_api, workflow):
     """Fetch all of the directive breakdowns associated with a workflow."""
     if not workflow["status"].get("directiveBreakdowns"):
         return []  # destroy_persistent DW directives have no breakdowns

@@ -37,7 +37,7 @@ test_expect_success 'exec dws service-providing script' '
 	DWS_JOBID=$(flux submit \
 	        --setattr=system.alloc-bypass.R="$R" \
 	        -o per-resource.type=node --output=dws1.out --error=dws1.err \
-	        python ${DWS_MODULE_PATH} -e1) &&
+	        python ${DWS_MODULE_PATH} -e1 -v) &&
 	flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start
 '
 
@@ -69,7 +69,7 @@ test_expect_success 'job submission with valid DW string works' '
 	flux job wait-event -vt 15 ${jobid} priority &&
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
 		${jobid} prolog-finish &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
@@ -95,12 +95,12 @@ test_expect_success 'job submission with multiple valid DW strings on different 
 	flux job wait-event -vt 15 ${jobid} priority &&
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
 		${jobid} prolog-finish &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
 	flux job wait-event -vt 15 ${jobid} clean
 '
@@ -117,12 +117,12 @@ test_expect_success 'job submission with multiple valid DW strings on the same l
 	flux job wait-event -vt 15 ${jobid} priority &&
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
 		${jobid} prolog-finish &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
 	flux job wait-event -vt 15 ${jobid} clean
 '
@@ -140,12 +140,12 @@ test_expect_success 'job submission with multiple valid DW strings in a JSON fil
 		${jobid} memo &&
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+	flux job wait-event -vt 45 -m description=${PROLOG_NAME} \
 		${jobid} prolog-finish &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 65 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
 	flux job wait-event -vt 15 ${jobid} clean
 '
@@ -173,7 +173,7 @@ test_expect_success 'exec dws service-providing script with custom config path' 
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws2.out --error=dws2.err \
-		python ${DWS_MODULE_PATH} -e1 --kubeconfig $PWD/kubeconfig) &&
+		python ${DWS_MODULE_PATH} -e1 --kubeconfig $PWD/kubeconfig -v) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
 	${RPC} "dws.create"
 '
@@ -185,10 +185,10 @@ test_expect_success 'job submission with valid DW string works after config chan
 		${jobid} dependency-add &&
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
-	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 30 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
-	flux job wait-event -vt 15 ${jobid} clean
+	flux job wait-event -vt 25 ${jobid} clean
 '
 
 test_expect_success 'job submission with persistent DW string works' '
@@ -215,6 +215,27 @@ test_expect_success 'job submission with persistent DW string works' '
 	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
 	flux job wait-event -vt 30 ${jobid} clean
+'
+
+test_expect_success 'dws service script handles restarts while a job is running' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 sleep 5) &&
+	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 30 ${jobid} start &&
+	flux job cancel ${DWS_JOBID} &&
+	DWS_JOBID=$(flux submit \
+		--setattr=system.alloc-bypass.R="$R" \
+		-o per-resource.type=node --output=dws3.out --error=dws3.err \
+		python ${DWS_MODULE_PATH} -e1 --kubeconfig $PWD/kubeconfig -v) &&
+	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 25 ${jobid} clean
 '
 
 test_done

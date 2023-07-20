@@ -293,8 +293,7 @@ int flux_plugin_init (flux_plugin_t *p)
     for (int i = 0; i < size; ++i) {
         range->available_ports[i] = port_min + i;
     }
-    if (flux_plugin_set_name (p, "cray-pals") < 0
-        || flux_plugin_add_handler (p, "job.state.run", run_cb, range) < 0
+    if (flux_plugin_add_handler (p, "job.state.run", run_cb, range) < 0
         || flux_plugin_add_handler (p, "job.state.cleanup", cleanup_cb, range) < 0
         || flux_plugin_aux_set (p, NULL, range, (flux_free_f)port_range_destroy) < 0) {
         port_range_destroy (range);

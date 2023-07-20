@@ -37,23 +37,24 @@ _XFS_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
 _HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 LOGGER = logging.getLogger(__name__)
 WORKFLOWS_IN_ERROR = set()
+WORKFLOW_NAME_PREFIX = "fluxjob-"
+WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
 
 
 class WorkflowInfo:
     """Represents and holds information about a specific workflow object."""
 
-    def __init__(self, name, create_rpc, jobid):
-        self.name = name
-        self.create_rpc = create_rpc
+    def __init__(self, jobid, name=None, resources=None):
         self.jobid = jobid
-        self.setup_rpc = None
-        self.post_run_rpc = None
-        self.toredown = False
-        self.deleted = False
-        self.computes = None
-        self.breakdowns = None
-        self.last_error_time = None
-        self.last_error_message = None
+        if name is None:
+            self.name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
+        else:
+            self.name = name  # name of the k8s workflow
+        self.resources = resources  # jobspec 'resources' field
+        self.toredown = False  # True if workflows has been moved to teardown
+        self.deleted = False  # True if delete request has been sent to k8s
+        self.last_error_time = None  # time in seconds of last Error
+        self.last_error_message = None  # message associated with last error
 
 
 def message_callback_wrapper(func):
@@ -81,6 +82,8 @@ def message_callback_wrapper(func):
             fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {errstr}")
             fh.respond(msg, {"success": False, "errstr": errstr})
             LOGGER.error("Error in responding to %s RPC for %s: %s", topic, jobid, errstr)
+        else:
+            fh.respond(msg, {"success": True})
 
     return wrapper
 
@@ -112,7 +115,7 @@ def create_cb(fh, t, msg, api_instance):
         raise TypeError(
             f"Malformed dw_directives, not list or string: {dw_directives!r}"
         )
-    workflow_name = f"fluxjob-{jobid}"
+    workflow_name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
     spec = {
         "desiredState": "Proposal",
         "dwDirectives": dw_directives,
@@ -130,8 +133,11 @@ def create_cb(fh, t, msg, api_instance):
     api_instance.create_namespaced_custom_object(
         *WORKFLOW_CRD, body,
     )
-    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(workflow_name, msg, jobid)
-    fh.rpc("job-manager.memo", payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}})
+    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(jobid, workflow_name, msg.payload["resources"])
+    fh.rpc(
+        "job-manager.memo",
+        payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}},
+    )
 
 
 @message_callback_wrapper
@@ -146,7 +152,8 @@ def setup_cb(fh, t, msg, k8s_api):
     """
     jobid = msg.payload["jobid"]
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
-    workflow = _WORKFLOWINFO_CACHE[jobid]
+    workflow_name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
+    workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, workflow_name)
     compute_nodes = [{"name": hostname} for hostname in hlist]
     nodes_per_nnf = {}
     for hostname in hlist:
@@ -155,12 +162,12 @@ def setup_cb(fh, t, msg, k8s_api):
     k8s_api.patch_namespaced_custom_object(
         COMPUTE_CRD.group,
         COMPUTE_CRD.version,
-        workflow.computes["namespace"],
+        workflow["status"]["computes"]["namespace"],
         COMPUTE_CRD.plural,
-        workflow.computes["name"],
+        workflow["status"]["computes"]["name"],
         {"data": compute_nodes},
     )
-    for breakdown in workflow.breakdowns:
+    for breakdown in directivebreakdown.fetch_breakdowns(k8s_api, workflow):
         # if a breakdown doesn't have a storage field (e.g. persistentdw) directives
         # ignore it and proceed
         if "storage" in breakdown["status"]:
@@ -196,31 +203,22 @@ def setup_cb(fh, t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    workflow.setup_rpc = msg
-    move_workflow_desiredstate(workflow.name, "Setup", k8s_api)
+    move_workflow_desiredstate(workflow_name, "Setup", k8s_api)
 
 
 @message_callback_wrapper
 def post_run_cb(fh, t, msg, k8s_api):
     """dws.post_run RPC callback.
 
-    The dws.setup RPC is sent when the job has reached the CLEANUP state.
+    The dws.post_run RPC is sent when the job has reached the CLEANUP state.
 
     If the job reached the RUN state, move the workflow to `post_run`.
     If the job did not reach the RUN state (exception path), move
     the workflow directly to `teardown`.
     """
     jobid = msg.payload["jobid"]
-    if jobid not in _WORKFLOWINFO_CACHE:
-        LOGGER.warning(
-            "Missing workflow cache entry for %i, which is only "
-            "expected if a workflow object could not be created for the job",
-            jobid,
-        )
-        return
-    winfo = _WORKFLOWINFO_CACHE[jobid]
+    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
     run_started = msg.payload["run_started"]
-    winfo.post_run_rpc = msg
     if winfo.toredown:
         # workflow has already been transitioned to 'teardown', do nothing
         return
@@ -250,11 +248,10 @@ def workflow_state_change_cb(event, fh, k8s_api):
     except KeyError:
         LOGGER.exception("Invalid workflow in event stream: ")
         return
-    try:
-        winfo = _WORKFLOWINFO_CACHE[jobid]
-    except KeyError:
+    if not workflow_name.startswith(WORKFLOW_NAME_PREFIX):
         LOGGER.warning("unrecognized workflow '%s' in event stream", workflow_name)
         return
+    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
     if event.get("TYPE") == "DELETED":
         # the workflow has been deleted, we can forget about it
         del _WORKFLOWINFO_CACHE[jobid]
@@ -290,8 +287,7 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         # delete workflow object and tell DWS jobtap plugin that the job is done
         k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
         winfo.deleted = True
-        if winfo.post_run_rpc is not None:
-            fh.respond(winfo.post_run_rpc, {"success": True})  # ATM, does nothing
+        fh.rpc("job-manager.dws.epilog-remove", payload={"id": jobid})
     elif winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
         # Without this early 'return', this function may try to
@@ -299,13 +295,13 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         # 'teardown' update is still in the k8s update queue.
         return
     elif state_complete(workflow, "Proposal"):
-        winfo.computes = workflow["status"]["computes"]
-        resources = winfo.create_rpc.payload["resources"]
-        winfo.breakdowns = list(
-            directivebreakdown._fetch_breakdowns(k8s_api, workflow)
+        resources = winfo.resources
+        if resources is None:
+            resources = flux.job.kvslookup.job_kvs_lookup(fh, jobid)["jobspec"]["resources"]
+        fh.rpc(
+            "job-manager.dws.resource-update",
+            payload={"id": jobid, "resources": resources},
         )
-        fh.respond(winfo.create_rpc, {"success": True, "resources": resources})
-        winfo.create_rpc = None
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
         move_workflow_desiredstate(winfo.name, "DataIn", k8s_api)
@@ -314,11 +310,10 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         move_workflow_desiredstate(winfo.name, "PreRun", k8s_api)
     elif state_complete(workflow, "PreRun"):
         # tell DWS jobtap plugin that the job can start
-        fh.respond(
-            winfo.setup_rpc,
-            {"success": True, "variables": workflow["status"].get("env", {})},
+        fh.rpc(
+            "job-manager.dws.prolog-remove",
+            payload={"id": jobid, "variables": workflow["status"].get("env", {})},
         )
-        winfo.setup_rpc = None
     elif state_complete(workflow, "PostRun"):
         # move workflow to next stage, DataOut
         move_workflow_desiredstate(winfo.name, "DataOut", k8s_api)
