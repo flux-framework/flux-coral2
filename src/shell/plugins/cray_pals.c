@@ -545,6 +545,7 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
         shell_log_errno ("Couldn't write apinfo to disk");
         goto error;
     }
+    shell_trace ("created pals apinfo file %s", apinfo_path);
 
 cleanup:
 
@@ -661,6 +662,8 @@ static int get_pals_ports (flux_shell_t *shell, json_int_t jobid)
             || flux_shell_setenvf (shell, 1, "PMI_SHARED_SECRET", "%ju", (uintmax_t) random) < 0) {
             return -1;
         }
+        shell_trace ("set PMI_CONTROL_PORT to %s", buf);
+        shell_trace ("set PMI_SHARED_SECRET to %ju", (uintmax_t) random);
     }
     return rc;
 }
@@ -689,6 +692,10 @@ static int set_environment (flux_shell_t *shell,
         shell_log_error ("Error setting libpals environment");
         return -1;
     }
+    shell_trace ("set PALS_NODEID to %i", rank);
+    shell_trace ("set PALS_APID to %" JSON_INTEGER_FORMAT, jobid);
+    shell_trace ("set PALS_SPOOL_DIR to %s", tmpdir);
+    shell_trace ("set PALS_APINFO to %s", apinfo_path);
     return 0;
 }
 
@@ -739,6 +746,7 @@ static int libpals_task_init (flux_plugin_t *p,
         || flux_cmd_setenvf (cmd, 1, "PALS_RANKID", "%d", task_rank) < 0) {
         return -1;
     }
+    shell_trace ("set PALS_RANKID to %d", task_rank);
     return 0;
 }
 
