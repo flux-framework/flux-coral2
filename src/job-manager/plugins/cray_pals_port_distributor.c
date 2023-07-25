@@ -14,8 +14,10 @@
 
 #include <stdio.h>
 #include <syslog.h>
+#include <stdint.h>
 
 #include <jansson.h>
+#include <sodium.h>
 
 #include <flux/core.h>
 #include <flux/hostlist.h>
@@ -93,6 +95,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
     flux_t *h;
     json_t *arr = NULL;
     int prolog_status = 0;
+    json_int_t random;
 
     if (!(h = flux_future_get_flux (fut))) {
         prolog_status = 1;
@@ -113,15 +116,18 @@ static void count_job_shells (flux_future_t *fut, void *arg)
     if (hostlist_count (hlist) == 1) {
         goto cleanup;  // no need to post ports
     }
+    randombytes_buf (&random, sizeof (json_int_t));
     // assign ports to the job
     if ((port1 = get_port (triple->range)) < 0 || (port2 = get_port (triple->range)) < 0
         || !(arr = json_pack ("[I, I]", port1, port2))
         || flux_jobtap_event_post_pack (triple->plugin,
                                         triple->jobid,
                                         "cray_port_distribution",
-                                        "{s:O}",
+                                        "{s:O, s:I}",
                                         "ports",
-                                        arr) < 0
+                                        arr,
+                                        "random_integer",
+                                        random) < 0
         || flux_jobtap_job_aux_set (triple->plugin,
                                     triple->jobid,
                                     CRAY_PALS_AUX_NAME,
@@ -269,6 +275,10 @@ int flux_plugin_init (flux_plugin_t *p)
                   port_max);
     }
 
+    if (sodium_init () == -1) {
+        flux_log (h, LOG_ERR, "error initializing libsodium");
+        return -1;
+    }
     // check that port range falls within acceptable bounds
     // ports less than 1024 require root, max port is 2^16 -
     if (port_min < 1024 || port_max < 1024 || port_max > (1 << 16)) {
