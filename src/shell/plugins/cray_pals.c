@@ -768,7 +768,12 @@ static int unset_pals_env (flux_shell_t *shell)
 {
     char *pals_env[] = { "PALS_NODEID", "PALS_RANKID",
                          "PALS_APINFO", "PALS_APID",
-                         "PALS_SPOOL_DIR", "PMI_CONTROL_PORT" };
+                         "PALS_SPOOL_DIR", "PALS_FD",
+                         "PALS_DEPTH", "PALS_LOCAL_RANKID",
+                         "PALS_LOCAL_SIZE", "PMI_JOBID",
+                         "PMI_CONTROL_PORT", "PMI_SHARED_SECRET",
+                         "PMI_JOBID", "PMI_LOCAL_RANK",
+                         "PMI_LOCAL_SIZE"};
     for (int i = 0; i < sizeof (pals_env) / sizeof (pals_env[0]); i++)
     {
         flux_shell_unsetenv (shell, pals_env[i]);

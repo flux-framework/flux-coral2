@@ -79,11 +79,13 @@ test_expect_success 'shell: cray-pals is active with -opmi includes cray-pals' '
 	    printenv PALS_RANKID
 '
 test_expect_success 'shell: cray-pals unsets PALS variables when inactive' '
-	(export PALS_RANKID=0 PMI_CONTROL_PORT=6 && PALS_NODEID=1 &&
+	(export PALS_RANKID=0 PMI_CONTROL_PORT=6 PALS_NODEID=1 PMI_SHARED_SECRET=1 &&
 	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
 		printenv PALS_RANKID &&
 	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
 		printenv PALS_NODEID &&
+	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
+		printenv PMI_SHARED_SECRET &&
 	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
 		printenv PMI_CONTROL_PORT)
 '
