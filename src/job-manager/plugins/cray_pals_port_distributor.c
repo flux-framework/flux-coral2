@@ -92,8 +92,10 @@ static void count_job_shells (flux_future_t *fut, void *arg)
     json_int_t port1, port2;
     flux_t *h;
     json_t *arr = NULL;
+    int prolog_status = 0;
 
     if (!(h = flux_future_get_flux (fut))) {
+        prolog_status = 1;
         goto cleanup;
     }
     if (flux_kvs_lookup_get_unpack (fut,
@@ -105,6 +107,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
         flux_log_error (h,
                         PLUGIN_NAME ": "
                         "Error fetching R from shell-counting future");
+        prolog_status = 1;
         goto cleanup;
     }
     if (hostlist_count (hlist) == 1) {
@@ -126,6 +129,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
                                     (flux_free_f)json_decref) < 0) {
         if (arr)
             json_decref (arr);
+        prolog_status = 1;
         flux_log_error (h,
                         PLUGIN_NAME ": "
                         "Failed to post ports to job");
@@ -136,7 +140,7 @@ cleanup:
     if (flux_jobtap_prolog_finish (triple->plugin,
                                    triple->jobid,
                                    "cray-pals-port-distributor",
-                                   0) < 0)
+                                   prolog_status) < 0)
         flux_log_error (h,
                         PLUGIN_NAME ": prolog_finish");
     if (hlist)
