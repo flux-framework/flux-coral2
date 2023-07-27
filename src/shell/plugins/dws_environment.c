@@ -30,20 +30,21 @@
  *
  */
 
-
 /*
  * Apply a JSON object defining environment variables to the job's environment
  */
-static int set_environment (flux_shell_t *shell, json_t *env_object){
+static int set_environment (flux_shell_t *shell, json_t *env_object)
+{
     const char *key, *value_string;
     json_t *value;
 
-    json_object_foreach(env_object, key, value) {
-        if (!(value_string = json_string_value (value))){
-            shell_log_error ("variables in dws_environment event must have string values");
+    json_object_foreach (env_object, key, value) {
+        if (!(value_string = json_string_value (value))) {
+            shell_log_error (
+                "variables in dws_environment event must have string values");
             return -1;
         }
-        if (flux_shell_setenvf (shell, 1, key, "%s", value_string) < 0){
+        if (flux_shell_setenvf (shell, 1, key, "%s", value_string) < 0) {
             shell_log_error ("Failed setting DWS environment variable");
             return -1;
         }
@@ -78,13 +79,14 @@ static int read_future (flux_shell_t *shell, flux_future_t *fut)
                 json_decref (o);
                 return -1;
             }
-            if (set_environment (shell, env) < 0){
+            if (set_environment (shell, env) < 0) {
                 json_decref (o);
                 return -1;
             }
             json_decref (o);
             return 0;
-        } else {
+        }
+        else {
             flux_future_reset (fut);
             json_decref (o);
         }
@@ -94,9 +96,9 @@ static int read_future (flux_shell_t *shell, flux_future_t *fut)
 }
 
 static int dws_environment_init (flux_plugin_t *p,
-                         const char *topic,
-                         flux_plugin_arg_t *args,
-                         void *data)
+                                 const char *topic,
+                                 flux_plugin_arg_t *args,
+                                 void *data)
 {
     flux_shell_t *shell = flux_plugin_get_shell (p);
     json_t *dw = NULL;
@@ -104,19 +106,21 @@ static int dws_environment_init (flux_plugin_t *p,
     flux_t *h;
     flux_future_t *fut;
 
-
-    if (!shell){
+    if (!shell) {
         return -1;
     }
     if (flux_shell_info_unpack (shell,
                                 "{s:I s:{s:{s:{s?o}}}}",
-                                "jobid", &jobid,
+                                "jobid",
+                                &jobid,
                                 "jobspec",
                                 "attributes",
                                 "system",
-                                "dw", &dw) < 0)
+                                "dw",
+                                &dw)
+        < 0)
         return -1;
-    if (!dw){
+    if (!dw) {
         // This plugin doesn't need to do anything, no #DW directives
         // and therefore no environment variables
         return 0;
