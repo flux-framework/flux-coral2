@@ -12,7 +12,7 @@ test_under_flux 2 job
 
 flux setattr log-stderr-level 1
 
-unset PALS_RANKID PALS_NODEID PMI_CONTROL_PORT
+unset PALS_RANKID PALS_NODEID PMI_CONTROL_PORT PMI_SHARED_SECRET
 
 test_expect_success 'job-manager: load cray_pals_port_distributor plugin with invalid config' '
 	test_expect_code 1 flux jobtap load ${JOBTAP_PLUGINPATH}/cray_pals_port_distributor.so \
@@ -79,11 +79,13 @@ test_expect_success 'shell: cray-pals is active with -opmi includes cray-pals' '
 	    printenv PALS_RANKID
 '
 test_expect_success 'shell: cray-pals unsets PALS variables when inactive' '
-	(export PALS_RANKID=0 PMI_CONTROL_PORT=6 && PALS_NODEID=1 &&
+	(export PALS_RANKID=0 PMI_CONTROL_PORT=6 PALS_NODEID=1 PMI_SHARED_SECRET=1 &&
 	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
 		printenv PALS_RANKID &&
 	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
 		printenv PALS_NODEID &&
+	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
+		printenv PMI_SHARED_SECRET &&
 	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
 		printenv PMI_CONTROL_PORT)
 '
@@ -95,13 +97,15 @@ test_expect_success 'shell: pals shell plugin sets environment' '
 	echo "$environment" | grep PALS_APID &&
 	echo "$environment" | grep PALS_SPOOL_DIR &&
 	echo "$environment" | grep PALS_APINFO &&
-	echo "$environment" | test_must_fail grep PMI_CONTROL_PORT
+	echo "$environment" | test_must_fail grep PMI_CONTROL_PORT &&
+	echo "$environment" | test_must_fail grep PMI_SHARED_SECRET
 '
 
-test_expect_success 'shell: pals shell plugin sets PMI_CONTROL_PORT' '
+test_expect_success 'shell: pals shell plugin sets CONTROL_PORT and SHARED_SECRET' '
 	environment=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N2 -n4 env) &&
 	(echo "$environment" | grep PMI_CONTROL_PORT=11999,11998 ||
 	echo "$environment" | grep PMI_CONTROL_PORT=11998,11999) &&
+	echo "$environment" | grep PMI_SHARED_SECRET &&
 	echo "$environment" | grep PALS_NODEID=0 &&
 	echo "$environment" | grep PALS_RANKID=0 &&
 	echo "$environment" | grep PALS_RANKID=1 &&
