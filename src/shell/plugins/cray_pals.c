@@ -156,8 +156,7 @@ static struct hostlist *hostlist_from_array (json_t *nodelist_array)
     if (!json_is_array (nodelist_array) || !(hlist = hostlist_create ())) {
         return NULL;
     }
-    json_array_foreach (nodelist_array, index, value)
-    {
+    json_array_foreach (nodelist_array, index, value) {
         if (!(entry = json_string_value (value))
             || hostlist_append (hlist, entry) < 0) {
             hostlist_destroy (hlist);
@@ -184,7 +183,8 @@ static int safe_write (int fd, const void *buf, size_t size)
             if ((errno == EAGAIN) || (errno == EINTR))
                 continue;
             return -1;
-        } else {
+        }
+        else {
             buf += rc;
             size -= rc;
         }
@@ -323,11 +323,8 @@ static int *get_task_counts_pershell (flux_shell_t *shell, int shell_size)
         return NULL;
     }
     for (i = 0; i < shell_size; ++i) {
-        if (flux_shell_rank_info_unpack (shell,
-                                         i,
-                                         "{s:i}",
-                                         "ntasks",
-                                         &task_counts[i]) < 0) {
+        if (flux_shell_rank_info_unpack (shell, i, "{s:i}", "ntasks", &task_counts[i])
+            < 0) {
             free (task_counts);
             return NULL;
         }
@@ -478,7 +475,8 @@ static int get_cores_per_task (flux_shell_t *shell, int ntasks)
                                         "nslots",
                                         &task_slots,
                                         "cores_per_slot",
-                                        &cores_per_slot) < 0
+                                        &cores_per_slot)
+            < 0
         || version != 1) {
         shell_log_error ("Error calculating 'cores_per_task' from jobspec");
         return -1;
@@ -511,7 +509,8 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
                                 "R",
                                 "execution",
                                 "nodelist",
-                                &nodelist_array) < 0
+                                &nodelist_array)
+            < 0
         || !(hlist = hostlist_from_array (nodelist_array))
         || !(hlist_uniq = hostlist_copy (hlist))) {
         shell_log_error ("Error creating hostlists");
@@ -567,7 +566,10 @@ error:
     goto cleanup;
 }
 
-static int read_future (flux_future_t *fut, char *buf, size_t bufsize, json_int_t *random)
+static int read_future (flux_future_t *fut,
+                        char *buf,
+                        size_t bufsize,
+                        json_int_t *random)
 {
     json_t *o = NULL;
     json_t *context = NULL;
@@ -593,18 +595,24 @@ static int read_future (flux_future_t *fut, char *buf, size_t bufsize, json_int_
             /*  'start' event with no cray_port_distribution event.
              *  assume cray-pals jobtap plugin is not loaded.
              */
-            shell_debug ("cray_pals_port_distributor jobtap plugin is not "
-                         "loaded: proceeding without PMI_CONTROL_PORT set");
+            shell_debug (
+                "cray_pals_port_distributor jobtap plugin is not "
+                "loaded: proceeding without PMI_CONTROL_PORT set");
             return 0;
         }
         if (!strcmp (name, "cray_port_distribution")) {
-            if (json_unpack (context, "{s:o, s:I}", "ports", &array, "random_integer", random) < 0) {
+            if (json_unpack (context,
+                             "{s:o, s:I}",
+                             "ports",
+                             &array,
+                             "random_integer",
+                             random)
+                < 0) {
                 shell_log_error ("Error unpacking 'cray_port_distribution' event");
                 json_decref (o);
                 return -1;
             }
-            json_array_foreach (array, index, value)
-            {
+            json_array_foreach (array, index, value) {
                 if ((portnum = json_integer_value (value)) == 0) {
                     shell_log_error ("Received non-integer port");
                     json_decref (o);
@@ -613,7 +621,8 @@ static int read_future (flux_future_t *fut, char *buf, size_t bufsize, json_int_
                 if (index == 0) {
                     bytes_written =
                         snprintf (buf, bufsize, "%" JSON_INTEGER_FORMAT, portnum);
-                } else {
+                }
+                else {
                     bytes_written =
                         snprintf (buf, bufsize, ",%" JSON_INTEGER_FORMAT, portnum);
                 }
@@ -629,7 +638,8 @@ static int read_future (flux_future_t *fut, char *buf, size_t bufsize, json_int_
             /*  Return 1 on success
              */
             return 1;
-        } else {
+        }
+        else {
             flux_future_reset (fut);
             json_decref (o);
         }
@@ -657,13 +667,18 @@ static int get_pals_ports (flux_shell_t *shell, json_int_t jobid)
 
     /* read_future() returns 1 if port distribution event was found:
      */
-    if (rc == 1){
+    if (rc == 1) {
         if (flux_shell_setenvf (shell, 1, "PMI_CONTROL_PORT", "%s", buf) < 0
-            || flux_shell_setenvf (shell, 1, "PMI_SHARED_SECRET", "%ju", (uintmax_t) random) < 0) {
+            || flux_shell_setenvf (shell,
+                                   1,
+                                   "PMI_SHARED_SECRET",
+                                   "%ju",
+                                   (uintmax_t)random)
+                   < 0) {
             return -1;
         }
         shell_trace ("set PMI_CONTROL_PORT to %s", buf);
-        shell_trace ("set PMI_SHARED_SECRET to %ju", (uintmax_t) random);
+        shell_trace ("set PMI_SHARED_SECRET to %ju", (uintmax_t)random);
     }
     return rc;
 }
@@ -683,7 +698,8 @@ static int set_environment (flux_shell_t *shell,
     flux_shell_unsetenv (shell, "PMI_CONTROL_PORT");
     if (flux_shell_info_unpack (shell, "{s:i, s:I}", "rank", &rank, "jobid", &jobid) < 0
         || flux_shell_setenvf (shell, 1, "PALS_NODEID", "%i", rank) < 0
-        || flux_shell_setenvf (shell, 1, "PALS_APID", "%" JSON_INTEGER_FORMAT, jobid) < 0
+        || flux_shell_setenvf (shell, 1, "PALS_APID", "%" JSON_INTEGER_FORMAT, jobid)
+               < 0
         || !(tmpdir = flux_shell_getenv (shell, "FLUX_JOB_TMPDIR"))
         || flux_shell_setenvf (shell, 1, "PALS_SPOOL_DIR", "%s", tmpdir) < 0
         || flux_shell_setenvf (shell, 1, "PALS_APINFO", "%s", apinfo_path) < 0
@@ -774,16 +790,22 @@ static bool member_of_csv (const char *list, const char *name)
  */
 static int unset_pals_env (flux_shell_t *shell)
 {
-    char *pals_env[] = { "PALS_NODEID", "PALS_RANKID",
-                         "PALS_APINFO", "PALS_APID",
-                         "PALS_SPOOL_DIR", "PALS_FD",
-                         "PALS_DEPTH", "PALS_LOCAL_RANKID",
-                         "PALS_LOCAL_SIZE", "PMI_JOBID",
-                         "PMI_CONTROL_PORT", "PMI_SHARED_SECRET",
-                         "PMI_JOBID", "PMI_LOCAL_RANK",
-                         "PMI_LOCAL_SIZE"};
-    for (int i = 0; i < sizeof (pals_env) / sizeof (pals_env[0]); i++)
-    {
+    char *pals_env[] = {"PALS_NODEID",
+                        "PALS_RANKID",
+                        "PALS_APINFO",
+                        "PALS_APID",
+                        "PALS_SPOOL_DIR",
+                        "PALS_FD",
+                        "PALS_DEPTH",
+                        "PALS_LOCAL_RANKID",
+                        "PALS_LOCAL_SIZE",
+                        "PMI_JOBID",
+                        "PMI_CONTROL_PORT",
+                        "PMI_SHARED_SECRET",
+                        "PMI_JOBID",
+                        "PMI_LOCAL_RANK",
+                        "PMI_LOCAL_SIZE"};
+    for (int i = 0; i < sizeof (pals_env) / sizeof (pals_env[0]); i++) {
         flux_shell_unsetenv (shell, pals_env[i]);
     }
     return 0;
@@ -810,10 +832,7 @@ int flux_plugin_init (flux_plugin_t *p)
     shell_debug ("enabled");
 
     if (flux_plugin_add_handler (p, "shell.init", libpals_init, NULL) < 0
-        || flux_plugin_add_handler (p,
-                                    "task.init",
-                                    libpals_task_init,
-                                     NULL) < 0)
+        || flux_plugin_add_handler (p, "task.init", libpals_task_init, NULL) < 0)
         return -1;
 
     return 0;

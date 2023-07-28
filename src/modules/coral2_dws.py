@@ -81,7 +81,9 @@ def message_callback_wrapper(func):
                 errstr = str(exc)
             fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {errstr}")
             fh.respond(msg, {"success": False, "errstr": errstr})
-            LOGGER.error("Error in responding to %s RPC for %s: %s", topic, jobid, errstr)
+            LOGGER.error(
+                "Error in responding to %s RPC for %s: %s", topic, jobid, errstr
+            )
         else:
             fh.respond(msg, {"success": True})
 
@@ -133,7 +135,9 @@ def create_cb(fh, t, msg, api_instance):
     api_instance.create_namespaced_custom_object(
         *WORKFLOW_CRD, body,
     )
-    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(jobid, workflow_name, msg.payload["resources"])
+    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(
+        jobid, workflow_name, msg.payload["resources"]
+    )
     fh.rpc(
         "job-manager.memo",
         payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}},
@@ -187,7 +191,10 @@ def setup_cb(fh, t, msg, k8s_api):
                     # in the job
                     for nnf_name in nodes_per_nnf.keys():
                         storage_field.append(
-                            {"allocationCount": nodes_per_nnf[nnf_name], "name": nnf_name}
+                            {
+                                "allocationCount": nodes_per_nnf[nnf_name],
+                                "name": nnf_name,
+                            }
                         )
                 else:
                     # make a single allocation on a random rabbit
@@ -297,7 +304,9 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
     elif state_complete(workflow, "Proposal"):
         resources = winfo.resources
         if resources is None:
-            resources = flux.job.kvslookup.job_kvs_lookup(fh, jobid)["jobspec"]["resources"]
+            resources = flux.job.kvslookup.job_kvs_lookup(fh, jobid)["jobspec"][
+                "resources"
+            ]
         fh.rpc(
             "job-manager.dws.resource-update",
             payload={"id": jobid, "resources": resources},

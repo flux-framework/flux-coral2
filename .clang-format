@@ -1,0 +1,37 @@
+BasedOnStyle : google
+SpaceBeforeParens : Always
+IndentWidth : 4
+BreakBeforeBraces : Custom
+BraceWrapping :
+  BeforeElse : true
+  AfterFunction : true
+UseTab: Never
+AllowShortIfStatementsOnASingleLine : false
+ConstructorInitializerAllOnOneLineOrOnePerLine : true
+AllowShortFunctionsOnASingleLine : false
+AllowShortLoopsOnASingleLine : false
+BinPackParameters : false
+BinPackArguments : false
+AllowAllParametersOfDeclarationOnNextLine : false
+AlignTrailingComments : true
+ColumnLimit : 88
+
+# do not put all arguments on one line unless it's the same line as the call
+PenaltyBreakBeforeFirstCallParameter : 10000000
+PenaltyReturnTypeOnItsOwnLine : 65000
+PenaltyBreakString : 10
+
+# treat foreach macros as for loops
+ForEachMacros :
+- json_array_foreach
+- json_object_foreach
+
+# These improve formatting results but require clang 3.6/7 or higher
+SortIncludes : false
+BreakBeforeBinaryOperators : NonAssignment
+AlignAfterOpenBracket: Align
+AlignOperands : true
+BreakBeforeTernaryOperators : true
+AllowAllParametersOfDeclarationOnNextLine : false
+SpaceBeforeSquareBrackets: false
+IndentPPDirectives: None

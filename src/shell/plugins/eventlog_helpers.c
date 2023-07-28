@@ -17,7 +17,6 @@
 #include <unistd.h>
 #include <string.h>
 
-
 bool eventlog_entry_validate (json_t *entry)
 {
     json_t *name;
@@ -98,7 +97,8 @@ int eventlog_entry_parse (json_t *entry,
             errno = EINVAL;
             return -1;
         }
-    } else
+    }
+    else
         c = NULL;
 
     if (timestamp)
