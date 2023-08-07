@@ -16,6 +16,7 @@
 #include "config.h"
 #endif
 
+#include <errno.h>
 #include <stdio.h>
 #include <syslog.h>
 #include <stdint.h>
@@ -124,10 +125,13 @@ static void create_cb (flux_future_t *f, void *arg)
 
     if (flux_rpc_get_unpack (f, "{s:b, s?s}", "success", &success, "errstr", &errstr)
         < 0) {
-        raise_job_exception (h,
-                             args->id,
-                             CREATE_DEP_NAME,
-                             "Failed to unpack dws.create RPC");
+        errstr = "Failed to unpack dws.create RPC";
+        if (errno == ENOSYS) {
+            errstr =
+                "dws.create RPC could not be sent. "
+                "Admins: is the flux-coral2-dws service loaded?";
+        }
+        raise_job_exception (h, args->id, CREATE_DEP_NAME, errstr);
         goto done;
     }
 
