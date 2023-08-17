@@ -184,11 +184,11 @@ class Coral2Graph(FluxionResourceGraphV1):
         for global_nnf in global_nnf_list:
             edg2 = ElCapResourceRelationshipV1(global_nnf.get_id(), vtx.get_id())
             self.add_edge(edg2)
-        self._encode_ssds(vtx, nnf["data"])
+        self._encode_ssds(vtx, nnf["status"])
         self._encode_mgt_ip(vtx)
         self._encode_ssd_partitions(vtx)
         children = self._rv1NoSched["execution"]["R_lite"][0]["children"]
-        for node in nnf["data"]["access"]["computes"]:
+        for node in nnf["status"]["access"]["computes"]:
             self._encode_rank(parent, next(self._rankids), children, node["name"])
 
     def _encode_rack(self, parent, global_nnf_list, nnf):
@@ -331,7 +331,7 @@ def main():
         if re.search(args.test_pattern, x["metadata"]["name"])
     ]
     dws_computes = set(
-        compute["name"] for nnf in nnfs for compute in nnf["data"]["access"]["computes"]
+        compute["name"] for nnf in nnfs for compute in nnf["status"]["access"]["computes"]
     )
     for host in Hostlist(input_r["execution"]["nodelist"]):
         try:
