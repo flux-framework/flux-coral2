@@ -29,13 +29,8 @@ class ElCapResourcePoolV1(FluxionResourcePoolV1):
     def constraints(resType):
         return resType in [
             "rack",
-            "nnf",
+            "rabbit",
             "ssd",
-            "globalnnfost",
-            "globalnnfmdt",
-            "globalnnfmgt",
-            "mgt_ip",
-            "ssd_partition",
         ] or super(ElCapResourcePoolV1, ElCapResourcePoolV1).constraints(resType)
 
     @property
@@ -54,7 +49,7 @@ class Coral2Graph(FluxionResourceGraphV1):
     CORAL2 Graph:  extend jsongraph's Graph class
     """
 
-    def __init__(self, rv1, nnfs, chunks_per_nnf, partitions_per_nnf):
+    def __init__(self, rv1, nnfs, chunks_per_nnf):
         """Constructor
         rv1 -- RV1 Dictorary that conforms to Flux RFC 20:
                    Resource Set Specification Version 1
@@ -62,7 +57,6 @@ class Coral2Graph(FluxionResourceGraphV1):
         assert len(rv1["execution"]["R_lite"]) == 1
         self._nnfs = nnfs
         self._chunks_per_nnf = chunks_per_nnf
-        self._partitions_per_nnf = partitions_per_nnf
         self._rackids = 0
         self._rankids = itertools.count()
         # Call super().__init__() last since it calls __encode
@@ -106,64 +100,14 @@ class Coral2Graph(FluxionResourceGraphV1):
                 True,
                 "GiB",
                 to_gibibytes(nnf["capacity"] // self._chunks_per_nnf),
+                [],
                 f"{parent.path}/{res_name}",
             )
             edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
             self._add_and_tick_uniq_id(vtx, edg)
 
-    def _encode_mgt_ip(self, parent):
-        """Each rabbit can only have one Lustre management server (mgt).
-
-        In order to accomodate this restriction, put one 'mgt_ip' type
-        on each rabbit and make every Lustre MGT allocation require it.
-        """
-        res_type = "mgt_ip"
-        res_name = res_type + "0"
-        vtx = ElCapResourcePoolV1(
-            self._uniqId,
-            res_type,
-            res_type,
-            res_name,
-            self._rackids,
-            self._uniqId,
-            -1,
-            True,
-            "",
-            1,
-            f"{parent.path}/{res_name}",
-        )
-        edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
-        self._add_and_tick_uniq_id(vtx, edg)
-
-    def _encode_ssd_partitions(self, parent):
-        """Each rabbit can only have *N* different partitions, AKA namespaces.
-
-        The number of partitions is defined by the hardware.
-
-        In order to accomodate this restriction, add N ssd_partition types
-        to the graph.
-        """
-        res_type = "ssd_partition"
-        for i in range(self._partitions_per_nnf):
-            res_name = f"{res_type}{i}"
-            vtx = ElCapResourcePoolV1(
-                self._uniqId,
-                res_type,
-                res_type,
-                res_name,
-                self._rackids,
-                self._uniqId,
-                -1,
-                True,
-                "",
-                1,
-                f"{parent.path}/{res_name}",
-            )
-            edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
-            self._add_and_tick_uniq_id(vtx, edg)
-
-    def _encode_nnf(self, parent, global_nnf_list, nnf):
-        res_type = "nnf"
+    def _encode_rabbit(self, parent, nnf):
+        res_type = "rabbit"
         res_name = nnf["metadata"]["name"]
         vtx = ElCapResourcePoolV1(
             self._uniqId,
@@ -181,17 +125,9 @@ class Coral2Graph(FluxionResourceGraphV1):
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
         self._add_and_tick_uniq_id(vtx, edg)
-        for global_nnf in global_nnf_list:
-            edg2 = ElCapResourceRelationshipV1(global_nnf.get_id(), vtx.get_id())
-            self.add_edge(edg2)
         self._encode_ssds(vtx, nnf["status"])
-        self._encode_mgt_ip(vtx)
-        self._encode_ssd_partitions(vtx)
-        children = self._rv1NoSched["execution"]["R_lite"][0]["children"]
-        for node in nnf["status"]["access"]["computes"]:
-            self._encode_rank(parent, next(self._rankids), children, node["name"])
 
-    def _encode_rack(self, parent, global_nnf_list, nnf):
+    def _encode_rack(self, parent, nnf):
         res_type = "rack"
         res_name = f"{res_type}{self._rackids}"
         vtx = ElCapResourcePoolV1(
@@ -210,7 +146,10 @@ class Coral2Graph(FluxionResourceGraphV1):
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
         self._add_and_tick_uniq_id(vtx, edg)
-        self._encode_nnf(vtx, global_nnf_list, nnf)
+        self._encode_rabbit(vtx, nnf)
+        children = self._rv1NoSched["execution"]["R_lite"][0]["children"]
+        for node in nnf["status"]["access"]["computes"]:
+            self._encode_rank(vtx, next(self._rankids), children, node["name"])
         self._rackids += 1
 
     def _encode(self):
@@ -229,27 +168,8 @@ class Coral2Graph(FluxionResourceGraphV1):
             "/ElCapitan0",
         )
         self._add_and_tick_uniq_id(vtx)
-        global_nnf_list = []
-        for suffix in ("ost", "mgt", "mdt"):
-            global_nnf = ElCapResourcePoolV1(
-                self._uniqId,
-                f"globalnnf{suffix}",
-                f"globalnnf{suffix}",
-                f"globalnnf{suffix}0",
-                0,
-                self._uniqId,
-                -1,
-                True,
-                "",
-                1,
-                [],
-                f"/ElCapitan0/globalnnf{suffix}0",
-            )
-            edg = ElCapResourceRelationshipV1(vtx.get_id(), global_nnf.get_id())
-            self._add_and_tick_uniq_id(global_nnf, edg)
-            global_nnf_list.append(global_nnf)
         for nnf in self._nnfs:
-            self._encode_rack(vtx, global_nnf_list, nnf)
+            self._encode_rack(vtx, nnf)
 
 
 def to_gibibytes(byt):
@@ -257,8 +177,8 @@ def to_gibibytes(byt):
     return byt // (1024 ** 3)
 
 
-def encode(rv1, nnfs, chunks_per_nnf, partitions_per_nnf):
-    graph = Coral2Graph(rv1, nnfs, chunks_per_nnf, partitions_per_nnf)
+def encode(rv1, nnfs, chunks_per_nnf):
+    graph = Coral2Graph(rv1, nnfs, chunks_per_nnf)
     rv1["scheduling"] = graph.to_JSON()
     return rv1
 
@@ -316,17 +236,6 @@ def main():
         metavar="N",
         type=int,
     )
-    parser.add_argument(
-        "--partitions-per-nnf",
-        "-p",
-        help=(
-            "The maximum number of allocations/partitions per rabbit/nnf. "
-            "Unlike --chunks-per-nnf, this is a constraint imposed by the rabbits."
-        ),
-        default=32,
-        metavar="N",
-        type=int,
-    )
     args = parser.parse_args()
 
     input_r = json.load(sys.stdin)
@@ -348,7 +257,7 @@ def main():
             raise ValueError(
                 f"Host(s) {dws_computes} found in DWS but not in R passed through stdin"
             )
-    json.dump(encode(input_r, nnfs, args.chunks_per_nnf, args.partitions_per_nnf), sys.stdout)
+    json.dump(encode(input_r, nnfs, args.chunks_per_nnf), sys.stdout)
 
 
 if __name__ == "__main__":
