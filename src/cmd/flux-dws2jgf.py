@@ -49,7 +49,7 @@ class Coral2Graph(FluxionResourceGraphV1):
     CORAL2 Graph:  extend jsongraph's Graph class
     """
 
-    def __init__(self, rv1, nnfs, chunks_per_nnf):
+    def __init__(self, rv1, nnfs, chunks_per_nnf, cluster_name):
         """Constructor
         rv1 -- RV1 Dictorary that conforms to Flux RFC 20:
                    Resource Set Specification Version 1
@@ -59,6 +59,7 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._chunks_per_nnf = chunks_per_nnf
         self._rackids = 0
         self._rankids = itertools.count()
+        self._cluster_name = cluster_name
         # Call super().__init__() last since it calls __encode
         super().__init__(rv1)
 
@@ -156,8 +157,8 @@ class Coral2Graph(FluxionResourceGraphV1):
         vtx = ElCapResourcePoolV1(
             self._uniqId,
             "cluster",
-            "ElCapitan",
-            "ElCapitan0",
+            self._cluster_name,
+            self._cluster_name + "0",
             0,
             self._uniqId,
             -1,
@@ -165,7 +166,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             "",
             1,
             [],
-            "/ElCapitan0",
+            f"/{self._cluster_name}0",
         )
         self._add_and_tick_uniq_id(vtx)
         for nnf in self._nnfs:
@@ -177,8 +178,8 @@ def to_gibibytes(byt):
     return byt // (1024 ** 3)
 
 
-def encode(rv1, nnfs, chunks_per_nnf):
-    graph = Coral2Graph(rv1, nnfs, chunks_per_nnf)
+def encode(rv1, nnfs, chunks_per_nnf, cluster_name):
+    graph = Coral2Graph(rv1, nnfs, chunks_per_nnf, cluster_name)
     rv1["scheduling"] = graph.to_JSON()
     return rv1
 
@@ -236,6 +237,11 @@ def main():
         metavar="N",
         type=int,
     )
+    parser.add_argument(
+        "--cluster-name",
+        help="The name of the cluster to build the resource graph for",
+        default="ElCapitan"
+    )
     args = parser.parse_args()
 
     input_r = json.load(sys.stdin)
@@ -257,7 +263,7 @@ def main():
             raise ValueError(
                 f"Host(s) {dws_computes} found in DWS but not in R passed through stdin"
             )
-    json.dump(encode(input_r, nnfs, args.chunks_per_nnf), sys.stdout)
+    json.dump(encode(input_r, nnfs, args.chunks_per_nnf, args.cluster_name), sys.stdout)
 
 
 if __name__ == "__main__":
