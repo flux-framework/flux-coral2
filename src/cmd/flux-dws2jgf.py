@@ -49,13 +49,14 @@ class Coral2Graph(FluxionResourceGraphV1):
     CORAL2 Graph:  extend jsongraph's Graph class
     """
 
-    def __init__(self, rv1, nnfs, chunks_per_nnf, cluster_name):
+    def __init__(self, rv1, nnfs, r_hostlist, chunks_per_nnf, cluster_name):
         """Constructor
         rv1 -- RV1 Dictorary that conforms to Flux RFC 20:
                    Resource Set Specification Version 1
         """
         assert len(rv1["execution"]["R_lite"]) == 1
         self._nnfs = nnfs
+        self._r_hostlist = r_hostlist
         self._chunks_per_nnf = chunks_per_nnf
         self._rackids = 0
         self._rankids = itertools.count()
@@ -150,7 +151,8 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._encode_rabbit(vtx, nnf)
         children = self._rv1NoSched["execution"]["R_lite"][0]["children"]
         for node in nnf["status"]["access"]["computes"]:
-            self._encode_rank(vtx, next(self._rankids), children, node["name"])
+            if node["name"] in self._r_hostlist:
+                self._encode_rank(vtx, next(self._rankids), children, node["name"])
         self._rackids += 1
 
     def _encode(self):
@@ -171,6 +173,20 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._add_and_tick_uniq_id(vtx)
         for nnf in self._nnfs:
             self._encode_rack(vtx, nnf)
+        # add nodes not in rabbit racks, making the nodes contained by 'cluster'
+        dws_computes = set(
+            compute["name"]
+            for nnf in self._nnfs
+            for compute in nnf["status"]["access"]["computes"]
+        )
+        for node in self._r_hostlist:
+            if node not in dws_computes:
+                self._encode_rank(
+                    vtx,
+                    next(self._rankids),
+                    self._rv1NoSched["execution"]["R_lite"][0]["children"],
+                    node,
+                )
 
 
 def to_gibibytes(byt):
@@ -178,8 +194,8 @@ def to_gibibytes(byt):
     return byt // (1024 ** 3)
 
 
-def encode(rv1, nnfs, chunks_per_nnf, cluster_name):
-    graph = Coral2Graph(rv1, nnfs, chunks_per_nnf, cluster_name)
+def encode(rv1, nnfs, r_hostlist, chunks_per_nnf, cluster_name):
+    graph = Coral2Graph(rv1, nnfs, r_hostlist, chunks_per_nnf, cluster_name)
     rv1["scheduling"] = graph.to_JSON()
     return rv1
 
@@ -216,14 +232,9 @@ def main():
         description="Print JGF representation of Rabbit nodes",
     )
     parser.add_argument(
-        "--test-pattern",
-        help="For testing purposes. A regex pattern to apply to Rabbits",
-        default="",
-    )
-    parser.add_argument(
         "--no-validate",
         action="store_true",
-        help="Do not compare the computes in R with the computes in DWS"
+        help="Do not throw an error if nodes are found in DWS but not in R",
     )
     parser.add_argument(
         "--chunks-per-nnf",
@@ -240,30 +251,26 @@ def main():
     parser.add_argument(
         "--cluster-name",
         help="The name of the cluster to build the resource graph for",
-        default="ElCapitan"
+        default="ElCapitan",
     )
     args = parser.parse_args()
 
     input_r = json.load(sys.stdin)
-    nnfs = [
-        x
-        for x in get_storage()["items"]
-        if re.search(args.test_pattern, x["metadata"]["name"])
-    ]
-    if not args.no_validate:
-        dws_computes = set(
-            compute["name"] for nnf in nnfs for compute in nnf["status"]["access"]["computes"]
+    nnfs = [x for x in get_storage()["items"]]
+    r_hostlist = Hostlist(input_r["execution"]["nodelist"])
+    dws_computes = set(
+        compute["name"]
+        for nnf in nnfs
+        for compute in nnf["status"]["access"]["computes"]
+    )
+    if not args.no_validate and not dws_computes <= set(r_hostlist):
+        raise RuntimeError(
+            f"Node(s) {dws_computes - set(r_hostlist)} " "found in DWS but not R from stdin"
         )
-        for host in Hostlist(input_r["execution"]["nodelist"]):
-            try:
-                dws_computes.remove(host)
-            except KeyError as keyerr:
-                raise ValueError(f"Host {host} not found in DWS") from keyerr
-        if dws_computes:
-            raise ValueError(
-                f"Host(s) {dws_computes} found in DWS but not in R passed through stdin"
-            )
-    json.dump(encode(input_r, nnfs, args.chunks_per_nnf, args.cluster_name), sys.stdout)
+    json.dump(
+        encode(input_r, nnfs, r_hostlist, args.chunks_per_nnf, args.cluster_name),
+        sys.stdout,
+    )
 
 
 if __name__ == "__main__":
