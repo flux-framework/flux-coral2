@@ -300,6 +300,11 @@ def main():
         default="",
     )
     parser.add_argument(
+        "--no-validate",
+        action="store_true",
+        help="Do not compare the computes in R with the computes in DWS"
+    )
+    parser.add_argument(
         "--chunks-per-nnf",
         "-c",
         help=(
@@ -330,18 +335,19 @@ def main():
         for x in get_storage()["items"]
         if re.search(args.test_pattern, x["metadata"]["name"])
     ]
-    dws_computes = set(
-        compute["name"] for nnf in nnfs for compute in nnf["status"]["access"]["computes"]
-    )
-    for host in Hostlist(input_r["execution"]["nodelist"]):
-        try:
-            dws_computes.remove(host)
-        except KeyError as keyerr:
-            raise ValueError(f"Host {host} not found in DWS") from keyerr
-    if dws_computes:
-        raise ValueError(
-            f"Host(s) {dws_computes} found in DWS but not in R passed through stdin"
+    if not args.no_validate:
+        dws_computes = set(
+            compute["name"] for nnf in nnfs for compute in nnf["status"]["access"]["computes"]
         )
+        for host in Hostlist(input_r["execution"]["nodelist"]):
+            try:
+                dws_computes.remove(host)
+            except KeyError as keyerr:
+                raise ValueError(f"Host {host} not found in DWS") from keyerr
+        if dws_computes:
+            raise ValueError(
+                f"Host(s) {dws_computes} found in DWS but not in R passed through stdin"
+            )
     json.dump(encode(input_r, nnfs, args.chunks_per_nnf, args.partitions_per_nnf), sys.stdout)
 
 
