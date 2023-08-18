@@ -1,0 +1,2621 @@
+{
+  "version": 1,
+  "execution": {
+    "R_lite": [
+      {
+        "rank": "0-3",
+        "children": {
+          "core": "0-4"
+        }
+      }
+    ],
+    "starttime": 0.0,
+    "expiration": 0.0,
+    "nodelist": [
+      "compute-[01-04]"
+    ]
+  },
+  "scheduling": {
+    "graph": {
+      "directed": true,
+      "nodes": [
+        {
+          "id": "0",
+          "metadata": {
+            "type": "cluster",
+            "basename": "ElCapitan",
+            "name": "ElCapitan0",
+            "id": 0,
+            "uniq_id": 0,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0"
+            }
+          }
+        },
+        {
+          "id": "1",
+          "metadata": {
+            "type": "rack",
+            "basename": "rack",
+            "name": "rack0",
+            "id": 0,
+            "uniq_id": 1,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0"
+            }
+          }
+        },
+        {
+          "id": "2",
+          "metadata": {
+            "type": "rabbit",
+            "basename": "rabbit",
+            "name": "kind-worker2",
+            "id": 0,
+            "uniq_id": 2,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2"
+            }
+          }
+        },
+        {
+          "id": "3",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd0",
+            "id": 0,
+            "uniq_id": 3,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd0"
+            }
+          }
+        },
+        {
+          "id": "4",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd1",
+            "id": 0,
+            "uniq_id": 4,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd1"
+            }
+          }
+        },
+        {
+          "id": "5",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd2",
+            "id": 0,
+            "uniq_id": 5,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd2"
+            }
+          }
+        },
+        {
+          "id": "6",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd3",
+            "id": 0,
+            "uniq_id": 6,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd3"
+            }
+          }
+        },
+        {
+          "id": "7",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd4",
+            "id": 0,
+            "uniq_id": 7,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd4"
+            }
+          }
+        },
+        {
+          "id": "8",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd5",
+            "id": 0,
+            "uniq_id": 8,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd5"
+            }
+          }
+        },
+        {
+          "id": "9",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd6",
+            "id": 0,
+            "uniq_id": 9,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd6"
+            }
+          }
+        },
+        {
+          "id": "10",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd7",
+            "id": 0,
+            "uniq_id": 10,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd7"
+            }
+          }
+        },
+        {
+          "id": "11",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd8",
+            "id": 0,
+            "uniq_id": 11,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd8"
+            }
+          }
+        },
+        {
+          "id": "12",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd9",
+            "id": 0,
+            "uniq_id": 12,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd9"
+            }
+          }
+        },
+        {
+          "id": "13",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd10",
+            "id": 0,
+            "uniq_id": 13,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd10"
+            }
+          }
+        },
+        {
+          "id": "14",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd11",
+            "id": 0,
+            "uniq_id": 14,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd11"
+            }
+          }
+        },
+        {
+          "id": "15",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd12",
+            "id": 0,
+            "uniq_id": 15,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd12"
+            }
+          }
+        },
+        {
+          "id": "16",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd13",
+            "id": 0,
+            "uniq_id": 16,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd13"
+            }
+          }
+        },
+        {
+          "id": "17",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd14",
+            "id": 0,
+            "uniq_id": 17,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd14"
+            }
+          }
+        },
+        {
+          "id": "18",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd15",
+            "id": 0,
+            "uniq_id": 18,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd15"
+            }
+          }
+        },
+        {
+          "id": "19",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd16",
+            "id": 0,
+            "uniq_id": 19,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd16"
+            }
+          }
+        },
+        {
+          "id": "20",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd17",
+            "id": 0,
+            "uniq_id": 20,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd17"
+            }
+          }
+        },
+        {
+          "id": "21",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd18",
+            "id": 0,
+            "uniq_id": 21,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd18"
+            }
+          }
+        },
+        {
+          "id": "22",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd19",
+            "id": 0,
+            "uniq_id": 22,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd19"
+            }
+          }
+        },
+        {
+          "id": "23",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd20",
+            "id": 0,
+            "uniq_id": 23,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd20"
+            }
+          }
+        },
+        {
+          "id": "24",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd21",
+            "id": 0,
+            "uniq_id": 24,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd21"
+            }
+          }
+        },
+        {
+          "id": "25",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd22",
+            "id": 0,
+            "uniq_id": 25,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd22"
+            }
+          }
+        },
+        {
+          "id": "26",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd23",
+            "id": 0,
+            "uniq_id": 26,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd23"
+            }
+          }
+        },
+        {
+          "id": "27",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd24",
+            "id": 0,
+            "uniq_id": 27,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd24"
+            }
+          }
+        },
+        {
+          "id": "28",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd25",
+            "id": 0,
+            "uniq_id": 28,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd25"
+            }
+          }
+        },
+        {
+          "id": "29",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd26",
+            "id": 0,
+            "uniq_id": 29,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd26"
+            }
+          }
+        },
+        {
+          "id": "30",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd27",
+            "id": 0,
+            "uniq_id": 30,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd27"
+            }
+          }
+        },
+        {
+          "id": "31",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd28",
+            "id": 0,
+            "uniq_id": 31,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd28"
+            }
+          }
+        },
+        {
+          "id": "32",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd29",
+            "id": 0,
+            "uniq_id": 32,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd29"
+            }
+          }
+        },
+        {
+          "id": "33",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd30",
+            "id": 0,
+            "uniq_id": 33,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd30"
+            }
+          }
+        },
+        {
+          "id": "34",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd31",
+            "id": 0,
+            "uniq_id": 34,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/kind-worker2/ssd31"
+            }
+          }
+        },
+        {
+          "id": "35",
+          "metadata": {
+            "type": "node",
+            "basename": "node",
+            "name": "compute-01",
+            "id": 1,
+            "uniq_id": 35,
+            "rank": 0,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-01"
+            }
+          }
+        },
+        {
+          "id": "36",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core0",
+            "id": 0,
+            "uniq_id": 36,
+            "rank": 0,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-01/core0"
+            }
+          }
+        },
+        {
+          "id": "37",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core1",
+            "id": 1,
+            "uniq_id": 37,
+            "rank": 0,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-01/core1"
+            }
+          }
+        },
+        {
+          "id": "38",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core2",
+            "id": 2,
+            "uniq_id": 38,
+            "rank": 0,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-01/core2"
+            }
+          }
+        },
+        {
+          "id": "39",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core3",
+            "id": 3,
+            "uniq_id": 39,
+            "rank": 0,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-01/core3"
+            }
+          }
+        },
+        {
+          "id": "40",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core4",
+            "id": 4,
+            "uniq_id": 40,
+            "rank": 0,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-01/core4"
+            }
+          }
+        },
+        {
+          "id": "41",
+          "metadata": {
+            "type": "node",
+            "basename": "node",
+            "name": "compute-02",
+            "id": 2,
+            "uniq_id": 41,
+            "rank": 1,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-02"
+            }
+          }
+        },
+        {
+          "id": "42",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core0",
+            "id": 0,
+            "uniq_id": 42,
+            "rank": 1,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-02/core0"
+            }
+          }
+        },
+        {
+          "id": "43",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core1",
+            "id": 1,
+            "uniq_id": 43,
+            "rank": 1,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-02/core1"
+            }
+          }
+        },
+        {
+          "id": "44",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core2",
+            "id": 2,
+            "uniq_id": 44,
+            "rank": 1,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-02/core2"
+            }
+          }
+        },
+        {
+          "id": "45",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core3",
+            "id": 3,
+            "uniq_id": 45,
+            "rank": 1,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-02/core3"
+            }
+          }
+        },
+        {
+          "id": "46",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core4",
+            "id": 4,
+            "uniq_id": 46,
+            "rank": 1,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-02/core4"
+            }
+          }
+        },
+        {
+          "id": "47",
+          "metadata": {
+            "type": "node",
+            "basename": "node",
+            "name": "compute-03",
+            "id": 3,
+            "uniq_id": 47,
+            "rank": 2,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-03"
+            }
+          }
+        },
+        {
+          "id": "48",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core0",
+            "id": 0,
+            "uniq_id": 48,
+            "rank": 2,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-03/core0"
+            }
+          }
+        },
+        {
+          "id": "49",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core1",
+            "id": 1,
+            "uniq_id": 49,
+            "rank": 2,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-03/core1"
+            }
+          }
+        },
+        {
+          "id": "50",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core2",
+            "id": 2,
+            "uniq_id": 50,
+            "rank": 2,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-03/core2"
+            }
+          }
+        },
+        {
+          "id": "51",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core3",
+            "id": 3,
+            "uniq_id": 51,
+            "rank": 2,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-03/core3"
+            }
+          }
+        },
+        {
+          "id": "52",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core4",
+            "id": 4,
+            "uniq_id": 52,
+            "rank": 2,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack0/compute-03/core4"
+            }
+          }
+        },
+        {
+          "id": "53",
+          "metadata": {
+            "type": "rack",
+            "basename": "rack",
+            "name": "rack1",
+            "id": 1,
+            "uniq_id": 53,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1"
+            }
+          }
+        },
+        {
+          "id": "54",
+          "metadata": {
+            "type": "rabbit",
+            "basename": "rabbit",
+            "name": "kind-worker3",
+            "id": 1,
+            "uniq_id": 54,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3"
+            }
+          }
+        },
+        {
+          "id": "55",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd0",
+            "id": 1,
+            "uniq_id": 55,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd0"
+            }
+          }
+        },
+        {
+          "id": "56",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd1",
+            "id": 1,
+            "uniq_id": 56,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd1"
+            }
+          }
+        },
+        {
+          "id": "57",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd2",
+            "id": 1,
+            "uniq_id": 57,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd2"
+            }
+          }
+        },
+        {
+          "id": "58",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd3",
+            "id": 1,
+            "uniq_id": 58,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd3"
+            }
+          }
+        },
+        {
+          "id": "59",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd4",
+            "id": 1,
+            "uniq_id": 59,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd4"
+            }
+          }
+        },
+        {
+          "id": "60",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd5",
+            "id": 1,
+            "uniq_id": 60,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd5"
+            }
+          }
+        },
+        {
+          "id": "61",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd6",
+            "id": 1,
+            "uniq_id": 61,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd6"
+            }
+          }
+        },
+        {
+          "id": "62",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd7",
+            "id": 1,
+            "uniq_id": 62,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd7"
+            }
+          }
+        },
+        {
+          "id": "63",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd8",
+            "id": 1,
+            "uniq_id": 63,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd8"
+            }
+          }
+        },
+        {
+          "id": "64",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd9",
+            "id": 1,
+            "uniq_id": 64,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd9"
+            }
+          }
+        },
+        {
+          "id": "65",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd10",
+            "id": 1,
+            "uniq_id": 65,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd10"
+            }
+          }
+        },
+        {
+          "id": "66",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd11",
+            "id": 1,
+            "uniq_id": 66,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd11"
+            }
+          }
+        },
+        {
+          "id": "67",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd12",
+            "id": 1,
+            "uniq_id": 67,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd12"
+            }
+          }
+        },
+        {
+          "id": "68",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd13",
+            "id": 1,
+            "uniq_id": 68,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd13"
+            }
+          }
+        },
+        {
+          "id": "69",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd14",
+            "id": 1,
+            "uniq_id": 69,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd14"
+            }
+          }
+        },
+        {
+          "id": "70",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd15",
+            "id": 1,
+            "uniq_id": 70,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd15"
+            }
+          }
+        },
+        {
+          "id": "71",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd16",
+            "id": 1,
+            "uniq_id": 71,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd16"
+            }
+          }
+        },
+        {
+          "id": "72",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd17",
+            "id": 1,
+            "uniq_id": 72,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd17"
+            }
+          }
+        },
+        {
+          "id": "73",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd18",
+            "id": 1,
+            "uniq_id": 73,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd18"
+            }
+          }
+        },
+        {
+          "id": "74",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd19",
+            "id": 1,
+            "uniq_id": 74,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd19"
+            }
+          }
+        },
+        {
+          "id": "75",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd20",
+            "id": 1,
+            "uniq_id": 75,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd20"
+            }
+          }
+        },
+        {
+          "id": "76",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd21",
+            "id": 1,
+            "uniq_id": 76,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd21"
+            }
+          }
+        },
+        {
+          "id": "77",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd22",
+            "id": 1,
+            "uniq_id": 77,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd22"
+            }
+          }
+        },
+        {
+          "id": "78",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd23",
+            "id": 1,
+            "uniq_id": 78,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd23"
+            }
+          }
+        },
+        {
+          "id": "79",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd24",
+            "id": 1,
+            "uniq_id": 79,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd24"
+            }
+          }
+        },
+        {
+          "id": "80",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd25",
+            "id": 1,
+            "uniq_id": 80,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd25"
+            }
+          }
+        },
+        {
+          "id": "81",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd26",
+            "id": 1,
+            "uniq_id": 81,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd26"
+            }
+          }
+        },
+        {
+          "id": "82",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd27",
+            "id": 1,
+            "uniq_id": 82,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd27"
+            }
+          }
+        },
+        {
+          "id": "83",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd28",
+            "id": 1,
+            "uniq_id": 83,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd28"
+            }
+          }
+        },
+        {
+          "id": "84",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd29",
+            "id": 1,
+            "uniq_id": 84,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd29"
+            }
+          }
+        },
+        {
+          "id": "85",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd30",
+            "id": 1,
+            "uniq_id": 85,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd30"
+            }
+          }
+        },
+        {
+          "id": "86",
+          "metadata": {
+            "type": "ssd",
+            "basename": "ssd",
+            "name": "ssd31",
+            "id": 1,
+            "uniq_id": 86,
+            "rank": -1,
+            "exclusive": true,
+            "unit": "GiB",
+            "size": 1152,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/kind-worker3/ssd31"
+            }
+          }
+        },
+        {
+          "id": "87",
+          "metadata": {
+            "type": "node",
+            "basename": "node",
+            "name": "compute-04",
+            "id": 4,
+            "uniq_id": 87,
+            "rank": 3,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/compute-04"
+            }
+          }
+        },
+        {
+          "id": "88",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core0",
+            "id": 0,
+            "uniq_id": 88,
+            "rank": 3,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/compute-04/core0"
+            }
+          }
+        },
+        {
+          "id": "89",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core1",
+            "id": 1,
+            "uniq_id": 89,
+            "rank": 3,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/compute-04/core1"
+            }
+          }
+        },
+        {
+          "id": "90",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core2",
+            "id": 2,
+            "uniq_id": 90,
+            "rank": 3,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/compute-04/core2"
+            }
+          }
+        },
+        {
+          "id": "91",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core3",
+            "id": 3,
+            "uniq_id": 91,
+            "rank": 3,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/compute-04/core3"
+            }
+          }
+        },
+        {
+          "id": "92",
+          "metadata": {
+            "type": "core",
+            "basename": "core",
+            "name": "core4",
+            "id": 4,
+            "uniq_id": 92,
+            "rank": 3,
+            "exclusive": true,
+            "unit": "",
+            "size": 1,
+            "properties": [],
+            "paths": {
+              "containment": "/ElCapitan0/rack1/compute-04/core4"
+            }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "source": "0",
+          "target": "1",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "1",
+          "target": "2",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "3",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "4",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "5",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "6",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "7",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "8",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "9",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "10",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "11",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "12",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "13",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "14",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "15",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "16",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "17",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "18",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "19",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "20",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "21",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "22",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "23",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "24",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "25",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "26",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "27",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "28",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "29",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "30",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "31",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "32",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "33",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "2",
+          "target": "34",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "1",
+          "target": "35",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "35",
+          "target": "36",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "35",
+          "target": "37",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "35",
+          "target": "38",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "35",
+          "target": "39",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "35",
+          "target": "40",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "1",
+          "target": "41",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "41",
+          "target": "42",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "41",
+          "target": "43",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "41",
+          "target": "44",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "41",
+          "target": "45",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "41",
+          "target": "46",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "1",
+          "target": "47",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "47",
+          "target": "48",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "47",
+          "target": "49",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "47",
+          "target": "50",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "47",
+          "target": "51",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "47",
+          "target": "52",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "0",
+          "target": "53",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "53",
+          "target": "54",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "55",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "56",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "57",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "58",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "59",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "60",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "61",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "62",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "63",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "64",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "65",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "66",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "67",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "68",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "69",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "70",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "71",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "72",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "73",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "74",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "75",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "76",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "77",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "78",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "79",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "80",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "81",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "82",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "83",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "84",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "85",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "54",
+          "target": "86",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "53",
+          "target": "87",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "87",
+          "target": "88",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "87",
+          "target": "89",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "87",
+          "target": "90",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "87",
+          "target": "91",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        },
+        {
+          "source": "87",
+          "target": "92",
+          "directed": true,
+          "metadata": {
+            "name": {
+              "containment": "contains"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
