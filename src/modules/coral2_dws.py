@@ -310,7 +310,12 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
             ]
         handle.rpc(
             "job-manager.dws.resource-update",
-            payload={"id": jobid, "resources": resources},
+            payload={
+                "id": jobid,
+                "resources": directivebreakdown.apply_breakdowns(
+                    k8s_api, workflow, resources
+                ),
+            },
         )
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
