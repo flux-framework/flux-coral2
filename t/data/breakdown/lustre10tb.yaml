@@ -16,12 +16,9 @@ status:
     namespace: default
   storage:
     allocationSets:
-    - allocationStrategy: AllocateSingleServer
+    - allocationStrategy: AllocateAcrossServers
       minimumCapacity: 2000000000
-      label: mgt
+      label: mgtmdt
     - allocationStrategy: AllocateAcrossServers
-      minimumCapacity: 2000000000000
-      label: mdt
-    - allocationStrategy: AllocateAcrossServers
-      minimumCapacity: 10000000000000
+      minimumCapacity: 10995116277760
       label: ost
