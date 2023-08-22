@@ -18,5 +18,5 @@ status:
   storage:
     allocationSets:
     - allocationStrategy: AllocatePerCompute
-      minimumCapacity: 1000000
+      minimumCapacity: 10737418240
       label: xfs

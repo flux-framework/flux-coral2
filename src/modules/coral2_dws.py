@@ -14,7 +14,6 @@ import re
 import functools
 import argparse
 import logging
-import traceback
 import pwd
 import time
 
@@ -22,7 +21,6 @@ import kubernetes as k8s
 from kubernetes.client.rest import ApiException
 import flux
 from flux.hostlist import Hostlist
-from flux.job import JobspecV1
 from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
@@ -64,9 +62,9 @@ def message_callback_wrapper(func):
     """
 
     @functools.wraps(func)
-    def wrapper(fh, t, msg, k8s_api):
+    def wrapper(handle, arg, msg, k8s_api):
         try:
-            func(fh, t, msg, k8s_api)
+            func(handle, arg, msg, k8s_api)
         except Exception as exc:
             try:
                 jobid = msg.payload["jobid"]
@@ -77,15 +75,15 @@ def message_callback_wrapper(func):
                 # only k8s APIExceptions will have a JSON message body,
                 # but try to extract it out of every exception for simplicity
                 errstr = json.loads(exc.body)["message"]
-            except Exception:
+            except (AttributeError, TypeError, KeyError):
                 errstr = str(exc)
-            fh.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {errstr}")
-            fh.respond(msg, {"success": False, "errstr": errstr})
+            handle.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {errstr}")
+            handle.respond(msg, {"success": False, "errstr": errstr})
             LOGGER.error(
                 "Error in responding to %s RPC for %s: %s", topic, jobid, errstr
             )
         else:
-            fh.respond(msg, {"success": True})
+            handle.respond(msg, {"success": True})
 
     return wrapper
 
@@ -93,17 +91,17 @@ def message_callback_wrapper(func):
 def move_workflow_desiredstate(workflow_name, desiredstate, k8s_api):
     """Helper function for moving workflow to a desiredState."""
     k8s_api.patch_namespaced_custom_object(
-        *WORKFLOW_CRD, workflow_name, {"spec": {"desiredState": desiredstate}},
+        *WORKFLOW_CRD,
+        workflow_name,
+        {"spec": {"desiredState": desiredstate}},
     )
 
 
 @message_callback_wrapper
-def create_cb(fh, t, msg, api_instance):
+def create_cb(handle, _t, msg, api_instance):
     """dws.create RPC callback. Creates a k8s Workflow object for a job.
 
     Triggered when a new job with a jobdw directive is submitted.
-
-    Stashes the RPC for response when DWS gives us directivebreakdown objects.
     """
     dw_directives = msg.payload["dw_directives"]
     jobid = msg.payload["jobid"]
@@ -133,19 +131,22 @@ def create_cb(fh, t, msg, api_instance):
         "metadata": {"name": workflow_name, "namespace": WORKFLOW_CRD.namespace},
     }
     api_instance.create_namespaced_custom_object(
-        *WORKFLOW_CRD, body,
+        *WORKFLOW_CRD,
+        body,
     )
+    # add workflow to the cache
     _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(
         jobid, workflow_name, msg.payload["resources"]
     )
-    fh.rpc(
+    # submit a memo providing the name of the workflow
+    handle.rpc(
         "job-manager.memo",
         payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}},
     )
 
 
 @message_callback_wrapper
-def setup_cb(fh, t, msg, k8s_api):
+def setup_cb(handle, _t, msg, k8s_api):
     """dws.setup RPC callback.
 
     The dws.setup RPC is sent when the job has reached the RUN state
@@ -189,10 +190,10 @@ def setup_cb(fh, t, msg, k8s_api):
                 ):
                     # make an allocation on every rabbit attached to compute nodes
                     # in the job
-                    for nnf_name in nodes_per_nnf.keys():
+                    for nnf_name, nodecount in nodes_per_nnf.items():
                         storage_field.append(
                             {
-                                "allocationCount": nodes_per_nnf[nnf_name],
+                                "allocationCount": nodecount,
                                 "name": nnf_name,
                             }
                         )
@@ -214,7 +215,7 @@ def setup_cb(fh, t, msg, k8s_api):
 
 
 @message_callback_wrapper
-def post_run_cb(fh, t, msg, k8s_api):
+def post_run_cb(handle, _t, msg, k8s_api):
     """dws.post_run RPC callback.
 
     The dws.post_run RPC is sent when the job has reached the CLEANUP state.
@@ -246,7 +247,7 @@ def state_complete(workflow, state):
     )
 
 
-def workflow_state_change_cb(event, fh, k8s_api):
+def workflow_state_change_cb(event, handle, k8s_api):
     """Exception-catching wrapper around _workflow_state_change_cb_inner."""
     try:
         workflow = event["object"]
@@ -264,14 +265,14 @@ def workflow_state_change_cb(event, fh, k8s_api):
         del _WORKFLOWINFO_CACHE[jobid]
         return
     try:
-        _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api)
-    except Exception as exc:
+        _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api)
+    except Exception:
         LOGGER.exception(
             "Failed to process event update for workflow with jobid %s:", jobid
         )
         try:
             move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
-        except Exception:
+        except ApiException:
             LOGGER.exception(
                 "Failed to move workflow with jobid %s to 'teardown' "
                 "state after error: ",
@@ -279,22 +280,22 @@ def workflow_state_change_cb(event, fh, k8s_api):
             )
         else:
             winfo.toredown = True
-        fh.job_raise(jobid, "exception", 0, "DWS/Rabbit interactions failed")
+        handle.job_raise(jobid, "exception", 0, "DWS/Rabbit interactions failed")
 
 
-def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
+def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
     if "state" not in workflow["status"]:
         # workflow was just submitted, DWS still needs to give workflow
         # a state of 'Proposal'
         return
-    elif winfo.deleted:
+    if winfo.deleted:
         # deletion request has been submitted, nothing to do
         return
-    elif state_complete(workflow, "Teardown"):
+    if state_complete(workflow, "Teardown"):
         # delete workflow object and tell DWS jobtap plugin that the job is done
         k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
         winfo.deleted = True
-        fh.rpc("job-manager.dws.epilog-remove", payload={"id": jobid})
+        handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid})
     elif winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
         # Without this early 'return', this function may try to
@@ -304,12 +305,17 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
     elif state_complete(workflow, "Proposal"):
         resources = winfo.resources
         if resources is None:
-            resources = flux.job.kvslookup.job_kvs_lookup(fh, jobid)["jobspec"][
+            resources = flux.job.kvslookup.job_kvs_lookup(handle, jobid)["jobspec"][
                 "resources"
             ]
-        fh.rpc(
+        handle.rpc(
             "job-manager.dws.resource-update",
-            payload={"id": jobid, "resources": resources},
+            payload={
+                "id": jobid,
+                "resources": directivebreakdown.apply_breakdowns(
+                    k8s_api, workflow, resources
+                ),
+            },
         )
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
@@ -319,7 +325,7 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         move_workflow_desiredstate(winfo.name, "PreRun", k8s_api)
     elif state_complete(workflow, "PreRun"):
         # tell DWS jobtap plugin that the job can start
-        fh.rpc(
+        handle.rpc(
             "job-manager.dws.prolog-remove",
             payload={"id": jobid, "variables": workflow["status"].get("env", {})},
         )
@@ -349,7 +355,8 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, fh, k8s_api):
         WORKFLOWS_IN_ERROR.discard(winfo)
 
 
-def rabbit_state_change_cb(event, fh, rabbits):
+def rabbit_state_change_cb(event, handle, rabbits):
+    """Callback firing when a rabbit changes state."""
     obj = event["object"]
     name = obj["metadata"]["name"]
     capacity = obj["status"]["capacity"]
@@ -358,7 +365,7 @@ def rabbit_state_change_cb(event, fh, rabbits):
     try:
         curr_rabbit = rabbits[name]
     except KeyError:
-        fh.log(
+        handle.log(
             syslog.LOG_DEBUG,
             f"Just encountered an unknown Storage object ({name}) in the event stream",
         )
@@ -367,22 +374,24 @@ def rabbit_state_change_cb(event, fh, rabbits):
         return
 
     if curr_rabbit["status"]["status"] != status:
-        fh.log(syslog.LOG_DEBUG, f"Storage {name} status changed to {status}")
+        handle.log(syslog.LOG_DEBUG, f"Storage {name} status changed to {status}")
         # TODO: update status of vertex in resource graph
     if curr_rabbit["status"]["capacity"] != capacity:
-        fh.log(
-            syslog.LOG_DEBUG, f"Storage {name} capacity changed to {capacity}",
+        handle.log(
+            syslog.LOG_DEBUG,
+            f"Storage {name} capacity changed to {capacity}",
         )
         # TODO: update "percentDegraded" property of vertex in resource graph
         # TODO: update capacity of rabbit in resource graph (mark some slices down?)
     rabbits[name] = obj
 
 
-def init_rabbits(k8s_api, fh, watchers):
+def init_rabbits(k8s_api, handle, watchers):
+    """Watch every rabbit known to k8s"""
     try:
         api_response = k8s_api.list_namespaced_custom_object(*RABBIT_CRD)
-    except ApiException as e:
-        fh.log(syslog.LOG_ERR, "Exception: %s\n" % e)
+    except ApiException as err:
+        handle.log(syslog.LOG_ERR, f"Exception: {err}\n")
         raise
 
     rabbits = {}
@@ -393,12 +402,14 @@ def init_rabbits(k8s_api, fh, watchers):
         rabbits[name] = rabbit
 
     watchers.add_watch(
-        Watch(k8s_api, RABBIT_CRD, latest_version, rabbit_state_change_cb, fh, rabbits)
+        Watch(
+            k8s_api, RABBIT_CRD, latest_version, rabbit_state_change_cb, handle, rabbits
+        )
     )
     return rabbits
 
 
-def kill_workflows_in_error(reactor, watcher, _r, error_timeout):
+def kill_workflows_in_error(_reactor, watcher, _r, error_timeout):
     """Callback firing every (error_timeout / 2) seconds.
 
     Raise exceptions on jobs stuck in Error for more than error_timeout seconds.
@@ -419,7 +430,8 @@ def kill_workflows_in_error(reactor, watcher, _r, error_timeout):
             WORKFLOWS_IN_ERROR.discard(winfo)
 
 
-def main():
+def setup_parsing():
+    """Set up argument parsing."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--watch-interval",
@@ -450,24 +462,24 @@ def main():
         metavar="FILE",
         help="Path to kubeconfig file to use",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def config_logging(args):
+    """Configure logging for the script."""
     log_level = logging.WARNING
     if args.verbose > 1:
         log_level = logging.INFO
     if args.verbose > 2:
         log_level = logging.DEBUG
     logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(message)s", level=log_level,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        level=log_level,
     )
-    k8s_client = k8s.config.new_client_from_config(config_file=args.kubeconfig)
-    try:
-        k8s_api = k8s.client.CustomObjectsApi(k8s_client)
-    except ApiException as rest_exception:
-        if rest_exception.status == 403:
-            raise Exception(
-                "You must be logged in to the K8s or OpenShift cluster to continue"
-            )
-        raise
+
+
+def populate_rabbits_dict(k8s_api):
+    """Populate the _HOSTNAMES_TO_RABBITS dictionary."""
     api_response = k8s_api.list_cluster_custom_object(
         RABBIT_CRD.group, RABBIT_CRD.version, RABBIT_CRD.plural
     )
@@ -481,58 +493,81 @@ def main():
                     f"{_HOSTNAMES_TO_RABBITS[hostname]}"
                 )
             _HOSTNAMES_TO_RABBITS[hostname] = nnf["metadata"]["name"]
-    fh = flux.Flux()
 
-    # register dws.create, dws.setup, and dws.post_run services.
-    serv_reg_fut = fh.service_register("dws")
-    create_watcher = fh.msg_watcher_create(
+
+def register_services(handle, k8s_api):
+    """register dws.create, dws.setup, and dws.post_run services."""
+    serv_reg_fut = handle.service_register("dws")
+    create_watcher = handle.msg_watcher_create(
         create_cb, FLUX_MSGTYPE_REQUEST, "dws.create", args=k8s_api
     )
     create_watcher.start()
-    setup_watcher = fh.msg_watcher_create(
+    setup_watcher = handle.msg_watcher_create(
         setup_cb, FLUX_MSGTYPE_REQUEST, "dws.setup", args=k8s_api
     )
     setup_watcher.start()
-    post_run_watcher = fh.msg_watcher_create(
+    post_run_watcher = handle.msg_watcher_create(
         post_run_cb, FLUX_MSGTYPE_REQUEST, "dws.post_run", args=k8s_api
     )
     post_run_watcher.start()
     serv_reg_fut.get()
+    return (create_watcher, setup_watcher, post_run_watcher)
 
+
+def raise_self_exception(handle):
+    """If this script is being run as a job, raise a low-severity job exception
+
+    This job event is used to close the race condition between the python
+    process starting and the `dws` service being registered, for
+    testing purposes.
+    Once https://github.com/flux-framework/flux-core/issues/3821 is
+    implemented/closed, this can be replaced with that solution.
+    """
+    try:
+        jobid = id_parse(os.environ["FLUX_JOB_ID"])
+    except KeyError:
+        return
+    Future(handle.job_raise(jobid, "exception", 7, "dws watchers setup")).get()
+
+
+def main():
+    """Init script, begin processing of services."""
+    args = setup_parsing().parse_args()
+    config_logging(args)
+    k8s_client = k8s.config.new_client_from_config(config_file=args.kubeconfig)
+    try:
+        k8s_api = k8s.client.CustomObjectsApi(k8s_client)
+    except ApiException as rest_exception:
+        if rest_exception.status == 403:
+            raise RuntimeError(
+                "You must be logged in to the K8s or OpenShift cluster to continue"
+            ) from rest_exception
+        raise
+    populate_rabbits_dict(k8s_api)
+    handle = flux.Flux()
+    services = register_services(handle, k8s_api)
     # create a timer watcher for killing workflows that have been stuck in
     # the "Error" state for too long
-    error_timeout_watch = fh.timer_watcher_create(
+    handle.timer_watcher_create(
         args.error_timeout / 2,
         kill_workflows_in_error,
         repeat=args.error_timeout / 2,
         args=args.error_timeout,
-    )
-    error_timeout_watch.start()
-
-    with Watchers(fh, watch_interval=args.watch_interval) as watchers:
-        init_rabbits(k8s_api, fh, watchers)
+    ).start()
+    # start watching k8s workflow resources and operate on them when updates occur
+    # or new RPCs are received
+    with Watchers(handle, watch_interval=args.watch_interval) as watchers:
+        init_rabbits(k8s_api, handle, watchers)
         watchers.add_watch(
-            Watch(k8s_api, WORKFLOW_CRD, 0, workflow_state_change_cb, fh, k8s_api)
+            Watch(k8s_api, WORKFLOW_CRD, 0, workflow_state_change_cb, handle, k8s_api)
         )
-        try:
-            jobid = id_parse(os.environ["FLUX_JOB_ID"])
-        except KeyError as keyerr:
-            pass
-        else:
-            # This job event is used to close the race condition between the python
-            # process starting and the `dws` service being registered. Once
-            # https://github.com/flux-framework/flux-core/issues/3821 is
-            # implemented/closed, this can be replaced with that solution.
-            Future(fh.job_raise(jobid, "exception", 7, "dws watchers setup")).get()
+        raise_self_exception(handle)
 
-        fh.reactor_run()
+        handle.reactor_run()
 
-        create_watcher.stop()
-        create_watcher.destroy()
-        setup_watcher.stop()
-        setup_watcher.destroy()
-        post_run_watcher.stop()
-        post_run_watcher.destroy()
+        for service in services:
+            service.stop()
+            service.destroy()
 
 
 if __name__ == "__main__":

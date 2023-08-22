@@ -1,10 +1,10 @@
 import enum
+import copy
 
 from flux_k8s.crd import DIRECTIVEBREAKDOWN_CRD
 
 
 class AllocationStrategy(enum.Enum):
-
     PER_COMPUTE = "AllocatePerCompute"
     SINGLE_SERVER = "AllocateSingleServer"
     ACROSS_SERVERS = "AllocateAcrossServers"
@@ -52,25 +52,39 @@ def build_allocation_sets(allocation_sets, local_allocations, nodes_per_nnf):
 
 def apply_breakdowns(k8s_api, workflow, resources):
     """Apply all of the directive breakdown information to a jobspec's `resources`."""
+    resources = copy.deepcopy(resources)
     breakdown_list = list(fetch_breakdowns(k8s_api, workflow))
     per_compute_total = 0  # total bytes of per-compute storage
+    if not resources:
+        raise ValueError("jobspec resources empty")
+    if len(resources) > 1 or resources[0]["type"] != "node":
+        raise ValueError(
+            "jobspec resources must have a single top-level 'node' entry, "
+            f"got {len(resources)} entries, first entry {resources[0]['type']!r}"
+        )
+    ssd_resources = {"type": "ssd", "count": 0, "exclusive": True}
+    nodecount = resources[0]["count"]
+    resources[0]["count"] = 1
+    # construct a new jobspec resources with top-level 'rack' resources
+    new_resources = [
+        {
+            "type": "rack",
+            "count": nodecount,  # the old nodecount, now for racks
+            "with": [
+                resources[0],
+                {"type": "rabbit", "count": 1, "with": [ssd_resources]},
+            ],
+        }
+    ]
+    # update ssd_resources to the right number
     for breakdown in breakdown_list:
         if breakdown["kind"] != "DirectiveBreakdown":
             raise ValueError(f"unsupported breakdown kind {breakdown['kind']!r}")
         if not breakdown["status"]["ready"]:
             raise RuntimeError("Breakdown marked as not ready")
         for allocation in breakdown["status"]["storage"]["allocationSets"]:
-            _apply_allocation(allocation, resources)
-            # aggregate per-compute storage
-            if allocation["label"] in PER_COMPUTE_TYPES:
-                per_compute_total += allocation["minimumCapacity"]
-    for breakdown in breakdown_list:
-        for allocation in breakdown["status"]["storage"]["allocationSets"]:
-            if allocation["label"] in PER_COMPUTE_TYPES:
-                allocation["percentage_of_total"] = (
-                    allocation["minimumCapacity"] / per_compute_total
-                )
-    return breakdown_list
+            _apply_allocation(allocation, ssd_resources, nodecount)
+    return new_resources
 
 
 def fetch_breakdowns(k8s_api, workflow):
@@ -87,7 +101,7 @@ def fetch_breakdowns(k8s_api, workflow):
         )
 
 
-def _apply_allocation(allocation, resources):
+def _apply_allocation(allocation, ssd_resources, nodecount):
     """Parse a single 'allocationSet' and apply to it a jobspec's ``resources``."""
     expected_alloc_strats = {
         "xfs": AllocationStrategy.PER_COMPUTE.value,
@@ -98,7 +112,7 @@ def _apply_allocation(allocation, resources):
         "mgt": AllocationStrategy.SINGLE_SERVER.value,
         "mgtmdt": AllocationStrategy.ACROSS_SERVERS.value,
     }
-    capacity_gb = max(1, allocation["minimumCapacity"] // (1024 ** 3))
+    capacity_gb = max(1, allocation["minimumCapacity"] // (1024**3))
     if allocation["allocationStrategy"] != expected_alloc_strats[allocation["label"]]:
         raise ValueError(
             f"{allocation['label']} allocationStrategy "
@@ -106,58 +120,11 @@ def _apply_allocation(allocation, resources):
             f"but got {allocation['allocationStrategy']!r}"
         )
     if allocation["label"] in PER_COMPUTE_TYPES:
-        _apply_alloc_per_compute(capacity_gb, resources)
-    elif allocation["label"] in LUSTRE_TYPES:
-        _apply_lustre(capacity_gb, resources, allocation["label"] in ("mgt", "mgtmdt"))
-
-
-def _get_nnf_resource(capacity, mgt=False):
-    ret = {
-        "type": "nnf",
-        "count": 1,
-        "with": [
-            {"type": "ssd", "count": capacity, "exclusive": True},
-            {"type": "ssd_partition", "count": 1},
-        ],
-    }
-    if mgt:
-        ret["with"].append({"type": "mgt_ip", "count": 1})
-    return ret
-
-
-def _apply_alloc_per_compute(capacity, resources):
-    """Apply XFS (node-local storage) to a jobspec's ``resources``."""
-    if not resources:
-        raise ValueError(f"Empty resources: {resources}")
-    elif len(resources) == 2 and resources[1]["type"] == "nnf":
-        resources[1]["with"][0]["count"] += capacity
-    elif len(resources) > 1 or resources[0]["type"] != "node":
-        raise ValueError(
-            "jobspec resources must have a single top-level 'node' entry, "
-            f"got {len(resources)} entries, first entry {resources[0]['type']!r}"
-        )
+        ssd_resources["count"] += capacity_gb
+    elif (
+        expected_alloc_strats[allocation["label"]]
+        == AllocationStrategy.ACROSS_SERVERS.value
+    ):
+        ssd_resources["count"] += capacity_gb // nodecount
     else:
-        node = resources[0]
-        nodecount = node["count"]
-        resources.append(_get_nnf_resource(capacity))
-
-
-def _apply_lustre(capacity, resources, mgt):
-    """Apply Lustre OST/MGT/MDT to a jobspec's ``resources`` dictionary."""
-    resources.append(
-        {"type": "globalnnf", "count": 1, "with": [_get_nnf_resource(capacity, mgt)]}
-    )
-
-
-def _aggregate_resources(with_resources, additional_capacity):
-    for resource in with_resources:
-        if resource["type"] == "storage":
-            if resource.get("unit") == "B":
-                resource["count"] = resource.get("count", 0) + additional_capacity
-            else:
-                raise ValueError(
-                    f"Unit mismatch: expected 'B', got {resource.get('unit')}"
-                )
-            break
-    else:
-        raise ValueError(f"{entry} has no 'storage' entry")
+        raise ValueError(f"{allocation['label']} not supported")
