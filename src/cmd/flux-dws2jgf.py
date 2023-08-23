@@ -59,7 +59,6 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._r_hostlist = r_hostlist
         self._chunks_per_nnf = chunks_per_nnf
         self._rackids = 0
-        self._rankids = itertools.count()
         self._cluster_name = cluster_name
         # Call super().__init__() last since it calls __encode
         super().__init__(rv1)
@@ -151,8 +150,12 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._encode_rabbit(vtx, nnf)
         children = self._rv1NoSched["execution"]["R_lite"][0]["children"]
         for node in nnf["status"]["access"]["computes"]:
-            if node["name"] in self._r_hostlist:
-                self._encode_rank(vtx, next(self._rankids), children, node["name"])
+            try:
+                index = self._r_hostlist.index(node["name"])[0]
+            except FileNotFoundError:
+                pass
+            else:
+                self._encode_rank(vtx, index, children, node["name"])
         self._rackids += 1
 
     def _encode(self):
@@ -179,11 +182,11 @@ class Coral2Graph(FluxionResourceGraphV1):
             for nnf in self._nnfs
             for compute in nnf["status"]["access"]["computes"]
         )
-        for node in self._r_hostlist:
+        for rank, node in enumerate(self._r_hostlist):
             if node not in dws_computes:
                 self._encode_rank(
                     vtx,
-                    next(self._rankids),
+                    rank,
                     self._rv1NoSched["execution"]["R_lite"][0]["children"],
                     node,
                 )
