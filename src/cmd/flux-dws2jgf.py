@@ -54,7 +54,6 @@ class Coral2Graph(FluxionResourceGraphV1):
         rv1 -- RV1 Dictorary that conforms to Flux RFC 20:
                    Resource Set Specification Version 1
         """
-        assert len(rv1["execution"]["R_lite"]) == 1
         self._nnfs = nnfs
         self._r_hostlist = r_hostlist
         self._chunks_per_nnf = chunks_per_nnf
