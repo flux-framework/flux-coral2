@@ -2,9 +2,6 @@ queue_rules:
   - name: default
     conditions:
       - base=master
-      - status-success="validate commits"
-      - status-success="el8"
-      - status-success="focal"
       - label="merge-when-passing"
       - label!="work-in-progress"
       - "approved-reviews-by=@flux-framework/core"
