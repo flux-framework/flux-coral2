@@ -96,7 +96,7 @@ class Coral2Graph(FluxionResourceGraphV1):
                 res_type,
                 res_type,
                 res_name,
-                self._rackids,
+                i,
                 self._uniqId,
                 -1,
                 True,
