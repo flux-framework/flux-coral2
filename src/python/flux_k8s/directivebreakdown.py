@@ -82,8 +82,9 @@ def apply_breakdowns(k8s_api, workflow, resources):
             raise ValueError(f"unsupported breakdown kind {breakdown['kind']!r}")
         if not breakdown["status"]["ready"]:
             raise RuntimeError("Breakdown marked as not ready")
-        for allocation in breakdown["status"]["storage"]["allocationSets"]:
-            _apply_allocation(allocation, ssd_resources, nodecount)
+        if "storage" in breakdown["status"]:  # persistentdw directives have no storage
+            for allocation in breakdown["status"]["storage"]["allocationSets"]:
+                _apply_allocation(allocation, ssd_resources, nodecount)
     return new_resources
 
 
