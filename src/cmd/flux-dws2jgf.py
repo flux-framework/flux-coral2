@@ -61,6 +61,7 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._rackids = 0
         self._cluster_name = cluster_name
         self._rank_to_children = get_node_children(rv1["execution"]["R_lite"])
+        self._rank_to_properties = get_node_properties(rv1["execution"].get("properties", {}))
         # Call super().__init__() last since it calls __encode
         super().__init__(rv1)
 
@@ -78,7 +79,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
-            [],
+            self._rank_to_properties.get(rank, []),
             hPath,
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
@@ -205,6 +206,25 @@ def get_node_children(r_lite):
         else:
             rank_to_children[rank] = entry["children"]
     return rank_to_children
+
+
+def get_node_properties(properties):
+    """Return a mapping from rank to properties."""
+    rank_to_property = {}
+    for prop_name, rank_str in properties.items():
+        rank_ranges = rank_str.split(",")
+        for rank_range in rank_ranges:
+            try:
+                rank = int(rank_range)
+            except ValueError:
+                low, high = rank_range.split("-")
+                for i in range(int(low), int(high) + 1):
+                    properties = rank_to_property.setdefault(i, [])
+                    properties.append(prop_name)
+            else:
+                properties = rank_to_property.setdefault(rank, [])
+                properties.append(prop_name)
+    return rank_to_property
 
 
 def to_gibibytes(byt):
