@@ -168,12 +168,13 @@ static int depend_cb (flux_plugin_t *p,
     json_t *dw = NULL;
     flux_t *h = flux_jobtap_get_flux (p);
     json_t *resources;
+    json_t *jobspec;
     int userid;
     int *prolog_active = NULL;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:I s:{s:{s:{s?o}}} s:{s:o} s:i}",
+                                "{s:I s:{s:{s:{s?o}}} s:{s:o} s:i s:o}",
                                 "id",
                                 &id,
                                 "jobspec",
@@ -185,7 +186,9 @@ static int depend_cb (flux_plugin_t *p,
                                 "resources",
                                 &resources,
                                 "userid",
-                                &userid)
+                                &userid,
+                                "jobspec",
+                                &jobspec)
         < 0)
         return -1;
     if (dw) {
@@ -235,6 +238,17 @@ static int depend_cb (flux_plugin_t *p,
             || flux_future_then (create_fut, -1, create_cb, NULL) < 0) {
             flux_future_destroy (create_fut);
             return -1;
+        }
+        if (flux_jobtap_job_aux_set (p,
+                                     FLUX_JOBTAP_CURRENT_JOB,
+                                     "dws_jobspec",
+                                     jobspec,
+                                     (flux_free_f) json_decref)
+            < 0) {
+            return -1;
+        }
+        else {
+            json_incref (jobspec);
         }
     }
     return 0;
@@ -560,11 +574,19 @@ static void resource_update_msg_cb (flux_t *h,
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
     json_t *resources = NULL;
+    json_t *jobspec;
 
     if (flux_msg_unpack (msg, "{s:I, s:o}", "id", &jobid, "resources", &resources)
         < 0) {
         flux_log_error (h, "received malformed dws.resource-update RPC");
         return;
+    }
+    if (!(jobspec = flux_jobtap_job_aux_get (p, jobid, "dws_jobspec"))
+        || json_object_set (jobspec, "resources", resources) < 0) {
+        raise_job_exception (h,
+                             jobid,
+                             "dws",
+                             "Internal error: failed to update jobspec");
     }
     if (flux_jobtap_dependency_remove (p, jobid, CREATE_DEP_NAME) < 0) {
         raise_job_exception (h,
