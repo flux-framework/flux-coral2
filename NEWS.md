@@ -1,3 +1,24 @@
+flux-coral2 0.7.0 - 2023-08-30
+------------------------------
+
+### New Features
+
+ * dws: build a resource graph with rabbits (#88, #90)
+ * dws: schedule rabbits through Fluxion (#92)
+ * dws: provide memo listing rabbits associated with job (#92
+ * pals: set PMI_SHARED_SECRET (#84)
+ * dws: update error handling to distinguish fatal errors (#93)
+
+### Fixes
+
+ * pals: sanitize environment variables (#84)
+ * pals: add debug information (#85)
+ * dws: improve error message when service is down (#87)
+
+### Testsuite
+
+ * testsuite: add tests for scheduling rabbits through fluxion (#92)
+
 flux-coral2 0.6.0 - 2023-07-20
 ------------------------------
 
