@@ -197,11 +197,22 @@ def setup_cb(handle, _t, msg, k8s_api):
                                 "name": nnf_name,
                             }
                         )
-                else:
-                    # make a single allocation on a random rabbit
-                    storage_field.append(
-                        {"allocationCount": 1, "name": next(iter(nodes_per_nnf.keys()))}
-                    )
+                elif (
+                    alloc_set["allocationStrategy"]
+                    == directivebreakdown.AllocationStrategy.ACROSS_SERVERS.value
+                ):
+                    server_alloc_set["allocationSize"] = alloc_set[
+                        "minimumCapacity"
+                    ] // len(hlist)
+                    # split lustre across every rabbit, weighting the split based on
+                    # the number of the job's nodes associated with each rabbit
+                    for rabbit_name in nodes_per_nnf:
+                        storage_field.append(
+                            {
+                                "allocationCount": nodes_per_nnf[rabbit_name],
+                                "name": rabbit_name,
+                            }
+                        )
                 allocation_sets.append(server_alloc_set)
             k8s_api.patch_namespaced_custom_object(
                 SERVER_CRD.group,
