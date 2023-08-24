@@ -30,8 +30,6 @@ from flux_k8s import directivebreakdown
 
 
 _WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
-# Regex will match only rack-local allocations due to the rack\d+/ part
-_XFS_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
 _HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 LOGGER = logging.getLogger(__name__)
 WORKFLOWS_IN_TC = set()  # tc for TransientCondition
