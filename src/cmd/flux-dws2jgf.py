@@ -54,13 +54,13 @@ class Coral2Graph(FluxionResourceGraphV1):
         rv1 -- RV1 Dictorary that conforms to Flux RFC 20:
                    Resource Set Specification Version 1
         """
-        assert len(rv1["execution"]["R_lite"]) == 1
         self._nnfs = nnfs
         self._r_hostlist = r_hostlist
         self._chunks_per_nnf = chunks_per_nnf
         self._rackids = 0
-        self._rankids = itertools.count()
         self._cluster_name = cluster_name
+        self._rank_to_children = get_node_children(rv1["execution"]["R_lite"])
+        self._rank_to_properties = get_node_properties(rv1["execution"].get("properties", {}))
         # Call super().__init__() last since it calls __encode
         super().__init__(rv1)
 
@@ -78,7 +78,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
-            [],
+            self._rank_to_properties.get(rank, []),
             hPath,
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
@@ -96,7 +96,7 @@ class Coral2Graph(FluxionResourceGraphV1):
                 res_type,
                 res_type,
                 res_name,
-                self._rackids,
+                i,
                 self._uniqId,
                 -1,
                 True,
@@ -149,10 +149,13 @@ class Coral2Graph(FluxionResourceGraphV1):
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
         self._add_and_tick_uniq_id(vtx, edg)
         self._encode_rabbit(vtx, nnf)
-        children = self._rv1NoSched["execution"]["R_lite"][0]["children"]
         for node in nnf["status"]["access"]["computes"]:
-            if node["name"] in self._r_hostlist:
-                self._encode_rank(vtx, next(self._rankids), children, node["name"])
+            try:
+                index = self._r_hostlist.index(node["name"])[0]
+            except FileNotFoundError:
+                pass
+            else:
+                self._encode_rank(vtx, index, self._rank_to_children[index], node["name"])
         self._rackids += 1
 
     def _encode(self):
@@ -179,14 +182,48 @@ class Coral2Graph(FluxionResourceGraphV1):
             for nnf in self._nnfs
             for compute in nnf["status"]["access"]["computes"]
         )
-        for node in self._r_hostlist:
+        for rank, node in enumerate(self._r_hostlist):
             if node not in dws_computes:
                 self._encode_rank(
                     vtx,
-                    next(self._rankids),
-                    self._rv1NoSched["execution"]["R_lite"][0]["children"],
+                    rank,
+                    self._rank_to_children[rank],
                     node,
                 )
+
+
+def get_node_children(r_lite):
+    """Return a mapping from rank to children (cores, gpus, etc.)"""
+    rank_to_children = {}
+    for entry in r_lite:
+        try:
+            rank = int(entry["rank"])
+        except ValueError:
+            low, high = entry["rank"].split("-")
+            for i in range(int(low), int(high) + 1):
+                rank_to_children[i] = entry["children"]
+        else:
+            rank_to_children[rank] = entry["children"]
+    return rank_to_children
+
+
+def get_node_properties(properties):
+    """Return a mapping from rank to properties."""
+    rank_to_property = {}
+    for prop_name, rank_str in properties.items():
+        rank_ranges = rank_str.split(",")
+        for rank_range in rank_ranges:
+            try:
+                rank = int(rank_range)
+            except ValueError:
+                low, high = rank_range.split("-")
+                for i in range(int(low), int(high) + 1):
+                    properties = rank_to_property.setdefault(i, [])
+                    properties.append(prop_name)
+            else:
+                properties = rank_to_property.setdefault(rank, [])
+                properties.append(prop_name)
+    return rank_to_property
 
 
 def to_gibibytes(byt):
