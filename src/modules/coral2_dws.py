@@ -162,6 +162,10 @@ def setup_cb(handle, _t, msg, k8s_api):
     for hostname in hlist:
         nnf_name = _HOSTNAMES_TO_RABBITS[hostname]
         nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
+    handle.rpc(
+        "job-manager.memo",
+        payload={"id": jobid, "memo": {"rabbits": list(nodes_per_nnf.keys())}},
+    )
     k8s_api.patch_namespaced_custom_object(
         COMPUTE_CRD.group,
         COMPUTE_CRD.version,
