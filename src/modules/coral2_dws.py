@@ -336,7 +336,16 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
         # move workflow to next stage, teardown
         move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
         winfo.toredown = True
-    if workflow["status"].get("status") == "TransientCondition":
+    if workflow["status"].get("status") == "Error":
+        # a fatal error has occurred
+        handle.job_raise(
+            jobid,
+            "exception",
+            0,
+            "DWS/Rabbit interactions failed: workflow hit an error: "
+            f"{workflow['status'].get('message', '')}",
+        )
+    elif workflow["status"].get("status") == "TransientCondition":
         # a potentially fatal error has occurred, but may resolve itself
         LOGGER.warning(
             "Workflow %s has TransientCondition set, message is '%s', workflow is %s",
