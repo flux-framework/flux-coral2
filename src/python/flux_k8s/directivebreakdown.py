@@ -50,9 +50,9 @@ def build_allocation_sets(allocation_sets, local_allocations, nodes_per_nnf):
     return ret
 
 
-def apply_breakdowns(k8s_api, workflow, resources):
+def apply_breakdowns(k8s_api, workflow, old_resources):
     """Apply all of the directive breakdown information to a jobspec's `resources`."""
-    resources = copy.deepcopy(resources)
+    resources = copy.deepcopy(old_resources)
     breakdown_list = list(fetch_breakdowns(k8s_api, workflow))
     per_compute_total = 0  # total bytes of per-compute storage
     if not resources:
@@ -76,6 +76,7 @@ def apply_breakdowns(k8s_api, workflow, resources):
             ],
         }
     ]
+    allocation_applied = False
     # update ssd_resources to the right number
     for breakdown in breakdown_list:
         if breakdown["kind"] != "DirectiveBreakdown":
@@ -85,6 +86,9 @@ def apply_breakdowns(k8s_api, workflow, resources):
         if "storage" in breakdown["status"]:  # persistentdw directives have no storage
             for allocation in breakdown["status"]["storage"]["allocationSets"]:
                 _apply_allocation(allocation, ssd_resources, nodecount)
+                allocation_applied = True
+    if not allocation_applied:
+        return old_resources
     return new_resources
 
 

@@ -32,6 +32,17 @@ test_expect_success 'job-manager: load dws-jobtap plugin' '
 	flux jobtap load ${PLUGINPATH}/dws-jobtap.so
 '
 
+test_expect_success 'load fluxion with rabbits' '
+	flux R encode -l | flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-dws2jgf.py \
+	--no-validate | jq . > R.local &&
+	flux kvs put resource.R="$(cat R.local)" &&
+	flux module remove -f sched-fluxion-qmanager &&
+	flux module remove -f sched-fluxion-resource &&
+	flux module reload resource &&
+	flux module load sched-fluxion-resource &&
+	flux module load sched-fluxion-qmanager
+'
+
 test_expect_success 'exec dws service-providing script' '
 	R=$(flux R encode -r 0) &&
 	DWS_JOBID=$(flux submit \
@@ -236,6 +247,15 @@ test_expect_success 'dws service script handles restarts while a job is running'
 	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
 	flux job wait-event -vt 25 ${jobid} clean
+'
+
+test_expect_success 'cleanup: unload fluxion' '
+	# all jobs must be canceled before unloading fluxion or a hang will occur during
+	# shutdown, unless another scheduler is loaded afterwards
+	flux job cancel $DWS_JOBID && flux queue drain &&
+	flux module remove sched-fluxion-qmanager &&
+	flux module remove sched-fluxion-resource &&
+	flux module load sched-simple
 '
 
 test_done

@@ -30,8 +30,6 @@ from flux_k8s import directivebreakdown
 
 
 _WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
-# Regex will match only rack-local allocations due to the rack\d+/ part
-_XFS_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
 _HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 LOGGER = logging.getLogger(__name__)
 WORKFLOWS_IN_TC = set()  # tc for TransientCondition
@@ -164,6 +162,10 @@ def setup_cb(handle, _t, msg, k8s_api):
     for hostname in hlist:
         nnf_name = _HOSTNAMES_TO_RABBITS[hostname]
         nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
+    handle.rpc(
+        "job-manager.memo",
+        payload={"id": jobid, "memo": {"rabbits": list(nodes_per_nnf.keys())}},
+    )
     k8s_api.patch_namespaced_custom_object(
         COMPUTE_CRD.group,
         COMPUTE_CRD.version,
@@ -197,11 +199,22 @@ def setup_cb(handle, _t, msg, k8s_api):
                                 "name": nnf_name,
                             }
                         )
-                else:
-                    # make a single allocation on a random rabbit
-                    storage_field.append(
-                        {"allocationCount": 1, "name": next(iter(nodes_per_nnf.keys()))}
-                    )
+                elif (
+                    alloc_set["allocationStrategy"]
+                    == directivebreakdown.AllocationStrategy.ACROSS_SERVERS.value
+                ):
+                    server_alloc_set["allocationSize"] = alloc_set[
+                        "minimumCapacity"
+                    ] // len(hlist)
+                    # split lustre across every rabbit, weighting the split based on
+                    # the number of the job's nodes associated with each rabbit
+                    for rabbit_name in nodes_per_nnf:
+                        storage_field.append(
+                            {
+                                "allocationCount": nodes_per_nnf[rabbit_name],
+                                "name": rabbit_name,
+                            }
+                        )
                 allocation_sets.append(server_alloc_set)
             k8s_api.patch_namespaced_custom_object(
                 SERVER_CRD.group,
