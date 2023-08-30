@@ -34,7 +34,7 @@ _WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
 _XFS_REGEX = re.compile(r"rack\d+/(.*?)/ssd\d+")
 _HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 LOGGER = logging.getLogger(__name__)
-WORKFLOWS_IN_ERROR = set()
+WORKFLOWS_IN_TC = set()  # tc for TransientCondition
 WORKFLOW_NAME_PREFIX = "fluxjob-"
 WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
 
@@ -51,8 +51,8 @@ class WorkflowInfo:
         self.resources = resources  # jobspec 'resources' field
         self.toredown = False  # True if workflows has been moved to teardown
         self.deleted = False  # True if delete request has been sent to k8s
-        self.last_error_time = None  # time in seconds of last Error
-        self.last_error_message = None  # message associated with last error
+        self.last_tc_time = None  # time in seconds of last TransientCondition
+        self.last_tc_message = None  # message associated with last TransientCondition
 
 
 def message_callback_wrapper(func):
@@ -337,22 +337,30 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
         move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
         winfo.toredown = True
     if workflow["status"].get("status") == "Error":
-        # some errors are fatal, others are recoverable
-        # HPE says to dump the whole workflow
+        # a fatal error has occurred
+        handle.job_raise(
+            jobid,
+            "exception",
+            0,
+            "DWS/Rabbit interactions failed: workflow hit an error: "
+            f"{workflow['status'].get('message', '')}",
+        )
+    elif workflow["status"].get("status") == "TransientCondition":
+        # a potentially fatal error has occurred, but may resolve itself
         LOGGER.warning(
-            "Workflow %s has error set, message is '%s', workflow is %s",
+            "Workflow %s has TransientCondition set, message is '%s', workflow is %s",
             winfo.name,
             workflow["status"].get("message", ""),
             workflow,
         )
-        if winfo.last_error_time is None:
-            winfo.last_error_time = time.time()
-        winfo.last_error_message = workflow["status"].get("message", "")
-        WORKFLOWS_IN_ERROR.add(winfo)
+        if winfo.last_tc_time is None:
+            winfo.last_tc_time = time.time()
+        winfo.last_tc_message = workflow["status"].get("message", "")
+        WORKFLOWS_IN_TC.add(winfo)
     else:
-        winfo.last_error_time = None
-        winfo.last_error_message = None
-        WORKFLOWS_IN_ERROR.discard(winfo)
+        winfo.last_tc_time = None
+        winfo.last_tc_message = None
+        WORKFLOWS_IN_TC.discard(winfo)
 
 
 def rabbit_state_change_cb(event, handle, rabbits):
@@ -409,25 +417,26 @@ def init_rabbits(k8s_api, handle, watchers):
     return rabbits
 
 
-def kill_workflows_in_error(_reactor, watcher, _r, error_timeout):
-    """Callback firing every (error_timeout / 2) seconds.
+def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
+    """Callback firing every (tc_timeout / 2) seconds.
 
-    Raise exceptions on jobs stuck in Error for more than error_timeout seconds.
+    Raise exceptions on jobs stuck in TransientCondition for more than
+    tc_timeout seconds.
     """
     curr_time = time.time()
     # iterate over a copy of the set
     # otherwise an exception occurs because we modify the set as we
     # iterate over it.
-    for winfo in WORKFLOWS_IN_ERROR.copy():
-        if curr_time - winfo.last_error_time > error_timeout:
+    for winfo in WORKFLOWS_IN_TC.copy():
+        if curr_time - winfo.last_tc_time > tc_timeout:
             watcher.flux_handle.job_raise(
                 winfo.jobid,
                 "exception",
                 0,
-                "DWS/Rabbit interactions failed: workflow in 'Error' state too long: "
-                f"{winfo.last_error_message}",
+                "DWS/Rabbit interactions failed: workflow in 'TransientCondition' "
+                f"state too long: {winfo.last_tc_message}",
             )
-            WORKFLOWS_IN_ERROR.discard(winfo)
+            WORKFLOWS_IN_TC.discard(winfo)
 
 
 def setup_parsing():
@@ -448,12 +457,12 @@ def setup_parsing():
         help="Increase verbosity of output",
     )
     parser.add_argument(
-        "--error-timeout",
+        "--transient-condition-timeout",
         "-e",
         type=float,
         default=10,
         metavar="N",
-        help="Kill workflows in Error state for more than 'N' seconds",
+        help="Kill workflows in TransientCondition state for more than 'N' seconds",
     )
     parser.add_argument(
         "--kubeconfig",
@@ -549,10 +558,10 @@ def main():
     # create a timer watcher for killing workflows that have been stuck in
     # the "Error" state for too long
     handle.timer_watcher_create(
-        args.error_timeout / 2,
-        kill_workflows_in_error,
-        repeat=args.error_timeout / 2,
-        args=args.error_timeout,
+        args.transient_condition_timeout / 2,
+        kill_workflows_in_tc,
+        repeat=args.transient_condition_timeout / 2,
+        args=args.transient_condition_timeout,
     ).start()
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
