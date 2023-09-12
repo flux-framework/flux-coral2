@@ -1,6 +1,4 @@
-#!/bin/bash
-
-set -e
+#!/bin/sh -e
 
 # Load jobtap plugin, unless it's already loaded (e.g. by config)
 jobtap_load() {
