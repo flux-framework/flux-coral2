@@ -228,7 +228,7 @@ static int depend_cb (flux_plugin_t *p,
             return -1;
         }
 
-        struct create_arg_t *create_args = calloc (sizeof (struct create_arg_t), 1);
+        struct create_arg_t *create_args = calloc (1, sizeof (struct create_arg_t));
         if (create_args == NULL) {
             return -1;
         }
@@ -319,7 +319,7 @@ static void fetch_R_callback (flux_future_t *f, void *arg)
         goto done;
     }
 
-    create_args = calloc (sizeof (struct create_arg_t), 1);
+    create_args = calloc (1, sizeof (struct create_arg_t));
     if (create_args == NULL) {
         dws_prolog_finish (h,
                            args->p,
@@ -396,7 +396,7 @@ static int run_cb (flux_plugin_t *p,
             return -1;
         }
         *prolog_active = 1;
-        struct create_arg_t *create_args = calloc (sizeof (struct create_arg_t), 1);
+        struct create_arg_t *create_args = calloc (1, sizeof (struct create_arg_t));
         if (create_args == NULL) {
             dws_prolog_finish (h, p, id, 0, "OOM", prolog_active);
             return -1;
@@ -481,7 +481,7 @@ static int cleanup_cb (flux_plugin_t *p,
         && flux_jobtap_job_aux_get (p,
                                     FLUX_JOBTAP_CURRENT_JOB,
                                     "flux::dws_workflow_created")) {
-        if (!(create_args = calloc (sizeof (struct create_arg_t), 1))) {
+        if (!(create_args = calloc (1, sizeof (struct create_arg_t)))) {
             flux_log_error (h, "error allocating arg struct");
             return -1;
         }
