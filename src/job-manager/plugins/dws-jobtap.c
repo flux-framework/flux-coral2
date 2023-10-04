@@ -120,7 +120,7 @@ static void create_cb (flux_future_t *f, void *arg)
 
     if (args == NULL) {
         flux_log_error (h, "create args missing in future aux");
-        goto done;
+        return;
     }
 
     if (flux_rpc_get_unpack (f, "{s:b, s?s}", "success", &success, "errstr", &errstr)
@@ -132,7 +132,7 @@ static void create_cb (flux_future_t *f, void *arg)
                 "Admins: is the flux-coral2-dws service loaded?";
         }
         raise_job_exception (h, args->id, CREATE_DEP_NAME, errstr);
-        goto done;
+        return;
     }
 
     if (!success) {
@@ -154,9 +154,6 @@ static void create_cb (flux_future_t *f, void *arg)
                                  (void *)1,
                                  NULL);
     }
-
-done:
-    flux_future_destroy (f);
 }
 
 static int depend_cb (flux_plugin_t *p,
@@ -235,7 +232,13 @@ static int depend_cb (flux_plugin_t *p,
         create_args->p = p;
         create_args->id = id;
         if (flux_future_aux_set (create_fut, "flux::create_args", create_args, free) < 0
-            || flux_future_then (create_fut, -1, create_cb, NULL) < 0) {
+            || flux_future_then (create_fut, -1, create_cb, NULL) < 0
+            || flux_jobtap_job_aux_set (p,
+                                        FLUX_JOBTAP_CURRENT_JOB,
+                                        NULL,
+                                        create_fut,
+                                        (flux_free_f) flux_future_destroy)
+                   < 0) {
             flux_future_destroy (create_fut);
             return -1;
         }
@@ -264,7 +267,7 @@ static void setup_rpc_cb (flux_future_t *f, void *arg)
 
     if (args == NULL || prolog_active == NULL) {
         flux_log_error (h, "create args missing in future aux");
-        goto done;
+        return;
     }
 
     if (flux_rpc_get_unpack (f, "{s:b, s?s}", "success", &success, "errstr", &errstr)
@@ -275,7 +278,7 @@ static void setup_rpc_cb (flux_future_t *f, void *arg)
                            0,
                            "Failed to unpack dws.setup RPC",
                            prolog_active);
-        goto done;
+        return;
     }
     if (!success) {
         if (errstr) {
@@ -290,9 +293,6 @@ static void setup_rpc_cb (flux_future_t *f, void *arg)
                                prolog_active);
         }
     }
-
-done:
-    flux_future_destroy (f);
 }
 
 static void fetch_R_callback (flux_future_t *f, void *arg)
@@ -347,7 +347,13 @@ static void fetch_R_callback (flux_future_t *f, void *arg)
                                 prolog_active,
                                 NULL)
                < 0
-        || flux_future_then (setup_rpc_fut, -1, setup_rpc_cb, NULL) < 0) {
+        || flux_future_then (setup_rpc_fut, -1, setup_rpc_cb, NULL) < 0
+        || flux_jobtap_job_aux_set (args->p,
+                                    args->id,
+                                    NULL,
+                                    setup_rpc_fut,
+                                    (flux_free_f) flux_future_destroy)
+               < 0) {
         flux_future_destroy (setup_rpc_fut);
         dws_prolog_finish (h,
                            args->p,
@@ -355,6 +361,7 @@ static void fetch_R_callback (flux_future_t *f, void *arg)
                            0,
                            "Failed to send dws.setup RPC",
                            prolog_active);
+        goto done;
     }
 
 done:
@@ -433,20 +440,17 @@ static void post_run_rpc_callback (flux_future_t *f, void *arg)
 
     if (!(args = flux_future_aux_get (f, "flux::create_args"))) {
         flux_log_error (h, "create args missing in future aux");
-        goto done;
+        return;
     }
 
     if (flux_rpc_get_unpack (f, "{s:b, s?s}", "success", &success, "errstr", &errstr)
         < 0) {
         dws_epilog_finish (h, args->p, args->id, 0, "Failed to send dws.post_run RPC");
-        goto done;
+        return;
     }
     if (!success) {
         dws_epilog_finish (h, args->p, args->id, 0, errstr);
     }
-
-done:
-    flux_future_destroy (f);
 }
 
 static int cleanup_cb (flux_plugin_t *p,
@@ -511,7 +515,13 @@ static int cleanup_cb (flux_plugin_t *p,
                                     create_args,
                                     free)
                    < 0
-            || flux_future_then (post_run_fut, -1., post_run_rpc_callback, NULL) < 0) {
+            || flux_future_then (post_run_fut, -1., post_run_rpc_callback, NULL) < 0
+            || flux_jobtap_job_aux_set (p,
+                                        FLUX_JOBTAP_CURRENT_JOB,
+                                        NULL,
+                                        post_run_fut,
+                                        (flux_free_f) flux_future_destroy)
+                   < 0) {
             flux_future_destroy (post_run_fut);
             dws_epilog_finish (h, p, id, 0, "Failed to send dws.post_run RPC");
             flux_log_error (h, "Failed to send dws.post_run RPC");
