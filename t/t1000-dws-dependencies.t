@@ -88,10 +88,10 @@ test_expect_success 'job-manager: dws jobtap plugin works when post_run RPC fail
 '
 
 test_expect_success 'job-manager: dws jobtap plugin works when job hits exception during prolog' '
-	create_jobid=$(flux mini submit -t 8 --output=dws4.out --error=dws4.out \
+	create_jobid=$(flux submit -t 8 --output=dws4.out --error=dws4.out \
 		flux python ${DWS_SCRIPT} --setup-hang) &&
 	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
-	jobid=$(flux mini submit --setattr=system.dw="foo" hostname) &&
+	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
 	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
 	flux job cancel $jobid
