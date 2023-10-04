@@ -1,4 +1,4 @@
-apiVersion: dws.cray.hpe.com/v1alpha2
+apiVersion: dataworkflowservices.github.io/v1alpha2
 spec:
   state: Enabled
 status:
@@ -46,6 +46,6 @@ status:
 kind: Storage
 metadata:
   labels:
-    dws.cray.hpe.com/storage: Rabbit
+    dataworkflowservices.github.io/storage: Rabbit
   name: flux-test-storage1
   namespace: default

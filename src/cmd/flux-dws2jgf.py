@@ -248,7 +248,7 @@ def get_storage():
             )
         raise
 
-    group = "dws.cray.hpe.com"
+    group = "dataworkflowservices.github.io"
     version = "v1alpha2"
     plural = "storages"
     try:
