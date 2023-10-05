@@ -1,3 +1,16 @@
+flux-coral2 0.8.0 - 2023-10-04
+------------------------------
+
+### Fixes
+
+ * dws: update group of k8s crds (#101)
+ * rc: use posix shell (#98)
+
+### Testsuite
+
+ * testsuite: remove usage of 'flux mini' (#102)
+ * testsuite: load content module in rc scripts (#96)
+
 flux-coral2 0.7.0 - 2023-08-30
 ------------------------------
 
