@@ -31,6 +31,7 @@ from flux_k8s import directivebreakdown
 
 _WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
 _HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
+_RABBITS_TO_HOSTLISTS = {}  # maps rabbits to hostlists
 LOGGER = logging.getLogger(__name__)
 WORKFLOWS_IN_TC = set()  # tc for TransientCondition
 WORKFLOW_NAME_PREFIX = "fluxjob-"
@@ -51,6 +52,19 @@ class WorkflowInfo:
         self.deleted = False  # True if delete request has been sent to k8s
         self.last_tc_time = None  # time in seconds of last TransientCondition
         self.last_tc_message = None  # message associated with last TransientCondition
+        self.rabbits = None
+
+
+def fetch_rabbits(k8s_api, workflow_computes):
+    """Fetch all the rabbits associated with this workflow"""
+    response = k8s_api.get_namespaced_custom_object(
+        COMPUTE_CRD.group,
+        COMPUTE_CRD.version,
+        workflow_computes["namespace"],
+        COMPUTE_CRD.plural,
+        workflow_computes["name"],
+    )
+    return list(set(_HOSTNAMES_TO_RABBITS[entry["name"]] for entry in response["data"]))
 
 
 def message_callback_wrapper(func):
@@ -224,6 +238,8 @@ def setup_cb(handle, _t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
+    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
+    winfo.rabbits = list(nodes_per_nnf.keys())
     move_workflow_desiredstate(workflow_name, "Setup", k8s_api)
 
 
@@ -338,9 +354,19 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
         move_workflow_desiredstate(winfo.name, "PreRun", k8s_api)
     elif state_complete(workflow, "PreRun"):
         # tell DWS jobtap plugin that the job can start
+        if winfo.rabbits is not None:
+            rabbits = winfo.rabbits
+        else:
+            rabbits = fetch_rabbits(k8s_api, workflow["status"]["computes"])
         handle.rpc(
             "job-manager.dws.prolog-remove",
-            payload={"id": jobid, "variables": workflow["status"].get("env", {})},
+            payload={
+                "id": jobid,
+                "variables": workflow["status"].get("env", {}),
+                "rabbits": {
+                    rabbit: _RABBITS_TO_HOSTLISTS[rabbit] for rabbit in rabbits
+                },
+            },
         )
     elif state_complete(workflow, "PostRun"):
         # move workflow to next stage, DataOut
@@ -506,8 +532,10 @@ def populate_rabbits_dict(k8s_api):
         RABBIT_CRD.group, RABBIT_CRD.version, RABBIT_CRD.plural
     )
     for nnf in api_response["items"]:
+        hlist = Hostlist()
         for compute in nnf["status"]["access"].get("computes", []):
             hostname = compute["name"]
+            hlist.append(hostname)
             if hostname in _HOSTNAMES_TO_RABBITS:
                 raise KeyError(
                     f"Same hostname ({hostname}) cannot be associated with "
@@ -515,6 +543,7 @@ def populate_rabbits_dict(k8s_api):
                     f"{_HOSTNAMES_TO_RABBITS[hostname]}"
                 )
             _HOSTNAMES_TO_RABBITS[hostname] = nnf["metadata"]["name"]
+        _RABBITS_TO_HOSTLISTS[nnf["metadata"]["name"]] = hlist.encode()
 
 
 def register_services(handle, k8s_api):
