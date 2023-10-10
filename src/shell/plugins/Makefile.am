@@ -31,6 +31,7 @@ dws_environment_la_SOURCES = dws_environment.c \
 dws_environment_la_CPPFLAGS = $(AM_CPPFLAGS)
 dws_environment_la_LIBADD = \
 	$(FLUX_CORE_LIBS) \
+	$(FLUX_HOSTLIST_LIBS) \
 	$(JANSSON_LIBS)
 dws_environment_la_LDFLAGS = \
 	$(AM_LDFLAGS) \

@@ -33,10 +33,18 @@
 /*
  * Apply a JSON object defining environment variables to the job's environment
  */
-static int set_environment (flux_shell_t *shell, json_t *env_object)
+static int set_environment (flux_shell_t *shell,
+                            json_t *env_object,
+                            json_t *rabbit_mapping)
 {
     const char *key, *value_string;
     json_t *value;
+    struct hostlist *h;
+    char hostname[HOST_NAME_MAX + 1];
+
+    if (gethostname (hostname, HOST_NAME_MAX + 1) < 0)
+        return -1;
+    hostname[HOST_NAME_MAX] = '\0';
 
     json_object_foreach (env_object, key, value) {
         if (!(value_string = json_string_value (value))) {
@@ -49,7 +57,30 @@ static int set_environment (flux_shell_t *shell, json_t *env_object)
             return -1;
         }
     }
-    return 0;
+
+    json_object_foreach (rabbit_mapping, key, value) {
+        if (!(value_string = json_string_value (value))) {
+            shell_log_error (
+                "variables in dws_environment event must have string values");
+            return -1;
+        }
+        if (!(h = hostlist_decode (value_string))){
+            shell_log_error ("Failed initializing hostlist");
+            return -1;
+        }
+        if (hostlist_find (h, hostname) >= 0){
+            if (flux_shell_setenvf (shell, 1, "FLUX_LOCAL_RABBIT", "%s", key) < 0){
+                shell_log_error ("Failed setting FLUX_LOCAL_RABBIT");
+                hostlist_destroy (h);
+                return -1;
+            }
+            hostlist_destroy (h);
+            return 0;
+        }
+        hostlist_destroy (h);
+    }
+    shell_log_error ("Failed to find current node in rabbit mapping");
+    return -1;
 }
 
 /*
@@ -59,7 +90,7 @@ static int read_future (flux_shell_t *shell, flux_future_t *fut)
 {
     json_t *o = NULL;
     json_t *context = NULL;
-    json_t *env;
+    json_t *env, *rabbit_mapping;
     const char *name, *event = NULL;
 
     while (flux_future_wait_for (fut, 2.0) == 0
@@ -74,12 +105,20 @@ static int read_future (flux_shell_t *shell, flux_future_t *fut)
             return -1;
         }
         if (!strcmp (name, "dws_environment")) {
-            if (!(env = json_object_get (context, "variables"))) {
-                shell_log_error ("No 'variables' context in dws_environment event");
+            if (json_unpack (context,
+                             "{s:o, s:o}",
+                             "variables",
+                             &env,
+                             "rabbits",
+                             &rabbit_mapping)
+                < 0) {
+                shell_log_error (
+                    "No 'variables' or 'rabbits' context "
+                    "in dws_environment event");
                 json_decref (o);
                 return -1;
             }
-            if (set_environment (shell, env) < 0) {
+            if (set_environment (shell, env, rabbit_mapping) < 0) {
                 json_decref (o);
                 return -1;
             }
