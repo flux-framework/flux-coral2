@@ -22,7 +22,7 @@ test_expect_success 'job-manager: dws jobtap plugin works when coral2_dws is abs
 	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
 	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
 		${jobid} dependency-add &&
-	flux job wait-event -vt 1 ${jobid} exception -m note="dws.create RPC could not be sent"
+	flux job wait-event -vt 1 -m severity=0 ${jobid} exception &&
 	flux job wait-event -vt 1 ${jobid} clean
 '
 

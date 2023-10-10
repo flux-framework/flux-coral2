@@ -38,7 +38,7 @@ def setup_cb(fh, t, msg, arg):
     fh.respond(msg, payload)
     fh.rpc(
         "job-manager.dws.prolog-remove",
-        payload={"id": msg.payload["jobid"], "variables": {}},
+        payload={"id": msg.payload["jobid"], "variables": {}, "rabbits": {}},
     )
 
 def post_run_cb(fh, t, msg, arg):
