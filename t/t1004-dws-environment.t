@@ -32,10 +32,26 @@ test_expect_success 'shell: plugin sets env vars properly' '
 		--setattr=dw="foo" env) &&
 	kvsdir=$(flux job id --to=kvs $jobid) &&
 	flux kvs eventlog append ${kvsdir}.eventlog dws_environment \
-		"{\"variables\":{\"DWS_TEST_VAR1\": \"foo\", \"DWS_TEST_VAR2\": \"bar\"}}" &&
+		"{\"variables\":{\"DWS_TEST_VAR1\": \"foo\", \"DWS_TEST_VAR2\": \"bar\"}, \
+		\"rabbits\":{\"rabbit1\": \"$(hostname)\"}}" &&
 	environment=$(flux job attach ${jobid}) &&
 	echo "$environment" | grep DWS_TEST_VAR1=foo &&
-	echo "$environment" | grep DWS_TEST_VAR2=bar
-'
+	echo "$environment" | grep DWS_TEST_VAR2=bar &&
+	echo "$environment" | grep FLUX_LOCAL_RABBIT=rabbit1
+	'
+
+test_expect_success 'shell: plugin sets env vars properly with multiple rabbits' '
+	jobid=$(flux submit -o userrc=$(pwd)/$USERRC_NAME \
+		--setattr=dw="foo" env) &&
+	kvsdir=$(flux job id --to=kvs $jobid) &&
+	flux kvs eventlog append ${kvsdir}.eventlog dws_environment \
+		"{\"variables\":{\"DWS_TEST_VAR1\": \"foo\", \"DWS_TEST_VAR2\": \"bar\"}, \
+		\"rabbits\":{\"rabbit96\": \"compute[265-1056]\", \"rabbit7\": \"compute[01-72]\", \
+		\"rabbit15\": \"$(hostname)\"}}" &&
+	environment=$(flux job attach ${jobid}) &&
+	echo "$environment" | grep DWS_TEST_VAR1=foo &&
+	echo "$environment" | grep DWS_TEST_VAR2=bar &&
+	echo "$environment" | grep FLUX_LOCAL_RABBIT=rabbit15
+	'
 
 test_done
