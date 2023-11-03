@@ -95,6 +95,10 @@ AC_TYPE_UINT64_T
 AC_FUNC_MALLOC
 AC_CHECK_FUNCS([gettimeofday localtime_r memset strchr strdup strerror strstr strtol strtoul])
 
+# Checks for packages
+PKG_CHECK_MODULES([SODIUM], [libsodium >= 1.0.14], [], [])
+PKG_CHECK_MODULES([JANSSON], [jansson >= 2.10], [], [])
+
 ##
 # Project directories
 ##
