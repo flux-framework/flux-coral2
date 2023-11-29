@@ -11,8 +11,7 @@ RUN \
    && sudo usermod -G wheel $USER; \
  fi
 
-RUN sudo yum install -y python3-pip \
-    && sudo pip3 install kubernetes
+RUN sudo pip3 install kubernetes
 
 COPY ./kubectl.sh ./sync-kube-config.sh /usr/local/share/
 RUN sudo chmod 755 /usr/local/share/kubectl.sh \
