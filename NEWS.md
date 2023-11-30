@@ -1,3 +1,16 @@
+flux-coral2 0.8.1 - 2023-11-30
+------------------------------
+
+### New Features
+
+ * dws: export FLUX_LOCAL_RABBIT environment variable (#105)
+ * dws: disable fluxion scheduling, to be reverted in next release (#114)
+
+### Fixes
+
+ * build: formalize libsodium dependency (#110)
+ * docker: fix kubernetes install (#113)
+
 flux-coral2 0.8.0 - 2023-10-04
 ------------------------------
 
