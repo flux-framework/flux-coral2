@@ -27,7 +27,7 @@ for building/accessing these packages can be found in
 
 Flux CORAL2 requires a K8s server with the DWS CRDs and the NNF objects contained in `./k8s`.
 
-When developing locally, the best way to achieve this is to use the NNF team's [nnf-deploy](github.com/NearNodeFlash/nnf-deploy) tool. Follow the instructions in the readme to build the tool and to [deploy it to a kind cluster](github.com/NearNodeFlash/nnf-deploy#kind-cluster). You will need to have [go](https://go.dev/) and [kind](https://kind.sigs.k8s.io/) installed.
+When developing locally, the best way to achieve this is to use the NNF team's [nnf-deploy](https://github.com/NearNodeFlash/nnf-deploy) tool. Follow the instructions in the readme to build the tool and to [deploy it to a kind cluster](https://github.com/NearNodeFlash/nnf-deploy#kind-cluster). You will need to have [go](https://go.dev/) and [kind](https://kind.sigs.k8s.io/) installed.
 
 The next step is to add the objects to your cluster with `kubectl apply -f ./k8s`.
 
