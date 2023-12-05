@@ -16,6 +16,7 @@ import argparse
 import logging
 import pwd
 import time
+import pathlib
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
@@ -507,6 +508,13 @@ def setup_parsing():
         default=None,
         metavar="FILE",
         help="Path to kubeconfig file to use",
+    )
+    parser.add_argument(
+        "--resourcegraph",
+        "-r",
+        default=str(pathlib.Path("/etc/flux/system/R").absolute()),
+        metavar="FILE",
+        help="Path to file containing Fluxion JGF resource graph",
     )
     return parser
 
