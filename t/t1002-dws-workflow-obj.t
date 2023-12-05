@@ -48,7 +48,7 @@ test_expect_success 'exec dws service-providing script' '
 	DWS_JOBID=$(flux submit \
 	        --setattr=system.alloc-bypass.R="$R" \
 	        -o per-resource.type=node --output=dws1.out --error=dws1.err \
-	        python ${DWS_MODULE_PATH} -e1 -v) &&
+	        python ${DWS_MODULE_PATH} -e1 -v -rR.local) &&
 	flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start
 '
 
@@ -184,7 +184,7 @@ test_expect_success 'exec dws service-providing script with custom config path' 
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws2.out --error=dws2.err \
-		python ${DWS_MODULE_PATH} -e1 --kubeconfig $PWD/kubeconfig -v) &&
+		python ${DWS_MODULE_PATH} -e1 --kubeconfig $PWD/kubeconfig -v -rR.local) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
 	${RPC} "dws.create"
 '
@@ -240,7 +240,7 @@ test_expect_success 'dws service script handles restarts while a job is running'
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws3.out --error=dws3.err \
-		python ${DWS_MODULE_PATH} -e1 --kubeconfig $PWD/kubeconfig -v) &&
+		python ${DWS_MODULE_PATH} -e1 --kubeconfig $PWD/kubeconfig -v -rR.local) &&
 	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
