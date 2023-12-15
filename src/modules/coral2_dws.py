@@ -623,7 +623,6 @@ def main():
         raise
     populate_rabbits_dict(k8s_api)
     handle = flux.Flux()
-    services = register_services(handle, k8s_api)
     # create a timer watcher for killing workflows that have been stuck in
     # the "Error" state for too long
     handle.timer_watcher_create(
@@ -636,6 +635,7 @@ def main():
     # or new RPCs are received
     with Watchers(handle, watch_interval=args.watch_interval) as watchers:
         init_rabbits(k8s_api, handle, watchers, args.resourcegraph)
+        services = register_services(handle, k8s_api)
         watchers.add_watch(
             Watch(k8s_api, WORKFLOW_CRD, 0, workflow_state_change_cb, handle, k8s_api)
         )
