@@ -124,6 +124,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             1,
             [],
             f"{parent.path}/{res_name}",
+            1,  # status=1 marks the rabbits as 'down' initially
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
         self._add_and_tick_uniq_id(vtx, edg)
