@@ -50,6 +50,17 @@ test_expect_success HAVE_JQ 'flux-dws2jgf.py outputs expected JGF for compute no
 	test_cmp ${DATADIR}/expected-compute-01-nodws.jgf actual-compute-01-nodws.jgf
 '
 
+test_expect_success HAVE_JQ 'fluxion rejects a rack/rabbit job when no rabbits are recognized' '
+	flux module remove -f sched-fluxion-qmanager &&
+	flux module remove -f sched-fluxion-resource &&
+	flux module reload resource &&
+	flux module load sched-fluxion-resource &&
+	flux module load sched-fluxion-qmanager &&
+	JOBID=$(flux job submit ${DATADIR}/rabbit-jobspec.json) &&
+	test_must_fail flux job attach $JOBID &&
+	flux job wait-event -vt 2 ${JOBID} exception
+'
+
 test_expect_success HAVE_JQ 'fluxion can be loaded with output of dws2jgf' '
 	flux run -n1 hostname &&
 	flux R encode -l | flux python ${CMD} --no-validate | jq . > R.local &&
@@ -60,18 +71,21 @@ test_expect_success HAVE_JQ 'fluxion can be loaded with output of dws2jgf' '
 	flux module reload resource &&
 	flux module load sched-fluxion-resource &&
 	flux module load sched-fluxion-qmanager &&
-	flux run -n1 hostname &&
-	flux module remove sched-fluxion-qmanager &&
-	flux module remove sched-fluxion-resource
+	JOBID=$(flux submit -n1 hostname) &&
+	flux job wait-event -vt 2 -m status=0 ${JOBID} finish
 '
 
-test_expect_success HAVE_JQ 'fluxion can run a rack/rabbit job' '
-	flux module reload resource &&
-	flux module load sched-fluxion-resource &&
-	flux module load sched-fluxion-qmanager &&
+test_expect_success HAVE_JQ 'fluxion does not allocate a rack/rabbit job after adding down rabbits' '
 	JOBID=$(flux job submit ${DATADIR}/rabbit-jobspec.json) &&
-	flux job attach $JOBID &&
+	test_must_fail flux job wait-event -vt 2 ${JOBID} alloc &&
+	flux cancel $JOBID
+'
+
+test_expect_success HAVE_JQ 'fluxion allocates a rack/rabbit job when rabbit is up' '
+	${SHARNESS_TEST_SRCDIR}/scripts/set_status.py /ElCapitan0/rack0/kind-worker2 up &&
+	JOBID=$(flux job submit ${DATADIR}/rabbit-jobspec.json) &&
 	flux job wait-event -vt 2 -m status=0 ${JOBID} finish &&
+	flux job attach $JOBID &&
 	flux module remove sched-fluxion-qmanager &&
 	flux module remove sched-fluxion-resource
 '
