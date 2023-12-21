@@ -56,6 +56,16 @@ class WorkflowInfo:
         self.rabbits = None
 
 
+def log_rpc_response(rpc):
+    """RPC callback for logging response."""
+    try:
+        msg = rpc.get()
+    except Exception as exc:
+        LOGGER.warning("RPC error %s", str(exc))
+    else:
+        LOGGER.debug("RPC response was %s", msg)
+
+
 def fetch_rabbits(k8s_api, workflow_computes):
     """Fetch all the rabbits associated with this workflow"""
     response = k8s_api.get_namespaced_custom_object(
@@ -155,7 +165,7 @@ def create_cb(handle, _t, msg, api_instance):
     handle.rpc(
         "job-manager.memo",
         payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}},
-    )
+    ).then(log_rpc_response)
 
 
 @message_callback_wrapper
@@ -180,7 +190,7 @@ def setup_cb(handle, _t, msg, k8s_api):
     handle.rpc(
         "job-manager.memo",
         payload={"id": jobid, "memo": {"rabbits": list(nodes_per_nnf.keys())}},
-    )
+    ).then(log_rpc_response)
     k8s_api.patch_namespaced_custom_object(
         COMPUTE_CRD.group,
         COMPUTE_CRD.version,
@@ -325,7 +335,9 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
         # delete workflow object and tell DWS jobtap plugin that the job is done
         k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
         winfo.deleted = True
-        handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid})
+        handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
+            log_rpc_response
+        )
     elif winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
         # Without this early 'return', this function may try to
@@ -344,7 +356,7 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
                 "id": jobid,
                 "resources": resources,
             },
-        )
+        ).then(log_rpc_response)
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
         move_workflow_desiredstate(winfo.name, "DataIn", k8s_api)
@@ -366,7 +378,7 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
                     rabbit: _RABBITS_TO_HOSTLISTS[rabbit] for rabbit in rabbits
                 },
             },
-        )
+        ).then(log_rpc_response)
     elif state_complete(workflow, "PostRun"):
         # move workflow to next stage, DataOut
         move_workflow_desiredstate(winfo.name, "DataOut", k8s_api)
@@ -406,11 +418,11 @@ def mark_rabbit(handle, status, resource_path):
     if status == "Ready":
         LOGGER.debug("Marking rabbit %s as up", resource_path)
         payload = {"resource_path": resource_path, "status": "up"}
-        handle.rpc("sched-fluxion-resource.set_status", payload)
+        handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
     else:
         LOGGER.debug("Marking rabbit %s as down, status is %s", resource_path, status)
         payload = {"resource_path": resource_path, "status": "down"}
-        handle.rpc("sched-fluxion-resource.set_status", payload)
+        handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
 
 
 def rabbit_state_change_cb(event, handle, rabbit_rpaths):
