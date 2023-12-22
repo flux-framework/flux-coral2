@@ -16,6 +16,7 @@ import argparse
 import logging
 import pwd
 import time
+import pathlib
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
@@ -53,6 +54,16 @@ class WorkflowInfo:
         self.last_tc_time = None  # time in seconds of last TransientCondition
         self.last_tc_message = None  # message associated with last TransientCondition
         self.rabbits = None
+
+
+def log_rpc_response(rpc):
+    """RPC callback for logging response."""
+    try:
+        msg = rpc.get()
+    except Exception as exc:
+        LOGGER.warning("RPC error %s", str(exc))
+    else:
+        LOGGER.debug("RPC response was %s", msg)
 
 
 def fetch_rabbits(k8s_api, workflow_computes):
@@ -154,7 +165,7 @@ def create_cb(handle, _t, msg, api_instance):
     handle.rpc(
         "job-manager.memo",
         payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}},
-    )
+    ).then(log_rpc_response)
 
 
 @message_callback_wrapper
@@ -179,7 +190,7 @@ def setup_cb(handle, _t, msg, k8s_api):
     handle.rpc(
         "job-manager.memo",
         payload={"id": jobid, "memo": {"rabbits": list(nodes_per_nnf.keys())}},
-    )
+    ).then(log_rpc_response)
     k8s_api.patch_namespaced_custom_object(
         COMPUTE_CRD.group,
         COMPUTE_CRD.version,
@@ -324,7 +335,9 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
         # delete workflow object and tell DWS jobtap plugin that the job is done
         k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
         winfo.deleted = True
-        handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid})
+        handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
+            log_rpc_response
+        )
     elif winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
         # Without this early 'return', this function may try to
@@ -343,7 +356,7 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
                 "id": jobid,
                 "resources": resources,
             },
-        )
+        ).then(log_rpc_response)
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
         move_workflow_desiredstate(winfo.name, "DataIn", k8s_api)
@@ -365,7 +378,7 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
                     rabbit: _RABBITS_TO_HOSTLISTS[rabbit] for rabbit in rabbits
                 },
             },
-        )
+        ).then(log_rpc_response)
     elif state_complete(workflow, "PostRun"):
         # move workflow to next stage, DataOut
         move_workflow_desiredstate(winfo.name, "DataOut", k8s_api)
@@ -400,58 +413,79 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
         WORKFLOWS_IN_TC.discard(winfo)
 
 
-def rabbit_state_change_cb(event, handle, rabbits):
-    """Callback firing when a rabbit changes state."""
-    obj = event["object"]
-    name = obj["metadata"]["name"]
-    capacity = obj["status"]["capacity"]
-    status = obj["status"]["status"]
+def mark_rabbit(handle, status, resource_path):
+    """Send an RPC to mark a rabbit as up or down."""
+    if status == "Ready":
+        LOGGER.debug("Marking rabbit %s as up", resource_path)
+        payload = {"resource_path": resource_path, "status": "up"}
+        handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
+    else:
+        LOGGER.debug("Marking rabbit %s as down, status is %s", resource_path, status)
+        payload = {"resource_path": resource_path, "status": "down"}
+        handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
 
-    try:
-        curr_rabbit = rabbits[name]
-    except KeyError:
-        handle.log(
-            syslog.LOG_DEBUG,
-            f"Just encountered an unknown Storage object ({name}) in the event stream",
+
+def rabbit_state_change_cb(event, handle, rabbit_rpaths):
+    """Callback firing when a Storage object changes.
+
+    Marks a rabbit as up or down.
+    """
+    rabbit = event["object"]
+    name = rabbit["metadata"]["name"]
+    status = rabbit["status"]["status"]
+    if name not in rabbit_rpaths:
+        LOGGER.error(
+            "Encountered an unknown Storage object '%s' in the event stream", name
         )
-        # TODO: should never happen, but if it does,
-        # insert the rabbit into the resource graph
         return
-
-    if curr_rabbit["status"]["status"] != status:
-        handle.log(syslog.LOG_DEBUG, f"Storage {name} status changed to {status}")
-        # TODO: update status of vertex in resource graph
-    if curr_rabbit["status"]["capacity"] != capacity:
-        handle.log(
-            syslog.LOG_DEBUG,
-            f"Storage {name} capacity changed to {capacity}",
-        )
-        # TODO: update "percentDegraded" property of vertex in resource graph
-        # TODO: update capacity of rabbit in resource graph (mark some slices down?)
-    rabbits[name] = obj
+    mark_rabbit(handle, status, rabbit_rpaths[name])
+    # TODO: add some check for whether rabbit capacity has changed
+    # TODO: update capacity of rabbit in resource graph (mark some slices down?)
 
 
-def init_rabbits(k8s_api, handle, watchers):
-    """Watch every rabbit known to k8s"""
-    try:
-        api_response = k8s_api.list_namespaced_custom_object(*RABBIT_CRD)
-    except ApiException as err:
-        handle.log(syslog.LOG_ERR, f"Exception: {err}\n")
-        raise
+def map_rabbits_to_fluxion_paths(graph_path):
+    """Read the fluxion resource graph and map rabbit hostnames to resource paths."""
+    rabbit_rpaths = {}
+    with open(graph_path) as fd:
+        nodes = json.load(fd)["scheduling"]["graph"]["nodes"]
+    for vertex in nodes:
+        metadata = vertex["metadata"]
+        if metadata["type"] == "rabbit":
+            rabbit_rpaths[metadata["name"]] = metadata["paths"]["containment"]
+    return rabbit_rpaths
 
-    rabbits = {}
 
-    latest_version = api_response["metadata"]["resourceVersion"]
+def init_rabbits(k8s_api, handle, watchers, graph_path):
+    """Watch every rabbit ('Storage' resources in k8s) known to k8s.
+
+    Whenever a Storage resource changes, mark it as 'up' or 'down' in Fluxion.
+
+    Also, to initialize, check the status of all rabbits and mark each one as up or
+    down, because status may have changed while this service was inactive.
+    """
+    api_response = k8s_api.list_namespaced_custom_object(*RABBIT_CRD)
+    rabbit_rpaths = map_rabbits_to_fluxion_paths(graph_path)
+    resource_version = 0
     for rabbit in api_response["items"]:
         name = rabbit["metadata"]["name"]
-        rabbits[name] = rabbit
-
+        resource_version = max(
+            resource_version, int(rabbit["metadata"]["resourceVersion"])
+        )
+        if name not in rabbit_rpaths:
+            LOGGER.error(
+                "Encountered an unknown Storage object '%s' in the event stream", name
+            )
+        mark_rabbit(handle, rabbit["status"]["status"], rabbit_rpaths[name])
     watchers.add_watch(
         Watch(
-            k8s_api, RABBIT_CRD, latest_version, rabbit_state_change_cb, handle, rabbits
+            k8s_api,
+            RABBIT_CRD,
+            resource_version,
+            rabbit_state_change_cb,
+            handle,
+            rabbit_rpaths,
         )
     )
-    return rabbits
 
 
 def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
@@ -507,6 +541,13 @@ def setup_parsing():
         default=None,
         metavar="FILE",
         help="Path to kubeconfig file to use",
+    )
+    parser.add_argument(
+        "--resourcegraph",
+        "-r",
+        default=str(pathlib.Path("/etc/flux/system/R").absolute()),
+        metavar="FILE",
+        help="Path to file containing Fluxion JGF resource graph",
     )
     return parser
 
@@ -594,7 +635,6 @@ def main():
         raise
     populate_rabbits_dict(k8s_api)
     handle = flux.Flux()
-    services = register_services(handle, k8s_api)
     # create a timer watcher for killing workflows that have been stuck in
     # the "Error" state for too long
     handle.timer_watcher_create(
@@ -606,7 +646,8 @@ def main():
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
     with Watchers(handle, watch_interval=args.watch_interval) as watchers:
-        init_rabbits(k8s_api, handle, watchers)
+        init_rabbits(k8s_api, handle, watchers, args.resourcegraph)
+        services = register_services(handle, k8s_api)
         watchers.add_watch(
             Watch(k8s_api, WORKFLOW_CRD, 0, workflow_state_change_cb, handle, k8s_api)
         )

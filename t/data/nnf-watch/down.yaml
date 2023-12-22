@@ -1,3 +1,2 @@
-data:
-  capacity: 100000
-  status: NotReady
+spec:
+  state: Disabled
