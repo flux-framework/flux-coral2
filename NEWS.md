@@ -1,3 +1,15 @@
+flux-coral2 0.9.0 - 2024-01-05
+------------------------------
+
+### New Features
+
+ * dws: send RPCs to Fluxion to mark rabbits as up or down (#117)
+ * dws2jgf: initialize Fluxion with rabbits marked as down (#120)
+
+### Fixes
+
+ * README: fix broken links (#116)
+
 flux-coral2 0.8.1 - 2023-11-30
 ------------------------------
 
