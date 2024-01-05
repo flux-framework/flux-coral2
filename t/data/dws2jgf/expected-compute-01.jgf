@@ -70,7 +70,8 @@
             "properties": [],
             "paths": {
               "containment": "/ElCapitan0/rack0/kind-worker2"
-            }
+            },
+            "status": 1
           }
         },
         {
@@ -718,7 +719,8 @@
             "properties": [],
             "paths": {
               "containment": "/ElCapitan0/rack1/kind-worker3"
-            }
+            },
+            "status": 1
           }
         },
         {
