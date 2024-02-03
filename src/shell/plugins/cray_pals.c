@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <argz.h>
+#include <libgen.h>
 
 #include <jansson.h>
 
@@ -684,6 +685,44 @@ static int get_pals_ports (flux_shell_t *shell, json_int_t jobid)
 }
 
 /*
+ * Remove the first occurrence of 'path' from the environment variable
+ * 'name', which is assumed to be a colon-separated list.
+ * Return -1 on error, 0 if found and removed.
+ */
+static int remove_path_from_cmd_env (flux_cmd_t *cmd,
+                                     const char *name,
+                                     const char *path)
+{
+    const char *searchpath;
+    char *argz;
+    size_t argz_len;
+    int rc = -1;
+
+    if (!(searchpath = flux_cmd_getenv (cmd, name))
+        || argz_create_sep (searchpath, ':', &argz, &argz_len) != 0)
+        return -1;
+
+    char *entry = NULL;
+    while ((entry = argz_next (argz, argz_len, entry))) {
+        if (!strcmp (entry, path)) { // match!
+            argz_delete (&argz, &argz_len, entry);
+            if (argz && strlen (argz) > 0) {
+                argz_stringify (argz, argz_len, ':');
+                if (flux_cmd_setenvf (cmd, 1, name, "%s", argz) < 0)
+                    goto out;
+            }
+            else
+                flux_cmd_unsetenv (cmd, name);
+            rc = 0;
+            break;
+        }
+    }
+out:
+    free (argz);
+    return rc;
+}
+
+/*
  * Set job-wide environment variables for LibPALS
  */
 static int set_environment (flux_shell_t *shell,
@@ -763,6 +802,17 @@ static int libpals_task_init (flux_plugin_t *p,
         return -1;
     }
     shell_trace ("set PALS_RANKID to %d", task_rank);
+
+    // if LD_LIBRARY_PATH includes flux libpmi2.so, nix that (best effort)
+    const char *pmipath = flux_conf_builtin_get ("pmi_library_path",
+                                                 FLUX_CONF_INSTALLED);
+    char *cpy = NULL;
+    char *pmidir;
+    if (pmipath && (cpy = strdup (pmipath)) && (pmidir = dirname (cpy))) {
+        while (remove_path_from_cmd_env (cmd, "LD_LIBRARY_PATH", pmidir) == 0)
+            shell_trace ("edit LD_LIBRARY_PATH remove %s", pmidir);
+    }
+    free (cpy);
     return 0;
 }
 
