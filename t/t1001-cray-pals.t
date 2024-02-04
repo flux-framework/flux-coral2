@@ -89,6 +89,37 @@ test_expect_success 'shell: cray-pals unsets PALS variables when inactive' '
 	test_must_fail flux run -o userrc=$(pwd)/$USERRC_NAME -o pmi=none \
 		printenv PMI_CONTROL_PORT)
 '
+test_expect_success 'shell: cray-pals edits LD_LIBRARY_PATH=pmidir:/noexist:pmidir' '
+	pmidir=$(dirname $(flux config builtin pmi_library_path)) &&
+	flux run -o pmi=cray-pals -o userrc=$(pwd)/$USERRC_NAME \
+	    --env=LD_LIBRARY_PATH=$pmidir:/noexist:$pmidir \
+	    printenv LD_LIBRARY_PATH >libedit.out &&
+	cat >libedit.exp <<-EOT &&
+	/noexist
+	EOT
+	test_cmp libedit.exp libedit.out
+'
+test_expect_success 'shell: cray-pals removes LD_LIBRARY_PATH=pmidir' '
+	pmidir=$(dirname $(flux config builtin pmi_library_path)) &&
+	test_must_fail flux run -o pmi=cray-pals \
+	    -o userrc=$(pwd)/$USERRC_NAME --env=LD_LIBRARY_PATH=$pmidir \
+	    printenv LD_LIBRARY_PATH
+'
+# In anticipation of flux-framework/flux-core#5714
+test_expect_success 'shell: cray-pals removes LD_LIBRARY_PATH=pmidir if added by simple pmi' '
+	test_must_fail flux run -o pmi=simple,cray-pals \
+	    -o userrc=$(pwd)/$USERRC_NAME --env=-LD_LIBRARY_PATH \
+	    printenv LD_LIBRARY_PATH
+'
+test_expect_success 'shell: cray-pals ignores LD_LIBRARY_PATH=/noexist' '
+	flux run -o pmi=cray-pals -o userrc=$(pwd)/$USERRC_NAME \
+	    --env=LD_LIBRARY_PATH=/noexist \
+	    printenv LD_LIBRARY_PATH >libedit2.out &&
+	cat >libedit2.exp <<-EOT &&
+	/noexist
+	EOT
+	test_cmp libedit2.exp libedit2.out
+'
 
 test_expect_success 'shell: pals shell plugin sets environment' '
 	environment=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 env) &&
