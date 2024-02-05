@@ -144,6 +144,10 @@ struct task_placement {
     int **task_ids;
 };
 
+/* If true, don't edit LD_LIBRARY_PATH
+ */
+static int no_edit_env;
+
 /*
  * Return a 'struct hostlist' containing the hostnames of every shell rank.
  */
@@ -803,16 +807,17 @@ static int libpals_task_init (flux_plugin_t *p,
     }
     shell_trace ("set PALS_RANKID to %d", task_rank);
 
-    // if LD_LIBRARY_PATH includes flux libpmi2.so, nix that (best effort)
-    const char *pmipath = flux_conf_builtin_get ("pmi_library_path",
-                                                 FLUX_CONF_INSTALLED);
-    char *cpy = NULL;
-    char *pmidir;
-    if (pmipath && (cpy = strdup (pmipath)) && (pmidir = dirname (cpy))) {
-        while (remove_path_from_cmd_env (cmd, "LD_LIBRARY_PATH", pmidir) == 0)
-            shell_trace ("edit LD_LIBRARY_PATH remove %s", pmidir);
+    if (!no_edit_env) {
+        const char *pmipath = flux_conf_builtin_get ("pmi_library_path",
+                                                     FLUX_CONF_INSTALLED);
+        char *cpy = NULL;
+        char *dir;
+        if (pmipath && (cpy = strdup (pmipath)) && (dir = dirname (cpy))) {
+            while (remove_path_from_cmd_env (cmd, "LD_LIBRARY_PATH", dir) == 0)
+                shell_trace ("edit LD_LIBRARY_PATH remove %s", dir);
+        }
+        free (cpy);
     }
-    free (cpy);
     return 0;
 }
 
@@ -880,6 +885,13 @@ int flux_plugin_init (flux_plugin_t *p)
         return unset_pals_env (shell);
 
     shell_debug ("enabled");
+
+    // If -o cray-pals.no-edit-env is was speciifed set a flag for later
+    no_edit_env = 0;
+    (void)flux_shell_getopt_unpack (shell,
+                                    "cray-pals",
+                                    "{s?i}",
+                                    "no-edit-env", &no_edit_env);
 
     if (flux_plugin_add_handler (p, "shell.init", libpals_init, NULL) < 0
         || flux_plugin_add_handler (p, "task.init", libpals_task_init, NULL) < 0)
