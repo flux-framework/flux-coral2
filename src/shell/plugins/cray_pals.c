@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <argz.h>
+#include <libgen.h>
 
 #include <jansson.h>
 
@@ -142,6 +143,10 @@ struct task_placement {
     int *task_counts;
     int **task_ids;
 };
+
+/* If true, don't edit LD_LIBRARY_PATH
+ */
+static int no_edit_env;
 
 /*
  * Return a 'struct hostlist' containing the hostnames of every shell rank.
@@ -684,6 +689,44 @@ static int get_pals_ports (flux_shell_t *shell, json_int_t jobid)
 }
 
 /*
+ * Remove the first occurrence of 'path' from the environment variable
+ * 'name', which is assumed to be a colon-separated list.
+ * Return -1 on error, 0 if found and removed.
+ */
+static int remove_path_from_cmd_env (flux_cmd_t *cmd,
+                                     const char *name,
+                                     const char *path)
+{
+    const char *searchpath;
+    char *argz;
+    size_t argz_len;
+    int rc = -1;
+
+    if (!(searchpath = flux_cmd_getenv (cmd, name))
+        || argz_create_sep (searchpath, ':', &argz, &argz_len) != 0)
+        return -1;
+
+    char *entry = NULL;
+    while ((entry = argz_next (argz, argz_len, entry))) {
+        if (!strcmp (entry, path)) { // match!
+            argz_delete (&argz, &argz_len, entry);
+            if (argz && strlen (argz) > 0) {
+                argz_stringify (argz, argz_len, ':');
+                if (flux_cmd_setenvf (cmd, 1, name, "%s", argz) < 0)
+                    goto out;
+            }
+            else
+                flux_cmd_unsetenv (cmd, name);
+            rc = 0;
+            break;
+        }
+    }
+out:
+    free (argz);
+    return rc;
+}
+
+/*
  * Set job-wide environment variables for LibPALS
  */
 static int set_environment (flux_shell_t *shell,
@@ -763,6 +806,18 @@ static int libpals_task_init (flux_plugin_t *p,
         return -1;
     }
     shell_trace ("set PALS_RANKID to %d", task_rank);
+
+    if (!no_edit_env) {
+        const char *pmipath = flux_conf_builtin_get ("pmi_library_path",
+                                                     FLUX_CONF_INSTALLED);
+        char *cpy = NULL;
+        char *dir;
+        if (pmipath && (cpy = strdup (pmipath)) && (dir = dirname (cpy))) {
+            while (remove_path_from_cmd_env (cmd, "LD_LIBRARY_PATH", dir) == 0)
+                shell_trace ("edit LD_LIBRARY_PATH remove %s", dir);
+        }
+        free (cpy);
+    }
     return 0;
 }
 
@@ -831,9 +886,18 @@ int flux_plugin_init (flux_plugin_t *p)
 
     shell_debug ("enabled");
 
+    // If -o cray-pals.no-edit-env is was speciifed set a flag for later
+    no_edit_env = 0;
+    (void)flux_shell_getopt_unpack (shell,
+                                    "cray-pals",
+                                    "{s?i}",
+                                    "no-edit-env", &no_edit_env);
+
     if (flux_plugin_add_handler (p, "shell.init", libpals_init, NULL) < 0
         || flux_plugin_add_handler (p, "task.init", libpals_task_init, NULL) < 0)
         return -1;
 
     return 0;
 }
+
+// vi:ts=4 sw=4 expandtab
