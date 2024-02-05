@@ -120,6 +120,14 @@ test_expect_success 'shell: cray-pals ignores LD_LIBRARY_PATH=/noexist' '
 	EOT
 	test_cmp libedit2.exp libedit2.out
 '
+test_expect_success 'shell: the -o cray-pals=no-edit-env shell option works' '
+	pmidir=$(dirname $(flux config builtin pmi_library_path)) &&
+	flux run -o pmi=cray-pals -o cray-pals.no-edit-env \
+	    -o userrc=$(pwd)/$USERRC_NAME --env=LD_LIBRARY_PATH=$pmidir \
+	    printenv LD_LIBRARY_PATH >libedit3.out &&
+	echo $pmidir >libedit3.exp &&
+	test_cmp libedit3.exp libedit3.out
+'
 
 test_expect_success 'shell: pals shell plugin sets environment' '
 	environment=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 env) &&
