@@ -1,3 +1,10 @@
+flux-coral2 0.10.0 - 2024-02-06
+-------------------------------
+
+### New Features
+
+ * cray-pals: edit LD_LIBRARY_PATH to avoid Flux libpmi2.so (#122)
+
 flux-coral2 0.9.0 - 2024-01-05
 ------------------------------
 
