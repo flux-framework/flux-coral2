@@ -67,9 +67,9 @@ AS_IF([test "x$enable_pylint" = "xyes"], [
 ])
 AM_CONDITIONAL([ENABLE_PYLINT], [test "x$PYLINT" = "xpylint"])
 AM_CHECK_PYMOD(kubernetes,
-                  [StrictVersion(kubernetes.__version__) >= StrictVersion('12.0.0')],
+                  [StrictVersion(kubernetes.__version__) >= StrictVersion('11.0.0')],
                   ,
-                  [AC_MSG_ERROR([could not find python module kubernetes, version 12.0.0+ required])]
+                  [AC_MSG_ERROR([could not find python module kubernetes, version 11.0.0+ required])]
                 )
 
 # Checks for header files.
