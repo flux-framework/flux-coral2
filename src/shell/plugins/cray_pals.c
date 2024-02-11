@@ -24,6 +24,7 @@
 
 #include <flux/hostlist.h>
 #include <flux/shell.h>
+#include <flux/taskmap.h>
 
 #include "eventlog_helpers.h"
 
@@ -317,156 +318,59 @@ static int write_pals_nodes (int fd, struct hostlist *hlist)
 }
 
 /*
- * Return the number of job tasks assigned to each shell rank.
+ * Return a mapping from nodes to the task IDs they are associated with.
  */
-static int *get_task_counts_pershell (flux_shell_t *shell, int shell_size)
+static struct task_placement *get_task_placement (flux_shell_t *shell)
 {
-    int *task_counts;
-    int i;
-
-    if (!(task_counts = malloc (shell_size * sizeof (shell_size)))) {
-        return NULL;
-    }
-    for (i = 0; i < shell_size; ++i) {
-        if (flux_shell_rank_info_unpack (shell, i, "{s:i}", "ntasks", &task_counts[i])
-            < 0) {
-            free (task_counts);
-            return NULL;
-        }
-    }
-    return task_counts;
-}
-
-/*
- * Return the job ranks assigned to each shell rank.
- * 'task_counts' should be an array of length 'shell_size' specifying
- * how many tasks are assigned to each shell in the job.
- */
-static int **get_task_ids_pershell (int *task_counts_pershell, int shell_size)
-{
-    int **task_ids;
-    int shell_rank, j, curr_task_id = 0;
-
-    if (!(task_ids = malloc (shell_size * sizeof (task_counts_pershell)))) {
-        return NULL;
-    }
-    for (shell_rank = 0; shell_rank < shell_size; ++shell_rank) {
-        if (!(task_ids[shell_rank] = malloc (task_counts_pershell[shell_rank]
-                                             * sizeof (task_counts_pershell)))) {
-            for (j = 0; j < shell_rank; ++j) {
-                free (task_ids[shell_rank]);
-            }
-            free (task_ids);
-            return NULL;
-        }
-        for (j = 0; j < task_counts_pershell[shell_rank]; ++j) {
-            task_ids[shell_rank][j] = curr_task_id++;
-        }
-    }
-    return task_ids;
-}
-
-/*
- * Return the placement of job ranks on nodes.
- */
-static struct task_placement *get_task_placement_pernode (int nnodes,
-                                                          int shell_size,
-                                                          int *shells_to_nodes,
-                                                          int *task_counts_pershell,
-                                                          int **task_ids_pershell)
-{
-    int *task_counts_pernode = NULL, **task_ids_pernode = NULL;
-    // keep track of how much each entry in 'task_ids_pernode' is filled
-    int *task_ids_pernode_fill = NULL;
-    int shell_rank, node_index, i;
     struct task_placement *ret = NULL;
+    const struct taskmap *map;
+    const struct idset *idset;
+    int nnodes;
+    unsigned int curr_task_id = 0;
 
-    if (!(task_counts_pernode = calloc (nnodes, sizeof (nnodes)))
-        || !(task_ids_pernode_fill = calloc (nnodes, sizeof (nnodes)))
-        || !(task_ids_pernode = malloc (nnodes * sizeof (task_counts_pernode)))
+    if (!(map = flux_shell_get_taskmap (shell)) || (nnodes = taskmap_nnodes (map)) < 1
         || !(ret = malloc (sizeof (struct task_placement)))) {
-        goto error;
+        return NULL;
     }
-    for (shell_rank = 0; shell_rank < shell_size; ++shell_rank) {
-        // count the number of tasks per node
-        node_index = shells_to_nodes[shell_rank];
-        task_counts_pernode[node_index] += task_counts_pershell[shell_rank];
+    if (!(ret->task_counts = malloc (sizeof (*(ret->task_counts)) * nnodes))) {
+        free (ret);
+        return NULL;
     }
-    // make space for task IDs for each node
-    for (node_index = 0; node_index < nnodes; ++node_index) {
-        if (!(task_ids_pernode[node_index] =
-                  malloc (task_counts_pernode[node_index] * sizeof (nnodes)))) {
-            freemany (task_ids_pernode, node_index);
+    // use calloc so we can call `free` indiscriminately on pointers
+    // in the `task_ids` array
+    if (!(ret->task_ids = calloc (nnodes, sizeof (*(ret->task_ids))))) {
+        free (ret->task_counts);
+        free (ret);
+        return NULL;
+    }
+    for (int nodeid = 0; nodeid < nnodes; ++nodeid) {
+        if ((ret->task_counts[nodeid] = taskmap_ntasks (map, nodeid)) < 0
+            || !(ret->task_ids[nodeid] = malloc (sizeof (*(ret->task_ids[nodeid]))
+                                                 * ret->task_counts[nodeid]))
+            || !(idset = taskmap_taskids (map, nodeid))) {
+            shell_log_error ("Error fetching task idset for nodeid %i", nodeid);
             goto error;
         }
-    }
-    for (shell_rank = 0; shell_rank < shell_size; ++shell_rank) {
-        node_index = shells_to_nodes[shell_rank];
-        for (i = 0; i < task_counts_pershell[shell_rank]; ++i) {
-            task_ids_pernode[node_index][task_ids_pernode_fill[node_index]] =
-                task_ids_pershell[shell_rank][i];
-            task_ids_pernode_fill[node_index]++;
+        curr_task_id = idset_first (idset);
+        for (int localtasknum = 0; localtasknum < ret->task_counts[nodeid];
+             ++localtasknum) {
+            if (curr_task_id == IDSET_INVALID_ID) {
+                shell_log_error ("Fetched an invalid ID for nodeid %i", nodeid);
+                goto error;
+            }
+            ret->task_ids[nodeid][localtasknum] = (int)curr_task_id;
+            curr_task_id = idset_next (idset, curr_task_id);
         }
     }
 
-    free (task_ids_pernode_fill);
-    ret->task_ids = task_ids_pernode;
-    ret->task_counts = task_counts_pernode;
     return ret;
 
 error:
-    free (task_ids_pernode_fill);
-    free (task_counts_pernode);
-    free (task_ids_pernode);
+
+    free (ret->task_counts);
+    freemany (ret->task_ids, nnodes);
     free (ret);
     return NULL;
-}
-
-static struct task_placement *get_task_placement (flux_shell_t *shell,
-                                                  int nnodes,
-                                                  int shell_size,
-                                                  struct hostlist *hlist,
-                                                  struct hostlist *hlist_uniq)
-{
-    int shell_rank, *shells_to_nodes = NULL, *task_counts_pershell = NULL;
-    int **task_ids_pershell = NULL, node_index;
-    struct task_placement *ret = NULL;
-    const char *entry;
-
-    // get task placement per shell
-    if (!(shells_to_nodes = malloc (shell_size * sizeof (shell_size)))
-        || !(task_counts_pershell = get_task_counts_pershell (shell, shell_size))
-        || !(task_ids_pershell =
-                 get_task_ids_pershell (task_counts_pershell, shell_size))) {
-        shell_log_errno ("Error getting per-shell task IDs");
-        goto cleanup;
-    }
-
-    // find the node index of each shell rank
-    for (shell_rank = 0; shell_rank < shell_size; ++shell_rank) {
-        if (!(entry = hostlist_nth (hlist, shell_rank))
-            || (node_index = hostlist_find (hlist_uniq, entry)) < 0) {
-            shell_log_error ("Error mapping shells to nodes");
-            goto cleanup;
-        }
-        shells_to_nodes[shell_rank] = node_index;  // save the node index
-    }
-    if (!(ret = get_task_placement_pernode (nnodes,
-                                            shell_size,
-                                            shells_to_nodes,
-                                            task_counts_pershell,
-                                            task_ids_pershell))) {
-        shell_log_errno ("Error getting per-node task placement");
-    }
-
-cleanup:
-    free (shells_to_nodes);
-    free (task_counts_pershell);
-    if (task_ids_pershell) {
-        freemany (task_ids_pershell, shell_size);
-        free (task_ids_pershell);
-    }
-    return ret;
 }
 
 static int get_cores_per_task (flux_shell_t *shell, int ntasks)
@@ -523,9 +427,7 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
     }
     hostlist_uniq (hlist_uniq);
     nnodes = hostlist_count (hlist_uniq);
-    if (nnodes < 1
-        || !(placement =
-                 get_task_placement (shell, nnodes, shell_size, hlist, hlist_uniq))
+    if (nnodes < 1 || !(placement = get_task_placement (shell))
         || (cores_per_task = get_cores_per_task (shell, ntasks)) < 0) {
         shell_log_error ("Error calculating task placement");
         goto error;
