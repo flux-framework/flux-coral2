@@ -809,7 +809,7 @@ static int libpals_task_init (flux_plugin_t *p,
 
     if (!no_edit_env) {
         const char *pmipath = flux_conf_builtin_get ("pmi_library_path",
-                                                     FLUX_CONF_INSTALLED);
+                                                     FLUX_CONF_AUTO);
         char *cpy = NULL;
         char *dir;
         if (pmipath && (cpy = strdup (pmipath)) && (dir = dirname (cpy))) {
