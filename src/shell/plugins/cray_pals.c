@@ -405,7 +405,7 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
     pals_pe_t *pes = NULL;
     int shell_size, ntasks, cores_per_task, nnodes = 0;
     json_t *nodelist_array;
-    struct hostlist *hlist = NULL, *hlist_uniq = NULL;
+    struct hostlist *hlist = NULL;
     struct task_placement *placement = NULL;
 
     // Get shell size and hostlist
@@ -420,13 +420,11 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
                                 "nodelist",
                                 &nodelist_array)
             < 0
-        || !(hlist = hostlist_from_array (nodelist_array))
-        || !(hlist_uniq = hostlist_copy (hlist))) {
+        || !(hlist = hostlist_from_array (nodelist_array))) {
         shell_log_error ("Error creating hostlists");
         goto error;
     }
-    hostlist_uniq (hlist_uniq);
-    nnodes = hostlist_count (hlist_uniq);
+    nnodes = hostlist_count (hlist);
     if (nnodes < 1 || !(placement = get_task_placement (shell))
         || (cores_per_task = get_cores_per_task (shell, ntasks)) < 0) {
         shell_log_error ("Error calculating task placement");
@@ -447,7 +445,7 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
         || safe_write (fd, &hdr, sizeof (pals_header_t)) < 0
         || safe_write (fd, &cmd, (hdr.ncmds * sizeof (pals_cmd_t))) < 0
         || safe_write (fd, pes, (hdr.npes * sizeof (pals_pe_t))) < 0
-        || write_pals_nodes (fd, hlist_uniq) < 0 || fsync (fd) == -1) {
+        || write_pals_nodes (fd, hlist) < 0 || fsync (fd) == -1) {
         shell_log_errno ("Couldn't write apinfo to disk");
         goto error;
     }
@@ -456,7 +454,6 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
 cleanup:
 
     hostlist_destroy (hlist);
-    hostlist_destroy (hlist_uniq);
     if (placement) {
         free (placement->task_counts);
         freemany (placement->task_ids, nnodes);
