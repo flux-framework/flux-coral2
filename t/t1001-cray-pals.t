@@ -194,6 +194,29 @@ test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for multiple 
 	echo "$apinfo" | jq -e ".pes | length == 2"
 '
 
+test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for multiple nodes' '
+    apinfo=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N2 -n4 --label-io \
+    ${PYTHON:-python3} ${SHARNESS_TEST_SRCDIR}/scripts/apinfo_checker.py \
+    | sed -n "s/^1: //p") &&
+    echo "$apinfo" | jq -e ".cmds[0].npes == 4" &&
+    echo "$apinfo" | jq -e ".cmds[0].pes_per_node == 2" &&
+    echo "$apinfo" | jq -e ".pes[0].localidx == 0" &&
+    echo "$apinfo" | jq -e ".pes[1].localidx == 1" &&
+    echo "$apinfo" | jq -e ".pes[2].localidx == 0" &&
+    echo "$apinfo" | jq -e ".pes[3].localidx == 1" &&
+    echo "$apinfo" | jq -e ".pes[0].cmdidx == 0" &&
+    echo "$apinfo" | jq -e ".pes[1].cmdidx == 0" &&
+    echo "$apinfo" | jq -e ".pes[0].nodeidx == 0" &&
+    echo "$apinfo" | jq -e ".pes[1].nodeidx == 0" &&
+    echo "$apinfo" | jq -e ".pes[2].nodeidx == 1" &&
+    echo "$apinfo" | jq -e ".pes[3].nodeidx == 1" &&
+    echo "$apinfo" | jq -e ".nics | length == 0" &&
+    echo "$apinfo" | jq -e ".comm_profiles | length == 0" &&
+    echo "$apinfo" | jq -e ".nodes | length == 2" &&
+    echo "$apinfo" | jq -e ".cmds | length == 1" &&
+    echo "$apinfo" | jq -e ".pes | length == 4"
+'
+
 test_expect_success 'shell: pals shell plugin handles resource oversubscription' '
 	flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n2 -oper-resource.type=core -oper-resource.count=2 \
 	env | grep PALS_RANKID=3 &&
