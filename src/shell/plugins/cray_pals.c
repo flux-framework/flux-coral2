@@ -172,13 +172,6 @@ static struct hostlist *hostlist_from_array (json_t *nodelist_array)
     return hlist;
 }
 
-static void freemany (int **ptr, int size)
-{
-    for (int i = 0; i < size; ++i) {
-        free (ptr[i]);
-    }
-}
-
 /* Wrap calls to write for checks to EINTR/EAGAIN */
 static int safe_write (int fd, const void *buf, size_t size)
 {
@@ -318,18 +311,14 @@ static int write_pals_nodes (int fd, struct hostlist *hlist)
 }
 
 /*
- * Return a mapping from nodes to the task IDs they are associated with.
+ * Allocate and return a `struct task_placement`, returning
+ * NULL on error. Destroy with `task_placement_destroy`.
  */
-static struct task_placement *get_task_placement (flux_shell_t *shell)
+static struct task_placement *task_placement_create (int nnodes)
 {
     struct task_placement *ret = NULL;
-    const struct taskmap *map;
-    const struct idset *idset;
-    int nnodes;
-    unsigned int curr_task_id = 0;
 
-    if (!(map = flux_shell_get_taskmap (shell)) || (nnodes = taskmap_nnodes (map)) < 1
-        || !(ret = malloc (sizeof (struct task_placement)))) {
+    if (!(ret = malloc (sizeof (struct task_placement)))) {
         return NULL;
     }
     if (!(ret->task_counts = malloc (sizeof (*(ret->task_counts)) * nnodes))) {
@@ -343,20 +332,60 @@ static struct task_placement *get_task_placement (flux_shell_t *shell)
         free (ret);
         return NULL;
     }
+    return ret;
+}
+
+/*
+ * Destroy a `struct task_placement`. The elements of the `task_ids` array
+ * must either be pointers to valid memory or NULL.
+ */
+static void task_placement_destroy (struct task_placement *t, int nnodes)
+{
+    if (!t){
+        return;
+    }
+    free (t->task_counts);
+    for (int i = 0; i < nnodes; ++i) {
+        free (t->task_ids[i]);
+    }
+    free (t->task_ids);
+    free (t);
+}
+
+
+/*
+ * Return a mapping from nodes to the task IDs they are associated with.
+ */
+static struct task_placement *get_task_placement (flux_shell_t *shell)
+{
+    struct task_placement *ret = NULL;
+    const struct taskmap *map;
+    const struct idset *idset;
+    int nnodes;
+    unsigned int curr_task_id = 0;
+
+    if (!(map = flux_shell_get_taskmap (shell))
+        || (nnodes = taskmap_nnodes (map)) < 1
+        || !(ret = task_placement_create (nnodes))) {
+        return NULL;
+    }
+
     for (int nodeid = 0; nodeid < nnodes; ++nodeid) {
         if ((ret->task_counts[nodeid] = taskmap_ntasks (map, nodeid)) < 0
             || !(ret->task_ids[nodeid] = malloc (sizeof (*(ret->task_ids[nodeid]))
                                                  * ret->task_counts[nodeid]))
             || !(idset = taskmap_taskids (map, nodeid))) {
             shell_log_error ("Error fetching task idset for nodeid %i", nodeid);
-            goto error;
+            task_placement_destroy (ret, nnodes);
+            return NULL;
         }
         curr_task_id = idset_first (idset);
         for (int localtasknum = 0; localtasknum < ret->task_counts[nodeid];
              ++localtasknum) {
             if (curr_task_id == IDSET_INVALID_ID) {
                 shell_log_error ("Fetched an invalid ID for nodeid %i", nodeid);
-                goto error;
+                task_placement_destroy (ret, nnodes);
+                return NULL;
             }
             ret->task_ids[nodeid][localtasknum] = (int)curr_task_id;
             curr_task_id = idset_next (idset, curr_task_id);
@@ -364,13 +393,6 @@ static struct task_placement *get_task_placement (flux_shell_t *shell)
     }
 
     return ret;
-
-error:
-
-    free (ret->task_counts);
-    freemany (ret->task_ids, nnodes);
-    free (ret);
-    return NULL;
 }
 
 static int get_cores_per_task (flux_shell_t *shell, int ntasks)
@@ -454,12 +476,7 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
 cleanup:
 
     hostlist_destroy (hlist);
-    if (placement) {
-        free (placement->task_counts);
-        freemany (placement->task_ids, nnodes);
-        free (placement->task_ids);
-        free (placement);
-    }
+    task_placement_destroy (placement, nnodes);
     free (pes);
     close (fd);
     return shell_size;
