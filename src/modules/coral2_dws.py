@@ -17,6 +17,7 @@ import logging
 import pwd
 import time
 import pathlib
+import math
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
@@ -228,15 +229,17 @@ def setup_cb(handle, _t, msg, k8s_api):
                     alloc_set["allocationStrategy"]
                     == directivebreakdown.AllocationStrategy.ACROSS_SERVERS.value
                 ):
-                    server_alloc_set["allocationSize"] = alloc_set[
-                        "minimumCapacity"
-                    ] // len(hlist)
+                    nodecount_gcd = functools.reduce(math.gcd, nodes_per_nnf.values())
+                    server_alloc_set["allocationSize"] = (
+                        nodecount_gcd * alloc_set["minimumCapacity"] // len(hlist)
+                    )
                     # split lustre across every rabbit, weighting the split based on
                     # the number of the job's nodes associated with each rabbit
                     for rabbit_name in nodes_per_nnf:
                         storage_field.append(
                             {
-                                "allocationCount": nodes_per_nnf[rabbit_name],
+                                "allocationCount": nodes_per_nnf[rabbit_name]
+                                / nodecount_gcd,
                                 "name": rabbit_name,
                             }
                         )
