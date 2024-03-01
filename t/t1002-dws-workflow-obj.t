@@ -90,6 +90,18 @@ test_expect_success 'job submission with valid DW string works' '
 	flux job wait-event -vt 15 ${jobid} clean
 '
 
+test_expect_success 'job requesting too much storage is rejected' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=1000TiB type=xfs name=project1" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-remove &&
+	sleep 60 && flux job eventlog ${jobid} &&
+	flux job wait-event -t 10 ${jobid} exception &&
+	flux job wait-event -vt 5 ${jobid} clean
+'
+
 test_expect_success 'job submission with multiple valid DW strings on different lines works' '
 	jobid=$(flux submit --setattr=system.dw="
 											 #DW jobdw capacity=10GiB type=xfs name=project1
