@@ -363,7 +363,9 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
             "job-manager.dws.resource-update",
             payload={
                 "id": jobid,
-                "resources": resources,
+                "resources": directivebreakdown.apply_breakdowns(
+                    k8s_api, workflow, resources
+                ),
             },
         ).then(log_rpc_response)
     elif state_complete(workflow, "Setup"):
