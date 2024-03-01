@@ -179,7 +179,7 @@ test_expect_success 'dws service kills workflows in Error properly' '
 '
 
 test_expect_success 'exec dws service-providing script with custom config path' '
-	flux job cancel ${DWS_JOBID} &&
+	flux cancel ${DWS_JOBID} &&
 	cp $REAL_HOME/.kube/config ./kubeconfig
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
@@ -236,7 +236,7 @@ test_expect_success 'dws service script handles restarts while a job is running'
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
 	flux job wait-event -vt 30 ${jobid} start &&
-	flux job cancel ${DWS_JOBID} &&
+	flux cancel ${DWS_JOBID} &&
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws3.out --error=dws3.err \
@@ -252,7 +252,7 @@ test_expect_success 'dws service script handles restarts while a job is running'
 test_expect_success 'cleanup: unload fluxion' '
 	# all jobs must be canceled before unloading fluxion or a hang will occur during
 	# shutdown, unless another scheduler is loaded afterwards
-	flux job cancel $DWS_JOBID && flux queue drain &&
+	flux cancel $DWS_JOBID && flux queue drain &&
 	flux module remove sched-fluxion-qmanager &&
 	flux module remove sched-fluxion-resource &&
 	flux module load sched-simple

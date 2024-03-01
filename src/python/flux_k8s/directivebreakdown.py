@@ -50,7 +50,7 @@ def build_allocation_sets(allocation_sets, local_allocations, nodes_per_nnf):
     return ret
 
 
-def apply_breakdowns(k8s_api, workflow, old_resources):
+def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
     """Apply all of the directive breakdown information to a jobspec's `resources`."""
     resources = copy.deepcopy(old_resources)
     breakdown_list = list(fetch_breakdowns(k8s_api, workflow))
@@ -85,7 +85,7 @@ def apply_breakdowns(k8s_api, workflow, old_resources):
             raise RuntimeError("Breakdown marked as not ready")
         if "storage" in breakdown["status"]:  # persistentdw directives have no storage
             for allocation in breakdown["status"]["storage"]["allocationSets"]:
-                _apply_allocation(allocation, ssd_resources, nodecount)
+                _apply_allocation(allocation, ssd_resources, nodecount, min_size)
                 allocation_applied = True
     if not allocation_applied:
         return old_resources
@@ -106,7 +106,7 @@ def fetch_breakdowns(k8s_api, workflow):
         )
 
 
-def _apply_allocation(allocation, ssd_resources, nodecount):
+def _apply_allocation(allocation, ssd_resources, nodecount, min_size):
     """Parse a single 'allocationSet' and apply to it a jobspec's ``resources``."""
     expected_alloc_strats = {
         "xfs": AllocationStrategy.PER_COMPUTE.value,
@@ -117,7 +117,7 @@ def _apply_allocation(allocation, ssd_resources, nodecount):
         "mgt": AllocationStrategy.SINGLE_SERVER.value,
         "mgtmdt": AllocationStrategy.ACROSS_SERVERS.value,
     }
-    capacity_gb = max(1, allocation["minimumCapacity"] // (1024**3))
+    capacity_gb = max(min_size, allocation["minimumCapacity"] // (1024**3))
     if allocation["allocationStrategy"] != expected_alloc_strats[allocation["label"]]:
         raise ValueError(
             f"{allocation['label']} allocationStrategy "

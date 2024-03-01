@@ -94,7 +94,7 @@ test_expect_success 'job-manager: dws jobtap plugin works when job hits exceptio
 	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
 	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
-	flux job cancel $jobid
+	flux cancel $jobid
 	flux job wait-event -vt 1 ${jobid} exception &&
 	flux job wait-event -vt 5 -m description=${PROLOG_NAME} -m status=1 \
 		${jobid} prolog-finish &&

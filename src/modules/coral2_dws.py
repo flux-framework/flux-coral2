@@ -17,6 +17,7 @@ import logging
 import pwd
 import time
 import pathlib
+import math
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
@@ -37,6 +38,7 @@ LOGGER = logging.getLogger(__name__)
 WORKFLOWS_IN_TC = set()  # tc for TransientCondition
 WORKFLOW_NAME_PREFIX = "fluxjob-"
 WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
+_MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
 
 
 class WorkflowInfo:
@@ -228,18 +230,24 @@ def setup_cb(handle, _t, msg, k8s_api):
                     alloc_set["allocationStrategy"]
                     == directivebreakdown.AllocationStrategy.ACROSS_SERVERS.value
                 ):
-                    server_alloc_set["allocationSize"] = alloc_set[
-                        "minimumCapacity"
-                    ] // len(hlist)
+                    nodecount_gcd = functools.reduce(math.gcd, nodes_per_nnf.values())
+                    server_alloc_set["allocationSize"] = (
+                        nodecount_gcd * alloc_set["minimumCapacity"] // len(hlist)
+                    )
                     # split lustre across every rabbit, weighting the split based on
                     # the number of the job's nodes associated with each rabbit
                     for rabbit_name in nodes_per_nnf:
                         storage_field.append(
                             {
-                                "allocationCount": nodes_per_nnf[rabbit_name],
+                                "allocationCount": nodes_per_nnf[rabbit_name]
+                                / nodecount_gcd,
                                 "name": rabbit_name,
                             }
                         )
+                # enforce the minimum allocation size
+                server_alloc_set["allocationSize"] = max(
+                    server_alloc_set["allocationSize"], _MIN_ALLOCATION_SIZE * 1024**3
+                )
                 allocation_sets.append(server_alloc_set)
             k8s_api.patch_namespaced_custom_object(
                 SERVER_CRD.group,
@@ -549,6 +557,13 @@ def setup_parsing():
         metavar="FILE",
         help="Path to file containing Fluxion JGF resource graph",
     )
+    parser.add_argument(
+        "--min-allocation-size",
+        "-m",
+        default=_MIN_ALLOCATION_SIZE,
+        metavar="N",
+        help="Minimum allocation size of rabbit allocations, in bytes",
+    )
     return parser
 
 
@@ -623,6 +638,7 @@ def raise_self_exception(handle):
 def main():
     """Init script, begin processing of services."""
     args = setup_parsing().parse_args()
+    _MIN_ALLOCATION_SIZE = args.min_allocation_size
     config_logging(args)
     k8s_client = k8s.config.new_client_from_config(config_file=args.kubeconfig)
     try:
