@@ -110,7 +110,7 @@ class Coral2Graph(FluxionResourceGraphV1):
 
     def _encode_rabbit(self, parent, nnf):
         res_type = "rabbit"
-        res_name = nnf["metadata"]["name"]
+        res_name = f"{res_type}-{nnf['metadata']['name']}"
         vtx = ElCapResourcePoolV1(
             self._uniqId,
             res_type,
@@ -156,7 +156,18 @@ class Coral2Graph(FluxionResourceGraphV1):
             except FileNotFoundError:
                 pass
             else:
-                self._encode_rank(vtx, index, self._rank_to_children[index], node["name"])
+                self._encode_rank(
+                    vtx, index, self._rank_to_children[index], node["name"]
+                )
+        # if the rabbit itself is in R, add it to the rack as a compute node as well
+        try:
+            index = self._r_hostlist.index(nnf["metadata"]["name"])[0]
+        except FileNotFoundError:
+            pass
+        else:
+            self._encode_rank(
+                vtx, index, self._rank_to_children[index], nnf["metadata"]["name"]
+            )
         self._rackids += 1
 
     def _encode(self):
@@ -183,6 +194,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             for nnf in self._nnfs
             for compute in nnf["status"]["access"]["computes"]
         )
+        dws_computes |= set(nnf["metadata"]["name"] for nnf in self._nnfs)
         for rank, node in enumerate(self._r_hostlist):
             if node not in dws_computes:
                 self._encode_rank(
@@ -303,7 +315,7 @@ def main():
     )
     if not args.no_validate and not dws_computes <= set(r_hostlist):
         raise RuntimeError(
-            f"Node(s) {dws_computes - set(r_hostlist)} " "found in DWS but not R from stdin"
+            f"Node(s) {dws_computes - set(r_hostlist)} found in DWS but not R from stdin"
         )
     json.dump(
         encode(input_r, nnfs, r_hostlist, args.chunks_per_nnf, args.cluster_name),
