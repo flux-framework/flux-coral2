@@ -364,7 +364,7 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
             payload={
                 "id": jobid,
                 "resources": directivebreakdown.apply_breakdowns(
-                    k8s_api, workflow, resources
+                    k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
                 ),
             },
         ).then(log_rpc_response)
