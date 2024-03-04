@@ -79,7 +79,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
-            self._rank_to_properties.get(rank, []),
+            self._rank_to_properties.get(rank, {}),
             hPath,
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
@@ -103,7 +103,7 @@ class Coral2Graph(FluxionResourceGraphV1):
                 True,
                 "GiB",
                 to_gibibytes(nnf["capacity"] // self._chunks_per_nnf),
-                [],
+                {},
                 f"{parent.path}/{res_name}",
             )
             edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
@@ -123,7 +123,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
-            [],
+            {},
             f"{parent.path}/{res_name}",
             1,  # status=1 marks the rabbits as 'down' initially
         )
@@ -145,7 +145,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
-            [],
+            {},
             f"{parent.path}/{res_name}",
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
@@ -183,7 +183,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
-            [],
+            {},
             f"/{self._cluster_name}0",
         )
         self._add_and_tick_uniq_id(vtx)
@@ -226,8 +226,8 @@ def get_node_properties(properties):
     rank_to_property = {}
     for prop_name, idset_str in properties.items():
         for rank in IDset(idset_str):
-            properties = rank_to_property.setdefault(rank, [])
-            properties.append(prop_name)
+            properties = rank_to_property.setdefault(rank, {})
+            properties[prop_name] = ""
     return rank_to_property
 
 
