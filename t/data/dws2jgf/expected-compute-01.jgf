@@ -31,7 +31,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0"
             }
@@ -49,7 +49,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0"
             }
@@ -67,7 +67,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2"
             },
@@ -86,7 +86,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd0"
             }
@@ -104,7 +104,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd1"
             }
@@ -122,7 +122,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd2"
             }
@@ -140,7 +140,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd3"
             }
@@ -158,7 +158,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd4"
             }
@@ -176,7 +176,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd5"
             }
@@ -194,7 +194,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd6"
             }
@@ -212,7 +212,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd7"
             }
@@ -230,7 +230,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd8"
             }
@@ -248,7 +248,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd9"
             }
@@ -266,7 +266,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd10"
             }
@@ -284,7 +284,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd11"
             }
@@ -302,7 +302,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd12"
             }
@@ -320,7 +320,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd13"
             }
@@ -338,7 +338,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd14"
             }
@@ -356,7 +356,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd15"
             }
@@ -374,7 +374,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd16"
             }
@@ -392,7 +392,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd17"
             }
@@ -410,7 +410,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd18"
             }
@@ -428,7 +428,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd19"
             }
@@ -446,7 +446,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd20"
             }
@@ -464,7 +464,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd21"
             }
@@ -482,7 +482,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd22"
             }
@@ -500,7 +500,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd23"
             }
@@ -518,7 +518,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd24"
             }
@@ -536,7 +536,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd25"
             }
@@ -554,7 +554,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd26"
             }
@@ -572,7 +572,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd27"
             }
@@ -590,7 +590,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd28"
             }
@@ -608,7 +608,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd29"
             }
@@ -626,7 +626,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd30"
             }
@@ -644,7 +644,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd31"
             }
@@ -662,7 +662,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01"
             }
@@ -698,7 +698,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1"
             }
@@ -716,7 +716,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3"
             },
@@ -735,7 +735,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd0"
             }
@@ -753,7 +753,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd1"
             }
@@ -771,7 +771,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd2"
             }
@@ -789,7 +789,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd3"
             }
@@ -807,7 +807,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd4"
             }
@@ -825,7 +825,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd5"
             }
@@ -843,7 +843,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd6"
             }
@@ -861,7 +861,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd7"
             }
@@ -879,7 +879,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd8"
             }
@@ -897,7 +897,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd9"
             }
@@ -915,7 +915,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd10"
             }
@@ -933,7 +933,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd11"
             }
@@ -951,7 +951,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd12"
             }
@@ -969,7 +969,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd13"
             }
@@ -987,7 +987,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd14"
             }
@@ -1005,7 +1005,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd15"
             }
@@ -1023,7 +1023,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd16"
             }
@@ -1041,7 +1041,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd17"
             }
@@ -1059,7 +1059,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd18"
             }
@@ -1077,7 +1077,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd19"
             }
@@ -1095,7 +1095,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd20"
             }
@@ -1113,7 +1113,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd21"
             }
@@ -1131,7 +1131,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd22"
             }
@@ -1149,7 +1149,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd23"
             }
@@ -1167,7 +1167,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd24"
             }
@@ -1185,7 +1185,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd25"
             }
@@ -1203,7 +1203,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd26"
             }
@@ -1221,7 +1221,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd27"
             }
@@ -1239,7 +1239,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd28"
             }
@@ -1257,7 +1257,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd29"
             }
@@ -1275,7 +1275,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd30"
             }
@@ -1293,7 +1293,7 @@
             "exclusive": true,
             "unit": "GiB",
             "size": 1152,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd31"
             }

@@ -50,6 +50,12 @@ test_expect_success HAVE_JQ 'flux-dws2jgf.py outputs expected JGF for compute no
 	test_cmp ${DATADIR}/expected-compute-01-nodws.jgf actual-compute-01-nodws.jgf
 '
 
+test_expect_success HAVE_JQ 'flux-dws2jgf.py handles properties correctly' '
+	cat ${DATADIR}/R-properties | \
+	flux python ${CMD} --no-validate | jq . > actual-properties.jgf &&
+	test_cmp ${DATADIR}/expected-properties.jgf actual-properties.jgf
+'
+
 test_expect_success HAVE_JQ 'fluxion rejects a rack/rabbit job when no rabbits are recognized' '
 	flux module remove -f sched-fluxion-qmanager &&
 	flux module remove -f sched-fluxion-resource &&
