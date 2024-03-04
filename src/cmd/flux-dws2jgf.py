@@ -10,6 +10,7 @@ import itertools
 import flux
 from flux.idset import IDset
 from flux.hostlist import Hostlist
+from flux.idset import IDset
 from fluxion.resourcegraph.V1 import (
     FluxionResourceGraphV1,
     FluxionResourcePoolV1,
@@ -110,7 +111,7 @@ class Coral2Graph(FluxionResourceGraphV1):
 
     def _encode_rabbit(self, parent, nnf):
         res_type = "rabbit"
-        res_name = nnf["metadata"]["name"]
+        res_name = f"{res_type}-{nnf['metadata']['name']}"
         vtx = ElCapResourcePoolV1(
             self._uniqId,
             res_type,
@@ -156,7 +157,18 @@ class Coral2Graph(FluxionResourceGraphV1):
             except FileNotFoundError:
                 pass
             else:
-                self._encode_rank(vtx, index, self._rank_to_children[index], node["name"])
+                self._encode_rank(
+                    vtx, index, self._rank_to_children[index], node["name"]
+                )
+        # if the rabbit itself is in R, add it to the rack as a compute node as well
+        try:
+            index = self._r_hostlist.index(nnf["metadata"]["name"])[0]
+        except FileNotFoundError:
+            pass
+        else:
+            self._encode_rank(
+                vtx, index, self._rank_to_children[index], nnf["metadata"]["name"]
+            )
         self._rackids += 1
 
     def _encode(self):
@@ -183,6 +195,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             for nnf in self._nnfs
             for compute in nnf["status"]["access"]["computes"]
         )
+        dws_computes |= set(nnf["metadata"]["name"] for nnf in self._nnfs)
         for rank, node in enumerate(self._r_hostlist):
             if node not in dws_computes:
                 self._encode_rank(
@@ -211,19 +224,10 @@ def get_node_children(r_lite):
 def get_node_properties(properties):
     """Return a mapping from rank to properties."""
     rank_to_property = {}
-    for prop_name, rank_str in properties.items():
-        rank_ranges = rank_str.split(",")
-        for rank_range in rank_ranges:
-            try:
-                rank = int(rank_range)
-            except ValueError:
-                low, high = rank_range.split("-")
-                for i in range(int(low), int(high) + 1):
-                    properties = rank_to_property.setdefault(i, [])
-                    properties.append(prop_name)
-            else:
-                properties = rank_to_property.setdefault(rank, [])
-                properties.append(prop_name)
+    for prop_name, idset_str in properties.items():
+        for rank in IDset(idset_str):
+            properties = rank_to_property.setdefault(rank, [])
+            properties.append(prop_name)
     return rank_to_property
 
 
@@ -303,7 +307,7 @@ def main():
     )
     if not args.no_validate and not dws_computes <= set(r_hostlist):
         raise RuntimeError(
-            f"Node(s) {dws_computes - set(r_hostlist)} " "found in DWS but not R from stdin"
+            f"Node(s) {dws_computes - set(r_hostlist)} found in DWS but not R from stdin"
         )
     json.dump(
         encode(input_r, nnfs, r_hostlist, args.chunks_per_nnf, args.cluster_name),

@@ -82,7 +82,7 @@ test_expect_success HAVE_JQ 'fluxion does not allocate a rack/rabbit job after a
 '
 
 test_expect_success HAVE_JQ 'fluxion allocates a rack/rabbit job when rabbit is up' '
-	${SHARNESS_TEST_SRCDIR}/scripts/set_status.py /ElCapitan0/rack0/kind-worker2 up &&
+	${SHARNESS_TEST_SRCDIR}/scripts/set_status.py /ElCapitan0/rack0/rabbit-kind-worker2 up &&
 	JOBID=$(flux job submit ${DATADIR}/rabbit-jobspec.json) &&
 	flux job wait-event -vt 2 -m status=0 ${JOBID} finish &&
 	flux job attach $JOBID &&

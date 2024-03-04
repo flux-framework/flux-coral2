@@ -60,7 +60,7 @@
           "metadata": {
             "type": "rabbit",
             "basename": "rabbit",
-            "name": "kind-worker2",
+            "name": "rabbit-kind-worker2",
             "id": 0,
             "uniq_id": 2,
             "rank": -1,
@@ -69,7 +69,7 @@
             "size": 1,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2"
             },
             "status": 1
           }
@@ -88,7 +88,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd0"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd0"
             }
           }
         },
@@ -106,7 +106,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd1"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd1"
             }
           }
         },
@@ -124,7 +124,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd2"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd2"
             }
           }
         },
@@ -142,7 +142,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd3"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd3"
             }
           }
         },
@@ -160,7 +160,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd4"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd4"
             }
           }
         },
@@ -178,7 +178,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd5"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd5"
             }
           }
         },
@@ -196,7 +196,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd6"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd6"
             }
           }
         },
@@ -214,7 +214,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd7"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd7"
             }
           }
         },
@@ -232,7 +232,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd8"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd8"
             }
           }
         },
@@ -250,7 +250,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd9"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd9"
             }
           }
         },
@@ -268,7 +268,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd10"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd10"
             }
           }
         },
@@ -286,7 +286,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd11"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd11"
             }
           }
         },
@@ -304,7 +304,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd12"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd12"
             }
           }
         },
@@ -322,7 +322,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd13"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd13"
             }
           }
         },
@@ -340,7 +340,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd14"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd14"
             }
           }
         },
@@ -358,7 +358,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd15"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd15"
             }
           }
         },
@@ -376,7 +376,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd16"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd16"
             }
           }
         },
@@ -394,7 +394,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd17"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd17"
             }
           }
         },
@@ -412,7 +412,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd18"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd18"
             }
           }
         },
@@ -430,7 +430,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd19"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd19"
             }
           }
         },
@@ -448,7 +448,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd20"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd20"
             }
           }
         },
@@ -466,7 +466,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd21"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd21"
             }
           }
         },
@@ -484,7 +484,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd22"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd22"
             }
           }
         },
@@ -502,7 +502,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd23"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd23"
             }
           }
         },
@@ -520,7 +520,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd24"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd24"
             }
           }
         },
@@ -538,7 +538,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd25"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd25"
             }
           }
         },
@@ -556,7 +556,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd26"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd26"
             }
           }
         },
@@ -574,7 +574,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd27"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd27"
             }
           }
         },
@@ -592,7 +592,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd28"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd28"
             }
           }
         },
@@ -610,7 +610,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd29"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd29"
             }
           }
         },
@@ -628,7 +628,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd30"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd30"
             }
           }
         },
@@ -646,7 +646,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack0/kind-worker2/ssd31"
+              "containment": "/ElCapitan0/rack0/rabbit-kind-worker2/ssd31"
             }
           }
         },
@@ -709,7 +709,7 @@
           "metadata": {
             "type": "rabbit",
             "basename": "rabbit",
-            "name": "kind-worker3",
+            "name": "rabbit-kind-worker3",
             "id": 1,
             "uniq_id": 38,
             "rank": -1,
@@ -718,7 +718,7 @@
             "size": 1,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3"
             },
             "status": 1
           }
@@ -737,7 +737,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd0"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd0"
             }
           }
         },
@@ -755,7 +755,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd1"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd1"
             }
           }
         },
@@ -773,7 +773,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd2"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd2"
             }
           }
         },
@@ -791,7 +791,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd3"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd3"
             }
           }
         },
@@ -809,7 +809,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd4"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd4"
             }
           }
         },
@@ -827,7 +827,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd5"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd5"
             }
           }
         },
@@ -845,7 +845,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd6"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd6"
             }
           }
         },
@@ -863,7 +863,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd7"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd7"
             }
           }
         },
@@ -881,7 +881,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd8"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd8"
             }
           }
         },
@@ -899,7 +899,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd9"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd9"
             }
           }
         },
@@ -917,7 +917,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd10"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd10"
             }
           }
         },
@@ -935,7 +935,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd11"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd11"
             }
           }
         },
@@ -953,7 +953,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd12"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd12"
             }
           }
         },
@@ -971,7 +971,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd13"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd13"
             }
           }
         },
@@ -989,7 +989,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd14"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd14"
             }
           }
         },
@@ -1007,7 +1007,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd15"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd15"
             }
           }
         },
@@ -1025,7 +1025,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd16"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd16"
             }
           }
         },
@@ -1043,7 +1043,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd17"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd17"
             }
           }
         },
@@ -1061,7 +1061,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd18"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd18"
             }
           }
         },
@@ -1079,7 +1079,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd19"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd19"
             }
           }
         },
@@ -1097,7 +1097,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd20"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd20"
             }
           }
         },
@@ -1115,7 +1115,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd21"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd21"
             }
           }
         },
@@ -1133,7 +1133,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd22"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd22"
             }
           }
         },
@@ -1151,7 +1151,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd23"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd23"
             }
           }
         },
@@ -1169,7 +1169,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd24"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd24"
             }
           }
         },
@@ -1187,7 +1187,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd25"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd25"
             }
           }
         },
@@ -1205,7 +1205,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd26"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd26"
             }
           }
         },
@@ -1223,7 +1223,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd27"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd27"
             }
           }
         },
@@ -1241,7 +1241,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd28"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd28"
             }
           }
         },
@@ -1259,7 +1259,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd29"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd29"
             }
           }
         },
@@ -1277,7 +1277,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd30"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd30"
             }
           }
         },
@@ -1295,7 +1295,7 @@
             "size": 1152,
             "properties": [],
             "paths": {
-              "containment": "/ElCapitan0/rack1/kind-worker3/ssd31"
+              "containment": "/ElCapitan0/rack1/rabbit-kind-worker3/ssd31"
             }
           }
         }
