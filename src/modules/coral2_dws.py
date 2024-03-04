@@ -65,7 +65,8 @@ def log_rpc_response(rpc):
     except Exception as exc:
         LOGGER.warning("RPC error %s", str(exc))
     else:
-        LOGGER.debug("RPC response was %s", msg)
+        if msg is not None:
+            LOGGER.debug("RPC response was %s", msg)
 
 
 def fetch_rabbits(k8s_api, workflow_computes):
