@@ -1,3 +1,22 @@
+flux-coral2 0.11.0 - 2024-03-05
+-------------------------------
+
+### New Features
+
+ * shell: update cray_pals to edit LD_LIBRARY_PATH when under a source
+   tree (#127)
+ * dws: enforce minimum rabbit allocation size (#132)
+ * dws2jgf: rabbits as compute nodes (#133)
+ * Non-block task placement in the cray-pals shell plugin (#128)
+
+### Fixes
+ * configure: downgrade required kubernetes version (#124)
+ * dws2jgf: fix node attributes (#135)
+
+### Testsuite
+ * test: request too much rabbit storage (#130)
+ * test: fix rabbit watch test failures (#134)
+
 flux-coral2 0.10.0 - 2024-02-06
 -------------------------------
 
