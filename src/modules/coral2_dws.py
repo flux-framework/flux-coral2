@@ -39,6 +39,7 @@ WORKFLOWS_IN_TC = set()  # tc for TransientCondition
 WORKFLOW_NAME_PREFIX = "fluxjob-"
 WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
+_FINALIZER = "flux-framework.readthedocs.io/workflow"
 
 
 class WorkflowInfo:
@@ -154,7 +155,11 @@ def create_cb(handle, _t, msg, api_instance):
         "kind": "Workflow",
         "apiVersion": "/".join([WORKFLOW_CRD.group, WORKFLOW_CRD.version]),
         "spec": spec,
-        "metadata": {"name": workflow_name, "namespace": WORKFLOW_CRD.namespace},
+        "metadata": {
+            "name": workflow_name,
+            "namespace": WORKFLOW_CRD.namespace,
+            "finalizers": [_FINALIZER],
+        },
     }
     api_instance.create_namespaced_custom_object(
         *WORKFLOW_CRD,
@@ -342,6 +347,16 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
         return
     if state_complete(workflow, "Teardown"):
         # delete workflow object and tell DWS jobtap plugin that the job is done
+        try:
+            workflow["metadata"]["finalizers"].remove(_FINALIZER)
+        except ValueError:
+            pass
+        else:
+            k8s_api.patch_namespaced_custom_object(
+                *WORKFLOW_CRD,
+                winfo.name,
+                {"metadata": {"finalizers": workflow["metadata"]["finalizers"]}},
+            )
         k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
         winfo.deleted = True
         handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
