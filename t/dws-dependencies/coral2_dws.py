@@ -46,10 +46,11 @@ def post_run_cb(fh, t, msg, arg):
     if args.post_run_fail:
         payload['errstr'] = "post_run RPC failed for test purposes"
     fh.respond(msg, payload)
-    fh.rpc(
-        "job-manager.dws.epilog-remove",
-        payload={"id": msg.payload["jobid"]},
-    )
+    if not args.post_run_fail:
+        fh.rpc(
+            "job-manager.dws.epilog-remove",
+            payload={"id": msg.payload["jobid"]},
+        )
     fh.reactor_stop()
 
 fh = flux.Flux()
