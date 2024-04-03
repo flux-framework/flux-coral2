@@ -237,8 +237,8 @@ def setup_cb(handle, _t, msg, k8s_api):
                     == directivebreakdown.AllocationStrategy.ACROSS_SERVERS.value
                 ):
                     nodecount_gcd = functools.reduce(math.gcd, nodes_per_nnf.values())
-                    server_alloc_set["allocationSize"] = (
-                        nodecount_gcd * alloc_set["minimumCapacity"] // len(hlist)
+                    server_alloc_set["allocationSize"] = math.ceil(
+                        nodecount_gcd * alloc_set["minimumCapacity"] / len(hlist)
                     )
                     # split lustre across every rabbit, weighting the split based on
                     # the number of the job's nodes associated with each rabbit
