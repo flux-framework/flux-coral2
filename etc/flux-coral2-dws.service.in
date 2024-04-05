@@ -10,6 +10,7 @@ ExecStart=@X_BINDIR@/flux python @X_BINDIR@/coral2_dws.py
 SyslogIdentifier=flux-coral2-dws
 Restart=always
 RestartSec=10s
+RestartPreventExitStatus=2 3
 
 User=flux
 Group=flux
