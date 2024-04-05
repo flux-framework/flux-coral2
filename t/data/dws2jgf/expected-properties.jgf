@@ -685,7 +685,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01/core0"
             }
@@ -703,7 +703,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01/core1"
             }
@@ -721,7 +721,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01/core2"
             }
@@ -739,7 +739,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01/core3"
             }
@@ -757,7 +757,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01/core4"
             }
@@ -775,7 +775,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01/core5"
             }
@@ -793,7 +793,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01/core6"
             }
@@ -811,7 +811,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01/core7"
             }
@@ -829,7 +829,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01/core8"
             }
@@ -847,7 +847,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01/core9"
             }

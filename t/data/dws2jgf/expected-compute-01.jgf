@@ -680,7 +680,7 @@
             "exclusive": true,
             "unit": "",
             "size": 1,
-            "properties": [],
+            "properties": {},
             "paths": {
               "containment": "/ElCapitan0/rack0/compute-01/core0"
             }
