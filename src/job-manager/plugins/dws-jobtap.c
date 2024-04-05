@@ -35,26 +35,15 @@ struct create_arg_t {
     flux_jobid_t id;
 };
 
-static int raise_job_exception (flux_t *h,
+static inline int raise_job_exception (flux_plugin_t *p,
                                 flux_jobid_t id,
                                 const char *exception,
                                 const char *errstr)
 {
-    char *reason;
-    flux_future_t *exception_f;
-
     if (!errstr) {
         errstr = "<no error string provided>";
     }
-    flux_log_error (h, "Raising exception for job %" PRIu64 ": %s", id, errstr);
-    if (asprintf (&reason, "DWS workflow interactions failed: %s", errstr) < 0)
-        return -1;
-    exception_f = flux_job_raise (h, id, exception, 0, reason);
-    // N.B.: we don't block to check the status of this exception raising as
-    // that would cause a deadlock in the job-manager
-    flux_future_destroy (exception_f);
-    free (reason);
-    return 0;
+    return flux_jobtap_raise_exception (p, id, exception, 0, "DWS workflow interactions failed: %s", errstr);
 }
 
 static int dws_prolog_finish (flux_t *h,
@@ -65,6 +54,14 @@ static int dws_prolog_finish (flux_t *h,
                               int *prolog_active)
 {
     if (*prolog_active) {
+        if (!success) {
+            flux_log (h,
+                      LOG_ERR,
+                      "Failed to setup DWS workflow object for job %" PRIu64,
+                      id);
+            // we don't finish the prolog here, we let the exception handler do it
+            return raise_job_exception (p, id, SETUP_PROLOG_NAME, errstr);
+        }
         if (flux_jobtap_prolog_finish (p, id, SETUP_PROLOG_NAME, !success) < 0) {
             flux_log_error (h,
                             "Failed to finish prolog %s for job %" PRIu64
@@ -75,13 +72,6 @@ static int dws_prolog_finish (flux_t *h,
             return -1;
         }
         *prolog_active = 0;
-        if (!success) {
-            flux_log (h,
-                      LOG_ERR,
-                      "Failed to setup DWS workflow object for job %" PRIu64,
-                      id);
-            return raise_job_exception (h, id, SETUP_PROLOG_NAME, errstr);
-        }
     }
     return 0;
 }
@@ -92,6 +82,14 @@ static int dws_epilog_finish (flux_t *h,
                               int success,
                               const char *errstr)
 {
+    int ret = 0;
+    if (!success) {
+        flux_log (h,
+                  LOG_ERR,
+                  "Failed to clean up DWS workflow object for job %" PRIu64,
+                  id);
+        ret = raise_job_exception (p, id, DWS_EPILOG_NAME, errstr);
+    }
     if (flux_jobtap_epilog_finish (p, id, DWS_EPILOG_NAME, !success) < 0) {
         flux_log_error (h,
                         "Failed to finish epilog %s for job %" PRIu64
@@ -101,14 +99,7 @@ static int dws_epilog_finish (flux_t *h,
                         errstr);
         return -1;
     }
-    if (!success) {
-        flux_log (h,
-                  LOG_ERR,
-                  "Failed to clean up DWS workflow object for job %" PRIu64,
-                  id);
-        return raise_job_exception (h, id, DWS_EPILOG_NAME, errstr);
-    }
-    return 0;
+    return ret;
 }
 
 static void create_cb (flux_future_t *f, void *arg)
@@ -131,16 +122,16 @@ static void create_cb (flux_future_t *f, void *arg)
                 "dws.create RPC could not be sent. "
                 "Admins: is the flux-coral2-dws service loaded?";
         }
-        raise_job_exception (h, args->id, CREATE_DEP_NAME, errstr);
+        raise_job_exception (args->p, args->id, CREATE_DEP_NAME, errstr);
         return;
     }
 
     if (!success) {
         if (errstr) {
-            raise_job_exception (h, args->id, CREATE_DEP_NAME, errstr);
+            raise_job_exception (args->p, args->id, CREATE_DEP_NAME, errstr);
         }
         else {
-            raise_job_exception (h,
+            raise_job_exception (args->p,
                                  args->id,
                                  CREATE_DEP_NAME,
                                  "dws.create RPC returned failure");
@@ -593,13 +584,13 @@ static void resource_update_msg_cb (flux_t *h,
     }
     if (!(jobspec = flux_jobtap_job_aux_get (p, jobid, "dws_jobspec"))
         || json_object_set (jobspec, "resources", resources) < 0) {
-        raise_job_exception (h,
+        raise_job_exception (p,
                              jobid,
                              "dws",
                              "Internal error: failed to update jobspec");
     }
     if (flux_jobtap_dependency_remove (p, jobid, CREATE_DEP_NAME) < 0) {
-        raise_job_exception (h,
+        raise_job_exception (p,
                              jobid,
                              CREATE_DEP_NAME,
                              "Failed to remove dependency for job");
