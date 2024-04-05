@@ -21,6 +21,9 @@ import math
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
+from kubernetes.config.config_exception import ConfigException
+import urllib3
+
 import flux
 from flux.hostlist import Hostlist
 from flux.job.JobID import id_parse
@@ -40,6 +43,7 @@ WORKFLOW_NAME_PREFIX = "fluxjob-"
 WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
 _FINALIZER = "flux-framework.readthedocs.io/workflow"
+_EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
 
 
 class WorkflowInfo:
@@ -660,15 +664,21 @@ def main():
     args = setup_parsing().parse_args()
     _MIN_ALLOCATION_SIZE = args.min_allocation_size
     config_logging(args)
-    k8s_client = k8s.config.new_client_from_config(config_file=args.kubeconfig)
+    try:
+        k8s_client = k8s.config.new_client_from_config(config_file=args.kubeconfig)
+    except ConfigException:
+        LOGGER.exception("Kubernetes misconfigured, service will shut down")
+        sys.exit(_EXITCODE_NORESTART)
     try:
         k8s_api = k8s.client.CustomObjectsApi(k8s_client)
     except ApiException as rest_exception:
         if rest_exception.status == 403:
-            raise RuntimeError(
+            LOGGER.exception(
                 "You must be logged in to the K8s or OpenShift cluster to continue"
-            ) from rest_exception
-        raise
+            )
+            sys.exit(_EXITCODE_NORESTART)
+        LOGGER.exception("Cannot access kubernetes, service will shut down")
+        sys.exit(_EXITCODE_NORESTART)
     populate_rabbits_dict(k8s_api)
     handle = flux.Flux()
     # create a timer watcher for killing workflows that have been stuck in
@@ -697,4 +707,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except urllib3.exceptions.MaxRetryError:
+        LOGGER.exception("K8s not responding, service will shut down")
+        sys.exit(_EXITCODE_NORESTART)

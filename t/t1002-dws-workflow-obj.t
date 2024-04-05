@@ -32,6 +32,16 @@ test_expect_success 'job-manager: load dws-jobtap plugin' '
 	flux jobtap load ${PLUGINPATH}/dws-jobtap.so
 '
 
+test_expect_success 'exec dws service-providing script with bad arguments' '
+    KUBECONFIG=/dev/null test_expect_code 1 flux python ${DWS_MODULE_PATH} \
+        -e1 -v -rR.local &&
+    unset KUBECONFIG &&
+    test_expect_code 1 flux python ${DWS_MODULE_PATH} -e1 -v -rR.local \
+        --kubeconfig /dev/null &&
+    test_expect_code 2 flux python ${DWS_MODULE_PATH} \
+        -e1 -v -rR.local --foobar
+'
+
 test_expect_success 'load fluxion with rabbits' '
 	flux R encode -l | flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-dws2jgf.py \
 	--no-validate | jq . > R.local &&
