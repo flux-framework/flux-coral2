@@ -19,6 +19,11 @@ if test_have_prereq NO_DWS_K8S; then
     test_done
 fi
 
+test_expect_success 'smoke test to ensure storages are live' '
+    kubectl get storages kind-worker2 -ojson | jq -e ".spec.mode == \"Live\"" &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".spec.mode == \"Live\""
+'
+
 test_expect_success 'job-manager: load alloc-bypass plugin' '
     flux jobtap load alloc-bypass.so
 '
@@ -76,10 +81,12 @@ test_expect_success 'update to the Storage status is caught by the watch' '
     kubectl patch storages kind-worker2 \
         --type merge --patch-file ${DATA_DIR}/down.yaml &&
     kubectl get storages kind-worker2 -ojson | jq -e ".spec.state == \"Disabled\"" &&
+    sleep 0.2 &&
     kubectl get storages kind-worker2 -ojson | jq -e ".status.status == \"Disabled\"" &&
     kubectl patch storages kind-worker3 \
         --type merge --patch-file ${DATA_DIR}/down.yaml &&
     kubectl get storages kind-worker3 -ojson | jq -e ".spec.state == \"Disabled\"" &&
+    sleep 0.2 &&
     kubectl get storages kind-worker3 -ojson | jq -e ".status.status == \"Disabled\"" &&
     sleep 1
 '
@@ -94,10 +101,12 @@ test_expect_success 'revert the changes to the Storage' '
     kubectl patch storages kind-worker2 \
         --type merge --patch-file ${DATA_DIR}/up.yaml &&
     kubectl get storages kind-worker2 -ojson | jq -e ".spec.state == \"Enabled\"" &&
+    sleep 0.2 &&
     kubectl get storages kind-worker2 -ojson | jq -e ".status.status == \"Ready\"" &&
     kubectl patch storages kind-worker3 \
         --type merge --patch-file ${DATA_DIR}/up.yaml &&
     kubectl get storages kind-worker3 -ojson | jq -e ".spec.state == \"Enabled\"" &&
+    sleep 0.2 &&
     kubectl get storages kind-worker3 -ojson | jq -e ".status.status == \"Ready\"" &&
     sleep 1
 '
@@ -107,6 +116,24 @@ test_expect_success 'rabbits now marked as up and can be allocated' '
     flux job wait-event -vt 3 ${JOBID} alloc &&
     flux job wait-event -vt 3 -m status=0 ${JOBID} finish &&
     flux job attach $JOBID
+'
+
+test_expect_success 'test that flux drains Offline compute nodes' '
+    kubectl patch storage kind-worker2 --type=json \
+        -p "[{\"op\":\"replace\", \"path\":\"/spec/mode\", \"value\": \"Testing\"}]" &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".spec.mode == \"Testing\"" &&
+    kubectl patch storage kind-worker2 --subresource=status --type=json \
+        -p "[{\"op\":\"replace\", \"path\":\"/status/access/computes/0/status\", \"value\": \"Disabled\"}]" &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[0].status == \"Disabled\"" &&
+    sleep 2.5 && flux resource drain | grep compute-01 &&
+    flux resource undrain compute-01
+'
+
+test_expect_success 'return the storage resource to Live mode' '
+    kubectl patch storage kind-worker2 --type=json \
+        -p "[{\"op\":\"replace\", \"path\":\"/spec/mode\", \"value\": \"Live\"}]" &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".spec.mode == \"Live\"" &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[0].status == \"Ready\""
 '
 
 test_expect_success 'unload fluxion' '

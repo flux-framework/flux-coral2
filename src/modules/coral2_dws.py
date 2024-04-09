@@ -443,6 +443,25 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
         WORKFLOWS_IN_TC.discard(winfo)
 
 
+def drain_offline_nodes(handle, rabbit_name, nodelist):
+    offline_nodes = Hostlist()
+    for compute_node in nodelist:
+        if compute_node["status"] != "Ready":
+            offline_nodes.append(compute_node["name"])
+    if offline_nodes:
+        encoded_hostlist = offline_nodes.encode()
+        LOGGER.debug("Draining nodes %s", encoded_hostlist)
+        handle.rpc(
+            "resource.drain",
+            payload={
+                "targets": encoded_hostlist,
+                "mode": "update",
+                "reason": f"rabbit {rabbit_name} lost connection",
+            },
+            nodeid=0,
+        ).then(log_rpc_response)
+
+
 def mark_rabbit(handle, status, resource_path):
     """Send an RPC to mark a rabbit as up or down."""
     if status == "Ready":
@@ -469,6 +488,7 @@ def rabbit_state_change_cb(event, handle, rabbit_rpaths):
         )
         return
     mark_rabbit(handle, status, rabbit_rpaths[name])
+    drain_offline_nodes(handle, name, rabbit["status"]["access"]["computes"])
     # TODO: add some check for whether rabbit capacity has changed
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
 
@@ -508,6 +528,7 @@ def init_rabbits(k8s_api, handle, watchers, graph_path):
                 "Encountered an unknown Storage object '%s' in the event stream", name
             )
         mark_rabbit(handle, rabbit["status"]["status"], rabbit_rpaths[name])
+        drain_offline_nodes(handle, name, rabbit["status"]["access"]["computes"])
     watchers.add_watch(
         Watch(
             k8s_api,
