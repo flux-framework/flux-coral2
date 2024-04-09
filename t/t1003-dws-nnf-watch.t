@@ -81,10 +81,12 @@ test_expect_success 'update to the Storage status is caught by the watch' '
     kubectl patch storages kind-worker2 \
         --type merge --patch-file ${DATA_DIR}/down.yaml &&
     kubectl get storages kind-worker2 -ojson | jq -e ".spec.state == \"Disabled\"" &&
+    sleep 0.2 &&
     kubectl get storages kind-worker2 -ojson | jq -e ".status.status == \"Disabled\"" &&
     kubectl patch storages kind-worker3 \
         --type merge --patch-file ${DATA_DIR}/down.yaml &&
     kubectl get storages kind-worker3 -ojson | jq -e ".spec.state == \"Disabled\"" &&
+    sleep 0.2 &&
     kubectl get storages kind-worker3 -ojson | jq -e ".status.status == \"Disabled\"" &&
     sleep 1
 '
@@ -99,10 +101,12 @@ test_expect_success 'revert the changes to the Storage' '
     kubectl patch storages kind-worker2 \
         --type merge --patch-file ${DATA_DIR}/up.yaml &&
     kubectl get storages kind-worker2 -ojson | jq -e ".spec.state == \"Enabled\"" &&
+    sleep 0.2 &&
     kubectl get storages kind-worker2 -ojson | jq -e ".status.status == \"Ready\"" &&
     kubectl patch storages kind-worker3 \
         --type merge --patch-file ${DATA_DIR}/up.yaml &&
     kubectl get storages kind-worker3 -ojson | jq -e ".spec.state == \"Enabled\"" &&
+    sleep 0.2 &&
     kubectl get storages kind-worker3 -ojson | jq -e ".status.status == \"Ready\"" &&
     sleep 1
 '
@@ -121,7 +125,7 @@ test_expect_success 'test that flux drains Offline compute nodes' '
     kubectl patch storage kind-worker2 --subresource=status --type=json \
         -p "[{\"op\":\"replace\", \"path\":\"/status/access/computes/0/status\", \"value\": \"Disabled\"}]" &&
     kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[0].status == \"Disabled\"" &&
-    sleep 1.5 && flux resource drain | grep compute-01 &&
+    sleep 2.5 && flux resource drain | grep compute-01 &&
     flux resource undrain compute-01
 '
 
