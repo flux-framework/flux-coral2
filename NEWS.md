@@ -1,3 +1,22 @@
+flux-coral2 0.12.0 - 2024-04-10
+-------------------------------
+
+### New Features
+
+ * dws: add support for draining Offline nodes (#140)
+ * dws: add option to disable draining of Offline nodes (#149)
+ * dws: k8s special exitcode (#146)
+ * dws: add flux finalizer to k8s workflow resources (#141)
+
+### Fixes
+
+ * dws-jobtap: fix race conditions with exception-raising (#142)
+ * dws: fix floating-point truncation (#143)
+
+### Testsuite
+
+ * test: update expected JGF after fluxion update (#147)
+
 flux-coral2 0.11.0 - 2024-03-05
 -------------------------------
 
