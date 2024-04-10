@@ -443,7 +443,9 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
         WORKFLOWS_IN_TC.discard(winfo)
 
 
-def drain_offline_nodes(handle, rabbit_name, nodelist):
+def drain_offline_nodes(handle, rabbit_name, nodelist, disable_draining):
+    if disable_draining:
+        return
     offline_nodes = Hostlist()
     for compute_node in nodelist:
         if compute_node["status"] != "Ready":
@@ -474,7 +476,7 @@ def mark_rabbit(handle, status, resource_path):
         handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
 
 
-def rabbit_state_change_cb(event, handle, rabbit_rpaths):
+def rabbit_state_change_cb(event, handle, rabbit_rpaths, disable_draining):
     """Callback firing when a Storage object changes.
 
     Marks a rabbit as up or down.
@@ -488,7 +490,9 @@ def rabbit_state_change_cb(event, handle, rabbit_rpaths):
         )
         return
     mark_rabbit(handle, status, rabbit_rpaths[name])
-    drain_offline_nodes(handle, name, rabbit["status"]["access"]["computes"])
+    drain_offline_nodes(
+        handle, name, rabbit["status"]["access"]["computes"], disable_draining
+    )
     # TODO: add some check for whether rabbit capacity has changed
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
 
@@ -507,7 +511,7 @@ def map_rabbits_to_fluxion_paths(graph_path):
     return rabbit_rpaths
 
 
-def init_rabbits(k8s_api, handle, watchers, graph_path):
+def init_rabbits(k8s_api, handle, watchers, graph_path, disable_draining):
     """Watch every rabbit ('Storage' resources in k8s) known to k8s.
 
     Whenever a Storage resource changes, mark it as 'up' or 'down' in Fluxion.
@@ -528,7 +532,9 @@ def init_rabbits(k8s_api, handle, watchers, graph_path):
                 "Encountered an unknown Storage object '%s' in the event stream", name
             )
         mark_rabbit(handle, rabbit["status"]["status"], rabbit_rpaths[name])
-        drain_offline_nodes(handle, name, rabbit["status"]["access"]["computes"])
+        drain_offline_nodes(
+            handle, name, rabbit["status"]["access"]["computes"], disable_draining
+        )
     watchers.add_watch(
         Watch(
             k8s_api,
@@ -537,6 +543,7 @@ def init_rabbits(k8s_api, handle, watchers, graph_path):
             rabbit_state_change_cb,
             handle,
             rabbit_rpaths,
+            disable_draining,
         )
     )
 
@@ -608,6 +615,11 @@ def setup_parsing():
         default=_MIN_ALLOCATION_SIZE,
         metavar="N",
         help="Minimum allocation size of rabbit allocations, in bytes",
+    )
+    parser.add_argument(
+        "--disable-compute-node-draining",
+        action="store_true",
+        help="Disable the draining of compute nodes based on k8s status",
     )
     return parser
 
@@ -713,7 +725,13 @@ def main():
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
     with Watchers(handle, watch_interval=args.watch_interval) as watchers:
-        init_rabbits(k8s_api, handle, watchers, args.resourcegraph)
+        init_rabbits(
+            k8s_api,
+            handle,
+            watchers,
+            args.resourcegraph,
+            args.disable_compute_node_draining,
+        )
         services = register_services(handle, k8s_api)
         watchers.add_watch(
             Watch(k8s_api, WORKFLOW_CRD, 0, workflow_state_change_cb, handle, k8s_api)
