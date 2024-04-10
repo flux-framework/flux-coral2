@@ -126,7 +126,30 @@ test_expect_success 'test that flux drains Offline compute nodes' '
         -p "[{\"op\":\"replace\", \"path\":\"/status/access/computes/0/status\", \"value\": \"Disabled\"}]" &&
     kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[0].status == \"Disabled\"" &&
     sleep 2.5 && flux resource drain | grep compute-01 &&
-    flux resource undrain compute-01
+    flux resource undrain compute-01 &&
+    test_must_fail bash -c "flux resource drain | grep compute-01"
+'
+
+test_expect_success 'exec Storage watching script with --disable-draining' '
+    flux cancel ${jobid} &&
+    jobid=$(flux submit \
+            --setattr=system.alloc-bypass.R="$(cat R.local)" --output=dws.out --error=dws.err \
+            -o per-resource.type=node flux python ${DWS_MODULE_PATH} -vvv -rR.local \
+            --disable-compute-node-draining) &&
+    flux job wait-event -vt 15 -p guest.exec.eventlog ${jobid} shell.start
+'
+
+test_expect_success 'test that flux does not drain Offline compute nodes with --disable-draining' '
+    kubectl get storages kind-worker2 -ojson | jq -e ".spec.mode == \"Testing\"" &&
+    kubectl patch storage kind-worker2 --subresource=status --type=json \
+        -p "[{\"op\":\"replace\", \"path\":\"/status/access/computes/0/status\", \"value\": \"Ready\"}]" &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[0].status == \"Ready\"" &&
+    test_must_fail bash -c "flux resource drain | grep compute-01" &&
+    kubectl patch storage kind-worker2 --subresource=status --type=json \
+        -p "[{\"op\":\"replace\", \"path\":\"/status/access/computes/0/status\", \"value\": \"Disabled\"}]" &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[0].status == \"Disabled\"" &&
+    sleep 2 &&
+    test_must_fail bash -c "flux resource drain | grep compute-01"
 '
 
 test_expect_success 'return the storage resource to Live mode' '
