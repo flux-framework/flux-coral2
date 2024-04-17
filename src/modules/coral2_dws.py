@@ -505,9 +505,12 @@ def map_rabbits_to_fluxion_paths(graph_path):
     for vertex in nodes:
         metadata = vertex["metadata"]
         if metadata["type"] == "rabbit":
-            rabbit_rpaths[metadata["name"].strip("rabbit-")] = metadata["paths"][
-                "containment"
-            ]
+            # strip off 'rabbit-' prefix
+            if metadata["name"].startswith("rabbit-"):
+                name = metadata["name"][len("rabbit-") :]
+            else:
+                name = metadata["name"]
+            rabbit_rpaths[name] = metadata["paths"]["containment"]
     return rabbit_rpaths
 
 
