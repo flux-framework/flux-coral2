@@ -151,7 +151,7 @@ class Coral2Graph(FluxionResourceGraphV1):
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
         self._add_and_tick_uniq_id(vtx, edg)
         self._encode_rabbit(vtx, nnf)
-        for node in nnf["status"]["access"]["computes"]:
+        for node in nnf["status"]["access"].get("computes", []):
             try:
                 index = self._r_hostlist.index(node["name"])[0]
             except FileNotFoundError:
@@ -193,7 +193,7 @@ class Coral2Graph(FluxionResourceGraphV1):
         dws_computes = set(
             compute["name"]
             for nnf in self._nnfs
-            for compute in nnf["status"]["access"]["computes"]
+            for compute in nnf["status"]["access"].get("computes", [])
         )
         dws_computes |= set(nnf["metadata"]["name"] for nnf in self._nnfs)
         for rank, node in enumerate(self._r_hostlist):
@@ -303,7 +303,7 @@ def main():
     dws_computes = set(
         compute["name"]
         for nnf in nnfs
-        for compute in nnf["status"]["access"]["computes"]
+        for compute in nnf["status"]["access"].get("computes", [])
     )
     if not args.no_validate and not dws_computes <= set(r_hostlist):
         raise RuntimeError(

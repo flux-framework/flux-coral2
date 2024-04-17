@@ -491,7 +491,7 @@ def rabbit_state_change_cb(event, handle, rabbit_rpaths, disable_draining):
         return
     mark_rabbit(handle, status, rabbit_rpaths[name])
     drain_offline_nodes(
-        handle, name, rabbit["status"]["access"]["computes"], disable_draining
+        handle, name, rabbit["status"]["access"].get("computes", []), disable_draining
     )
     # TODO: add some check for whether rabbit capacity has changed
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
@@ -531,9 +531,10 @@ def init_rabbits(k8s_api, handle, watchers, graph_path, disable_draining):
             LOGGER.error(
                 "Encountered an unknown Storage object '%s' in the event stream", name
             )
-        mark_rabbit(handle, rabbit["status"]["status"], rabbit_rpaths[name])
+        else:
+            mark_rabbit(handle, rabbit["status"]["status"], rabbit_rpaths[name])
         drain_offline_nodes(
-            handle, name, rabbit["status"]["access"]["computes"], disable_draining
+            handle, name, rabbit["status"]["access"].get("computes", []), disable_draining
         )
     watchers.add_watch(
         Watch(
