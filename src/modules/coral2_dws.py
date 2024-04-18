@@ -8,6 +8,7 @@ Data Workflow Services is DWS for short.
 """
 
 import os
+import sys
 import syslog
 import json
 import re

@@ -3,6 +3,8 @@ import logging
 
 from flux.constants import FLUX_MSGTYPE_REQUEST
 import kubernetes as k8s
+from kubernetes.client.exceptions import ApiException
+
 
 from flux.core.watchers import fd_handler_wrapper
 
@@ -20,16 +22,32 @@ class Watch:
         self.cb_kwargs = kwargs
 
     def watch(self):
+        """Watch resource, firing off callbacks.
+
+        When there are only old resources lying around and no new ones,
+        the resourceversion will be > 0 but too old for kubernetes to accept it.
+
+        Some versions of kubernetes (newer ones) throw an exception, others
+        just return an ERROR event. Handle both cases by resetting the
+        resource_version to 0.
+        """
         kwargs = {
             "resource_version": self.resource_version,
             "watch": True,
             "timeout_seconds": 1,
         }
-        for event in k8s.watch.Watch().stream(
-            self.api.list_namespaced_custom_object, *self.crd, **kwargs
-        ):
-            # when there are only old workflows lying around and no new ones,
-            # the resourceversion will be > 0 but too old for kubernetes to accept it
+        try:
+            stream = k8s.watch.Watch().stream(
+                self.api.list_namespaced_custom_object, *self.crd, **kwargs
+            )
+        except ApiException as apiexc:
+            if apiexc.status != 410:
+                raise
+            self.resource_version = kwargs["resource_version"] = 0
+            stream = k8s.watch.Watch().stream(
+                self.api.list_namespaced_custom_object, *self.crd, **kwargs
+            )
+        for event in stream:
             if event["type"] == "ERROR" and event["object"]["code"] == 410:
                 LOGGER.debug(
                     "Resource version too old in watch, restarting "
