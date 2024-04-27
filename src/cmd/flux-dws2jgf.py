@@ -299,7 +299,7 @@ def main():
 
     input_r = json.load(sys.stdin)
     nnfs = [x for x in get_storage()["items"]]
-    r_hostlist = Hostlist(input_r["execution"]["nodelist"])
+    r_hostlist = Hostlist(input_r["execution"]["nodelist"]).sort()
     dws_computes = set(
         compute["name"]
         for nnf in nnfs
