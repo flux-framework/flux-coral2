@@ -105,31 +105,10 @@ class Coral2Graph(FluxionResourceGraphV1):
                 to_gibibytes(nnf["capacity"] // self._chunks_per_nnf),
                 {},
                 f"{parent.path}/{res_name}",
+                1,  # status=1 marks the ssds as 'down' initially
             )
             edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
             self._add_and_tick_uniq_id(vtx, edg)
-
-    def _encode_rabbit(self, parent, nnf):
-        res_type = "rabbit"
-        res_name = f"{res_type}-{nnf['metadata']['name']}"
-        vtx = ElCapResourcePoolV1(
-            self._uniqId,
-            res_type,
-            res_type,
-            res_name,
-            self._rackids,
-            self._uniqId,
-            -1,
-            True,
-            "",
-            1,
-            {},
-            f"{parent.path}/{res_name}",
-            1,  # status=1 marks the rabbits as 'down' initially
-        )
-        edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
-        self._add_and_tick_uniq_id(vtx, edg)
-        self._encode_ssds(vtx, nnf["status"])
 
     def _encode_rack(self, parent, nnf):
         res_type = "rack"
@@ -150,7 +129,7 @@ class Coral2Graph(FluxionResourceGraphV1):
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
         self._add_and_tick_uniq_id(vtx, edg)
-        self._encode_rabbit(vtx, nnf)
+        self._encode_ssds(vtx, nnf["status"])
         for node in nnf["status"]["access"].get("computes", []):
             try:
                 index = self._r_hostlist.index(node["name"])[0]
