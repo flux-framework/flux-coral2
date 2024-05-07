@@ -265,7 +265,7 @@ def main():
             "Higher numbers allow finer-grained scheduling at the possible cost "
             "of scheduler performance."
         ),
-        default=32,
+        default=36,
         metavar="N",
         type=int,
     )
