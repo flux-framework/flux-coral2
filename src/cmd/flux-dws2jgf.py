@@ -124,7 +124,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             True,
             "",
             1,
-            {},
+            {"rabbit": nnf["metadata"]["name"]},
             f"{parent.path}/{res_name}",
         )
         edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
