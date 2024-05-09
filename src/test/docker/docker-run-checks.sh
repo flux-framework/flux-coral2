@@ -12,7 +12,7 @@ BASE_DOCKER_REPO=fluxrm/flux-sched
 
 IMAGE=focal
 JOBS=2
-MOUNT_HOME_ARGS="--volume=$HOME:$HOME -e HOME"
+MOUNT_HOME_ARGS="--volume=$HOME:/home/$USER -e HOME"
 MOUNT_KUBE_ARGS="--volume=$HOME/.kube:/usr/local/share/kube-localhost"
 
 if test "$PROJECT" = "flux-core"; then
@@ -134,7 +134,7 @@ checks_group "Building image $IMAGE for user $USER $(id -u) group=$(id -g)" \
     || die "docker build failed"
 
 if [[ -n "$MOUNT_HOME_ARGS" ]]; then
-    echo "mounting $HOME as $HOME"
+    echo "mounting $HOME as /home/$USER"
 fi
 if [[ -n "$MOUNT_KUBE_ARGS" ]]; then
     echo "mounting kube config inside container with ${MOUNT_KUBE_ARGS}"
