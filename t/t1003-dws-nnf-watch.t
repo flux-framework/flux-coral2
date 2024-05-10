@@ -50,7 +50,7 @@ test_expect_success 'rabbits default to down and are not allocated' '
 
 test_expect_success 'exec Storage watching script' '
     jobid=$(flux submit \
-            --setattr=system.alloc-bypass.R="$(cat R.local)" --output=dws.out --error=dws.err \
+            --setattr=system.alloc-bypass.R="$(flux R encode -r0)" --output=dws.out --error=dws.err \
             -o per-resource.type=node flux python ${DWS_MODULE_PATH} -vvv -rR.local) &&
     flux job wait-event -vt 15 -p guest.exec.eventlog ${jobid} shell.start
 '
@@ -133,7 +133,7 @@ test_expect_success 'test that flux drains Offline compute nodes' '
 test_expect_success 'exec Storage watching script with --disable-draining' '
     flux cancel ${jobid} &&
     jobid=$(flux submit \
-            --setattr=system.alloc-bypass.R="$(cat R.local)" --output=dws.out --error=dws.err \
+            --setattr=system.alloc-bypass.R="$(flux R encode -r0)" --output=dws.out --error=dws.err \
             -o per-resource.type=node flux python ${DWS_MODULE_PATH} -vvv -rR.local \
             --disable-compute-node-draining) &&
     flux job wait-event -vt 15 -p guest.exec.eventlog ${jobid} shell.start
