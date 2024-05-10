@@ -39,18 +39,15 @@ class TestDirectiveBreakdowns(unittest.TestCase):
             new_resources = directivebreakdown.apply_breakdowns(None, None, resources, 1)
             patched_fetch.assert_called_with(None, None)
             self.assertEqual(len(new_resources), 1)
-            rack = new_resources[0]
-            self.assertEqual(rack["type"], "rack")
-            self.assertEqual(rack["count"], nodecount)
-            self.assertEqual(len(rack["with"]), 2)
-            self.assertEqual(rack["with"][0]["type"], "node")
-            self.assertEqual(rack["with"][0]["count"], 1)
-            rabbit = rack["with"][1]
-            self.assertEqual(rabbit["type"], "rabbit")
-            self.assertEqual(rabbit["count"], 1)
-            self.assertEqual(len(rabbit["with"]), 1)
-            self.assertEqual(rabbit["with"][0]["type"], "ssd")
-            self.assertEqual(rabbit["with"][0]["count"], 10241 // nodecount)
+            slot = new_resources[0]
+            self.assertEqual(slot["type"], "slot")
+            self.assertEqual(slot["count"], nodecount)
+            self.assertEqual(len(slot["with"]), 2)
+            self.assertEqual(slot["with"][0]["type"], "node")
+            self.assertEqual(slot["with"][0]["count"], 1)
+            ssds = slot["with"][1]
+            self.assertEqual(ssds["type"], "ssd")
+            self.assertEqual(ssds["count"], 10241 // nodecount)
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_xfs10gb(self, patched_fetch):
@@ -60,18 +57,15 @@ class TestDirectiveBreakdowns(unittest.TestCase):
             new_resources = directivebreakdown.apply_breakdowns(None, None, resources, 1)
             patched_fetch.assert_called_with(None, None)
             self.assertEqual(len(new_resources), 1)
-            rack = new_resources[0]
-            self.assertEqual(rack["type"], "rack")
-            self.assertEqual(rack["count"], nodecount)
-            self.assertEqual(len(rack["with"]), 2)
-            self.assertEqual(rack["with"][0]["type"], "node")
-            self.assertEqual(rack["with"][0]["count"], 1)
-            rabbit = rack["with"][1]
-            self.assertEqual(rabbit["type"], "rabbit")
-            self.assertEqual(rabbit["count"], 1)
-            self.assertEqual(len(rabbit["with"]), 1)
-            self.assertEqual(rabbit["with"][0]["type"], "ssd")
-            self.assertEqual(rabbit["with"][0]["count"], 10)
+            slot = new_resources[0]
+            self.assertEqual(slot["type"], "slot")
+            self.assertEqual(slot["count"], nodecount)
+            self.assertEqual(len(slot["with"]), 2)
+            self.assertEqual(slot["with"][0]["type"], "node")
+            self.assertEqual(slot["with"][0]["count"], 1)
+            ssds = slot["with"][1]
+            self.assertEqual(ssds["type"], "ssd")
+            self.assertEqual(ssds["count"], 10)
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_xfs10gb_aggregation(self, patched_fetch):
@@ -83,18 +77,15 @@ class TestDirectiveBreakdowns(unittest.TestCase):
             new_resources = directivebreakdown.apply_breakdowns(None, None, resources, 1)
             patched_fetch.assert_called_with(None, None)
             self.assertEqual(len(new_resources), 1)
-            rack = new_resources[0]
-            self.assertEqual(rack["type"], "rack")
-            self.assertEqual(rack["count"], nodecount)
-            self.assertEqual(len(rack["with"]), 2)
-            self.assertEqual(rack["with"][0]["type"], "node")
-            self.assertEqual(rack["with"][0]["count"], 1)
-            rabbit = rack["with"][1]
-            self.assertEqual(rabbit["type"], "rabbit")
-            self.assertEqual(rabbit["count"], 1)
-            self.assertEqual(len(rabbit["with"]), 1)
-            self.assertEqual(rabbit["with"][0]["type"], "ssd")
-            self.assertEqual(rabbit["with"][0]["count"], 20)
+            slot = new_resources[0]
+            self.assertEqual(slot["type"], "slot")
+            self.assertEqual(slot["count"], nodecount)
+            self.assertEqual(len(slot["with"]), 2)
+            self.assertEqual(slot["with"][0]["type"], "node")
+            self.assertEqual(slot["with"][0]["count"], 1)
+            ssds = slot["with"][1]
+            self.assertEqual(ssds["type"], "ssd")
+            self.assertEqual(ssds["count"], 20)
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_combination_xfs_lustre(self, patched_fetch):
@@ -105,18 +96,15 @@ class TestDirectiveBreakdowns(unittest.TestCase):
         new_resources = directivebreakdown.apply_breakdowns(None, None, resources, 1)
         patched_fetch.assert_called_with(None, None)
         self.assertEqual(len(new_resources), 1)
-        rack = new_resources[0]
-        self.assertEqual(rack["type"], "rack")
-        self.assertEqual(rack["count"], 1)
-        self.assertEqual(len(rack["with"]), 2)
-        self.assertEqual(rack["with"][0]["type"], "node")
-        self.assertEqual(rack["with"][0]["count"], 1)
-        rabbit = rack["with"][1]
-        self.assertEqual(rabbit["type"], "rabbit")
-        self.assertEqual(rabbit["count"], 1)
-        self.assertEqual(len(rabbit["with"]), 1)
-        self.assertEqual(rabbit["with"][0]["type"], "ssd")
-        self.assertEqual(rabbit["with"][0]["count"], 10241 + 10)
+        slot = new_resources[0]
+        self.assertEqual(slot["type"], "slot")
+        self.assertEqual(slot["count"], 1)
+        self.assertEqual(len(slot["with"]), 2)
+        self.assertEqual(slot["with"][0]["type"], "node")
+        self.assertEqual(slot["with"][0]["count"], 1)
+        ssds = slot["with"][1]
+        self.assertEqual(ssds["type"], "ssd")
+        self.assertEqual(ssds["count"], 10241 + 10)
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_bad_resources(self, patched_fetch):
@@ -150,18 +138,15 @@ class TestDirectiveBreakdowns(unittest.TestCase):
                 new_resources = directivebreakdown.apply_breakdowns(None, None, resources, min_size)
                 patched_fetch.assert_called_with(None, None)
                 self.assertEqual(len(new_resources), 1)
-                rack = new_resources[0]
-                self.assertEqual(rack["type"], "rack")
-                self.assertEqual(rack["count"], nodecount)
-                self.assertEqual(len(rack["with"]), 2)
-                self.assertEqual(rack["with"][0]["type"], "node")
-                self.assertEqual(rack["with"][0]["count"], 1)
-                rabbit = rack["with"][1]
-                self.assertEqual(rabbit["type"], "rabbit")
-                self.assertEqual(rabbit["count"], 1)
-                self.assertEqual(len(rabbit["with"]), 1)
-                self.assertEqual(rabbit["with"][0]["type"], "ssd")
-                self.assertEqual(rabbit["with"][0]["count"], min_size)
+                slot = new_resources[0]
+                self.assertEqual(slot["type"], "slot")
+                self.assertEqual(slot["count"], nodecount)
+                self.assertEqual(len(slot["with"]), 2)
+                self.assertEqual(slot["with"][0]["type"], "node")
+                self.assertEqual(slot["with"][0]["count"], 1)
+                ssds = slot["with"][1]
+                self.assertEqual(ssds["type"], "ssd")
+                self.assertEqual(ssds["count"], min_size)
 
 
 unittest.main(testRunner=TAPTestRunner())
