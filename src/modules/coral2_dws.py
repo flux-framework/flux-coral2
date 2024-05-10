@@ -306,7 +306,7 @@ def state_complete(workflow, state):
     )
 
 
-def workflow_state_change_cb(event, handle, k8s_api):
+def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
     """Exception-catching wrapper around _workflow_state_change_cb_inner."""
     try:
         workflow = event["object"]
@@ -324,7 +324,9 @@ def workflow_state_change_cb(event, handle, k8s_api):
         del _WORKFLOWINFO_CACHE[jobid]
         return
     try:
-        _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api)
+        _workflow_state_change_cb_inner(
+            workflow, jobid, winfo, handle, k8s_api, disable_fluxion
+        )
     except Exception:
         LOGGER.exception(
             "Failed to process event update for workflow with jobid %s:", jobid
@@ -342,7 +344,9 @@ def workflow_state_change_cb(event, handle, k8s_api):
         handle.job_raise(jobid, "exception", 0, "DWS/Rabbit interactions failed")
 
 
-def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
+def _workflow_state_change_cb_inner(
+    workflow, jobid, winfo, handle, k8s_api, disable_fluxion
+):
     if "state" not in workflow["status"]:
         # workflow was just submitted, DWS still needs to give workflow
         # a state of 'Proposal'
@@ -379,13 +383,15 @@ def _workflow_state_change_cb_inner(workflow, jobid, winfo, handle, k8s_api):
             resources = flux.job.kvslookup.job_kvs_lookup(handle, jobid)["jobspec"][
                 "resources"
             ]
+        if not disable_fluxion:
+            resources = directivebreakdown.apply_breakdowns(
+                k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
+            )
         handle.rpc(
             "job-manager.dws.resource-update",
             payload={
                 "id": jobid,
-                "resources": directivebreakdown.apply_breakdowns(
-                    k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
-                ),
+                "resources": resources,
             },
         ).then(log_rpc_response)
     elif state_complete(workflow, "Setup"):
@@ -537,7 +543,10 @@ def init_rabbits(k8s_api, handle, watchers, graph_path, disable_draining):
         else:
             mark_rabbit(handle, rabbit["status"]["status"], *rabbit_rpaths[name], name)
         drain_offline_nodes(
-            handle, name, rabbit["status"]["access"].get("computes", []), disable_draining
+            handle,
+            name,
+            rabbit["status"]["access"].get("computes", []),
+            disable_draining,
         )
     watchers.add_watch(
         Watch(
@@ -624,6 +633,11 @@ def setup_parsing():
         "--disable-compute-node-draining",
         action="store_true",
         help="Disable the draining of compute nodes based on k8s status",
+    )
+    parser.add_argument(
+        "--disable-fluxion",
+        action="store_true",
+        help="Disable Fluxion scheduling of rabbits",
     )
     return parser
 
@@ -729,16 +743,25 @@ def main():
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
     with Watchers(handle, watch_interval=args.watch_interval) as watchers:
-        init_rabbits(
-            k8s_api,
-            handle,
-            watchers,
-            args.resourcegraph,
-            args.disable_compute_node_draining,
-        )
+        if not args.disable_fluxion:
+            init_rabbits(
+                k8s_api,
+                handle,
+                watchers,
+                args.resourcegraph,
+                args.disable_compute_node_draining,
+            )
         services = register_services(handle, k8s_api)
         watchers.add_watch(
-            Watch(k8s_api, WORKFLOW_CRD, 0, workflow_state_change_cb, handle, k8s_api)
+            Watch(
+                k8s_api,
+                WORKFLOW_CRD,
+                0,
+                workflow_state_change_cb,
+                handle,
+                k8s_api,
+                args.disable_fluxion,
+            )
         )
         raise_self_exception(handle)
 
