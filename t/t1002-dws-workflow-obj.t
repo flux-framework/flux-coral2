@@ -28,8 +28,9 @@ DATADIR=${SHARNESS_TEST_SRCDIR}/data/workflow-obj
 # 	flux jobtap load alloc-bypass.so
 # '
 
-test_expect_success 'job-manager: load dws-jobtap plugin' '
-	flux jobtap load ${PLUGINPATH}/dws-jobtap.so
+test_expect_success 'job-manager: load dws-jobtap and alloc-bypass plugin' '
+	flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
+	flux jobtap load alloc-bypass.so
 '
 
 test_expect_success 'exec dws service-providing script with bad arguments' '
@@ -203,6 +204,7 @@ test_expect_success 'dws service kills workflows in Error properly' '
 test_expect_success 'exec dws service-providing script with custom config path' '
 	flux cancel ${DWS_JOBID} &&
 	cp $REAL_HOME/.kube/config ./kubeconfig
+	R=$(flux R encode -r 0) &&
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws2.out --error=dws2.err \
@@ -259,6 +261,7 @@ test_expect_success 'dws service script handles restarts while a job is running'
 		${jobid} prolog-start &&
 	flux job wait-event -vt 30 ${jobid} start &&
 	flux cancel ${DWS_JOBID} &&
+	R=$(flux R encode -r 0) &&
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws3.out --error=dws3.err \

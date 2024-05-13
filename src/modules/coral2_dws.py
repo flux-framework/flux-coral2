@@ -465,15 +465,16 @@ def drain_offline_nodes(handle, rabbit_name, nodelist, disable_draining):
         ).then(log_rpc_response)
 
 
-def mark_rabbit(handle, status, resource_path):
+def mark_rabbit(handle, status, resource_path, ssdcount, name):
     """Send an RPC to mark a rabbit as up or down."""
     if status == "Ready":
-        LOGGER.debug("Marking rabbit %s as up", resource_path)
-        payload = {"resource_path": resource_path, "status": "up"}
-        handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
+        LOGGER.debug("Marking rabbit %s as up", name)
+        status = "up"
     else:
-        LOGGER.debug("Marking rabbit %s as down, status is %s", resource_path, status)
-        payload = {"resource_path": resource_path, "status": "down"}
+        LOGGER.debug("Marking rabbit %s as down, status is %s", name, status)
+        status = "down"
+    for ssdnum in range(ssdcount):
+        payload = {"resource_path": resource_path + f"/ssd{ssdnum}", "status": status}
         handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
 
 
@@ -490,7 +491,7 @@ def rabbit_state_change_cb(event, handle, rabbit_rpaths, disable_draining):
             "Encountered an unknown Storage object '%s' in the event stream", name
         )
         return
-    mark_rabbit(handle, status, rabbit_rpaths[name])
+    mark_rabbit(handle, status, *rabbit_rpaths[name], name)
     drain_offline_nodes(
         handle, name, rabbit["status"]["access"].get("computes", []), disable_draining
     )
@@ -505,13 +506,11 @@ def map_rabbits_to_fluxion_paths(graph_path):
         nodes = json.load(fd)["scheduling"]["graph"]["nodes"]
     for vertex in nodes:
         metadata = vertex["metadata"]
-        if metadata["type"] == "rabbit":
-            # strip off 'rabbit-' prefix
-            if metadata["name"].startswith("rabbit-"):
-                name = metadata["name"][len("rabbit-") :]
-            else:
-                name = metadata["name"]
-            rabbit_rpaths[name] = metadata["paths"]["containment"]
+        if metadata["type"] == "rack" and "rabbit" in metadata["properties"]:
+            rabbit_rpaths[metadata["properties"]["rabbit"]] = (
+                metadata["paths"]["containment"],
+                int(metadata["properties"].get("ssdcount", 36)),
+            )
     return rabbit_rpaths
 
 
@@ -536,7 +535,7 @@ def init_rabbits(k8s_api, handle, watchers, graph_path, disable_draining):
                 "Encountered an unknown Storage object '%s' in the event stream", name
             )
         else:
-            mark_rabbit(handle, rabbit["status"]["status"], rabbit_rpaths[name])
+            mark_rabbit(handle, rabbit["status"]["status"], *rabbit_rpaths[name], name)
         drain_offline_nodes(
             handle, name, rabbit["status"]["access"].get("computes", []), disable_draining
         )

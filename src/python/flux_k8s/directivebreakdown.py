@@ -65,14 +65,15 @@ def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
     ssd_resources = {"type": "ssd", "count": 0, "exclusive": True}
     nodecount = resources[0]["count"]
     resources[0]["count"] = 1
-    # construct a new jobspec resources with top-level 'rack' resources
+    # construct a new jobspec resources with top-level 'slot' resources
     new_resources = [
         {
-            "type": "rack",
-            "count": nodecount,  # the old nodecount, now for racks
+            "type": "slot",
+            "count": nodecount,  # the old nodecount, now for slots
+            "label": "rabbit",
             "with": [
                 resources[0],
-                {"type": "rabbit", "count": 1, "with": [ssd_resources]},
+                ssd_resources,
             ],
         }
     ]
