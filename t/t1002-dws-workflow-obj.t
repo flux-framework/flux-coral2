@@ -43,7 +43,50 @@ test_expect_success 'exec dws service-providing script with bad arguments' '
         -e1 -v -rR.local --foobar
 '
 
+test_expect_success 'exec dws service-providing script with fluxion scheduling disabled' '
+    R=$(flux R encode -r 0) &&
+    DWS_JOBID=$(flux submit \
+            --setattr=system.alloc-bypass.R="$R" \
+            -o per-resource.type=node --output=dws-fluxion-disabled.out \
+            --error=dws-fluxion-disabled.err python ${DWS_MODULE_PATH} -e1 \
+            -v --disable-fluxion) &&
+    flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start &&
+    flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
+    ${RPC} "dws.create"
+'
+
+test_expect_success 'job submission without DW string works with fluxion-rabbit scheduling disabled' '
+    jobid=$(flux submit -n1 /bin/true) &&
+    flux job wait-event -vt 25 -m status=0 ${jobid} finish &&
+    test_must_fail flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
+        ${jobid} dependency-add
+'
+
+test_expect_success 'job submission with valid DW string works with fluxion-rabbit scheduling disabled' '
+    jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+        -N1 -n1 hostname) &&
+    flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+        ${jobid} dependency-add &&
+    flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
+        ${jobid} dependency-remove &&
+    flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
+        ${jobid} memo &&
+    flux job wait-event -vt 15 ${jobid} depend &&
+    flux job wait-event -vt 15 ${jobid} priority &&
+    flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+        ${jobid} prolog-start &&
+    flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
+        ${jobid} prolog-finish &&
+    flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+    flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
+        ${jobid} epilog-start &&
+    flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
+        ${jobid} epilog-finish &&
+    flux job wait-event -vt 15 ${jobid} clean
+'
+
 test_expect_success 'load fluxion with rabbits' '
+    flux cancel ${DWS_JOBID} &&
 	flux R encode -l | flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-dws2jgf.py \
 	--no-validate | jq . > R.local &&
 	flux kvs put resource.R="$(cat R.local)" &&
