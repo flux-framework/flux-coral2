@@ -1,3 +1,22 @@
+flux-coral2 0.13.0 - 2024-05-13
+-------------------------------
+
+### New Features
+
+ * dws: rack-parent ssds (#157)
+ * dws: add option to disable Fluxion scheduling (#160)
+
+### Fixes
+
+ * dws: handle rabbits with no computes (#150)
+ * dws: fix rabbit name manipulation logic (#151)
+ * dws: k8s watch exception logic (#152)
+
+### Testsuite
+
+ * docker: change container hostname (#155)
+
+
 flux-coral2 0.12.0 - 2024-04-10
 -------------------------------
 
