@@ -448,7 +448,7 @@ def _workflow_state_change_cb_inner(
         remove_finalizer(winfo.name, k8s_api, workflow)
         winfo.toredown = True
     if workflow["status"].get("status") == "Error":
-        # a fatal error has occurred
+        # a fatal error has occurred in the workflows, raise a job exception
         handle.job_raise(
             jobid,
             "exception",
@@ -456,6 +456,13 @@ def _workflow_state_change_cb_inner(
             "DWS/Rabbit interactions failed: workflow hit an error: "
             f"{workflow['status'].get('message', '')}",
         )
+        # for most states, raising an exception should be enough to trigger other logic
+        # that eventually moves the workflow to Teardown. However, if the
+        # workflow is in PostRun or DataOut, the exception won't affect the dws-epilog
+        # action holding the job, so the workflow should be moved to Teardown now.
+        if workflow["spec"]["desiredState"] in ("PostRun", "DataOut"):
+            move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
+            remove_finalizer(winfo.name, k8s_api, workflow)
     elif workflow["status"].get("status") == "TransientCondition":
         # a potentially fatal error has occurred, but may resolve itself
         LOGGER.warning(
