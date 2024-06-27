@@ -29,18 +29,19 @@ test_expect_success HAVE_JQ 'smoke test to ensure the storage resources are expe
 	kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[1].name == \"compute-02\"" &&
 	kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[2].name == \"compute-03\"" &&
 	kubectl get storages kind-worker3 -ojson | jq -e ".status.access.computes | length == 1" &&
-	kubectl get storages kind-worker3 -ojson | jq -e ".status.access.computes[0].name == \"compute-04\""
+	kubectl get storages kind-worker3 -ojson | jq -e ".status.access.computes[0].name == \"compute-04\"" &&
+	test $(hostname) = compute-01
 '
 
 test_expect_success HAVE_JQ 'flux-dws2jgf.py outputs expected JGF for single compute node' '
-	flux R encode -Hcompute-01 | flux python ${CMD} --no-validate | \
-	jq . > actual-compute-01.jgf &&
+	flux R encode -Hcompute-01 | flux python ${CMD} --no-validate --cluster-name=ElCapitan \
+	| jq . > actual-compute-01.jgf &&
 	test_cmp ${DATADIR}/expected-compute-01.jgf actual-compute-01.jgf
 '
 
 test_expect_success HAVE_JQ 'flux-dws2jgf.py outputs expected JGF for multiple compute nodes' '
-	flux R encode -Hcompute-[01-04] -c0-4 | flux python ${CMD} --no-validate | \
-	jq . > actual-compute-01-04.jgf &&
+	flux R encode -Hcompute-[01-04] -c0-4 | flux python ${CMD} --no-validate --cluster-name=ElCapitan \
+	| jq . > actual-compute-01-04.jgf &&
 	test_cmp ${DATADIR}/expected-compute-01-04.jgf actual-compute-01-04.jgf
 '
 
@@ -69,7 +70,7 @@ test_expect_success HAVE_JQ 'fluxion rejects a rack/rabbit job when no rabbits a
 
 test_expect_success HAVE_JQ 'fluxion can be loaded with output of dws2jgf' '
 	flux run -n1 hostname &&
-	flux R encode -l | flux python ${CMD} --no-validate | jq . > R.local &&
+	flux R encode -l | flux python ${CMD} --no-validate --cluster-name=ElCapitan | jq . > R.local &&
 	flux kvs put resource.R="$(cat R.local)" &&
 	flux module list &&
 	flux module remove -f sched-fluxion-qmanager &&

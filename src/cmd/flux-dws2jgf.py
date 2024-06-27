@@ -6,6 +6,7 @@ import json
 import re
 import logging
 import itertools
+import socket
 
 import flux
 from flux.idset import IDset
@@ -32,7 +33,9 @@ class ElCapResourcePoolV1(FluxionResourcePoolV1):
             "rack",
             "rabbit",
             "ssd",
-        ] or super(ElCapResourcePoolV1, ElCapResourcePoolV1).constraints(resType)
+        ] or super(
+            ElCapResourcePoolV1, ElCapResourcePoolV1
+        ).constraints(resType)
 
     @property
     def path(self):
@@ -61,7 +64,9 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._rackids = 0
         self._cluster_name = cluster_name
         self._rank_to_children = get_node_children(rv1["execution"]["R_lite"])
-        self._rank_to_properties = get_node_properties(rv1["execution"].get("properties", {}))
+        self._rank_to_properties = get_node_properties(
+            rv1["execution"].get("properties", {})
+        )
         # Call super().__init__() last since it calls __encode
         super().__init__(rv1)
 
@@ -212,7 +217,7 @@ def get_node_properties(properties):
 
 def to_gibibytes(byt):
     """Technically gigabytes are (1000^3)"""
-    return byt // (1024 ** 3)
+    return byt // (1024**3)
 
 
 def encode(rv1, nnfs, r_hostlist, chunks_per_nnf, cluster_name):
@@ -271,10 +276,16 @@ def main():
     )
     parser.add_argument(
         "--cluster-name",
-        help="The name of the cluster to build the resource graph for",
-        default="ElCapitan",
+        help=(
+            "The name of the cluster to build the resource graph for. "
+            "If unspecified, use the hostname stripped of numerics."
+        ),
     )
     args = parser.parse_args()
+    if not args.cluster_name:
+        args.cluster_name = "".join(
+            i for i in socket.gethostname() if not i.isdigit()
+        ).rstrip("-")
 
     input_r = json.load(sys.stdin)
     nnfs = [x for x in get_storage()["items"]]
