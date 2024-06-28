@@ -5,8 +5,6 @@ from flux.constants import FLUX_MSGTYPE_REQUEST
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
 
-from flux.core.watchers import fd_handler_wrapper
-
 
 LOGGER = logging.getLogger(__name__)
 
