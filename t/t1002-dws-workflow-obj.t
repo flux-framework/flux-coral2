@@ -227,6 +227,26 @@ test_expect_success 'job submission with multiple valid DW strings in a JSON fil
 	flux job wait-event -vt 15 ${jobid} clean
 '
 
+test_expect_success 'job submission with invalid copy_in DW directive fails' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=lustre name=project2 \
+			#DW copy_in source=/some/fake/dir destination=\$DW_JOB_project2/" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 15 ${jobid} exception &&
+	flux job wait-event -vt 15 ${jobid} clean
+'
+
+test_expect_success 'job submission with invalid copy_out DW directive fails' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=lustre name=project3 \
+			#DW copy_out source=\$DW_JOB_project3/ destination=/some/fake/dir" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 15 ${jobid} exception &&
+	flux job wait-event -vt 15 ${jobid} clean
+'
+
 test_expect_success 'job-manager: dependency plugin works when validation fails' '
 	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
 	flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
