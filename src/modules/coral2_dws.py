@@ -481,12 +481,14 @@ def _workflow_state_change_cb_inner(
         WORKFLOWS_IN_TC.discard(winfo)
 
 
-def drain_offline_nodes(handle, rabbit_name, nodelist, disable_draining):
+def drain_offline_nodes(handle, rabbit_name, nodelist, disable_draining, allowlist):
     if disable_draining:
         return
     offline_nodes = Hostlist()
     for compute_node in nodelist:
-        if compute_node["status"] != "Ready":
+        if compute_node["status"] != "Ready" and (
+            allowlist is None or compute_node["name"] in allowlist
+        ):
             offline_nodes.append(compute_node["name"])
     if offline_nodes:
         encoded_hostlist = offline_nodes.encode()
@@ -516,7 +518,7 @@ def mark_rabbit(handle, status, resource_path, ssdcount, name):
 
 
 def rabbit_state_change_cb(
-    event, handle, rabbit_rpaths, disable_draining, disable_fluxion
+    event, handle, rabbit_rpaths, disable_draining, disable_fluxion, allowlist
 ):
     """Callback firing when a Storage object changes.
 
@@ -533,7 +535,11 @@ def rabbit_state_change_cb(
     if not disable_fluxion:
         mark_rabbit(handle, status, *rabbit_rpaths[name], name)
     drain_offline_nodes(
-        handle, name, rabbit["status"]["access"].get("computes", []), disable_draining
+        handle,
+        name,
+        rabbit["status"]["access"].get("computes", []),
+        disable_draining,
+        allowlist,
     )
     # TODO: add some check for whether rabbit capacity has changed
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
@@ -554,9 +560,7 @@ def map_rabbits_to_fluxion_paths(graph_path):
     return rabbit_rpaths
 
 
-def init_rabbits(
-    k8s_api, handle, watchers, graph_path, disable_draining, disable_fluxion
-):
+def init_rabbits(k8s_api, handle, watchers, args):
     """Watch every rabbit ('Storage' resources in k8s) known to k8s.
 
     Whenever a Storage resource changes, mark it as 'up' or 'down' in Fluxion.
@@ -565,17 +569,28 @@ def init_rabbits(
     down, because status may have changed while this service was inactive.
     """
     api_response = k8s_api.list_namespaced_custom_object(*RABBIT_CRD)
-    if not disable_fluxion:
-        rabbit_rpaths = map_rabbits_to_fluxion_paths(graph_path)
+    if not args.disable_fluxion:
+        rabbit_rpaths = map_rabbits_to_fluxion_paths(args.resourcegraph)
     else:
         rabbit_rpaths = {}
     resource_version = 0
+    if args.drain_queues is not None:
+        rset = flux.resource.resource_list(handle).get().all
+        allowlist = set(
+            rset.copy_constraint({"properties": args.drain_queues}).nodelist
+        )
+        if not allowlist:
+            raise ValueError(
+                f"No resources found associated with queues {args.drain_queues}"
+            )
+    else:
+        allowlist = None
     for rabbit in api_response["items"]:
         name = rabbit["metadata"]["name"]
         resource_version = max(
             resource_version, int(rabbit["metadata"]["resourceVersion"])
         )
-        if disable_fluxion:
+        if args.disable_fluxion:
             # don't mark the rabbit up or down but add the rabbit to the mapping
             rabbit_rpaths[name] = None
         elif name not in rabbit_rpaths:
@@ -588,7 +603,8 @@ def init_rabbits(
             handle,
             name,
             rabbit["status"]["access"].get("computes", []),
-            disable_draining,
+            args.disable_compute_node_draining,
+            allowlist,
         )
     watchers.add_watch(
         Watch(
@@ -598,8 +614,9 @@ def init_rabbits(
             rabbit_state_change_cb,
             handle,
             rabbit_rpaths,
-            disable_draining,
-            disable_fluxion,
+            args.disable_compute_node_draining,
+            args.disable_fluxion,
+            allowlist,
         )
     )
 
@@ -676,6 +693,11 @@ def setup_parsing():
         "--disable-compute-node-draining",
         action="store_true",
         help="Disable the draining of compute nodes based on k8s status",
+    )
+    parser.add_argument(
+        "--drain-queues",
+        nargs="+",
+        help="Target only the nodes in the given queues for draining",
     )
     parser.add_argument(
         "--disable-fluxion",
@@ -790,9 +812,7 @@ def main():
             k8s_api,
             handle,
             watchers,
-            args.resourcegraph,
-            args.disable_compute_node_draining,
-            args.disable_fluxion,
+            args,
         )
         services = register_services(handle, k8s_api)
         watchers.add_watch(
