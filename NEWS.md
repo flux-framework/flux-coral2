@@ -1,3 +1,16 @@
+flux-coral2 0.14.0 - 2024-07-04
+-------------------------------
+
+### New Features
+ * dws: queue-specific draining (#173)
+ * dws: enforce k8s finalizer removal (#168)
+ * dws2jgf: change cluster-name logic (#164)
+
+### Fixes
+ * dws: fix Postrun workflow error hang (#169)
+ * dws: change exception import path (#163)
+
+
 flux-coral2 0.13.0 - 2024-05-13
 -------------------------------
 
