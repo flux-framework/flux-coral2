@@ -56,11 +56,20 @@ class WorkflowInfo:
         else:
             self.name = name  # name of the k8s workflow
         self.resources = resources  # jobspec 'resources' field
+        self.transient_condition = None  # may be a TransientConditionInfo
         self.toredown = False  # True if workflows has been moved to teardown
         self.deleted = False  # True if delete request has been sent to k8s
-        self.last_tc_time = None  # time in seconds of last TransientCondition
-        self.last_tc_message = None  # message associated with last TransientCondition
         self.rabbits = None
+
+
+class TransientConditionInfo:
+    """Represents and holds information about a TransientCondition for a workflow."""
+
+    def __init__(self, workflow):
+        self.workflow = workflow  # workflow that hit the Transientcondition
+        self.last_time = time.time()  # time in seconds of last TransientCondition
+        # message associated with last TransientCondition
+        self.last_message = None
 
 
 def log_rpc_response(rpc):
@@ -449,6 +458,7 @@ def _workflow_state_change_cb_inner(
         winfo.toredown = True
     if workflow["status"].get("status") == "Error":
         # a fatal error has occurred in the workflows, raise a job exception
+        LOGGER.info("workflow hit an error: %s", workflow)
         handle.job_raise(
             jobid,
             "exception",
@@ -471,13 +481,14 @@ def _workflow_state_change_cb_inner(
             workflow["status"].get("message", ""),
             workflow,
         )
-        if winfo.last_tc_time is None:
-            winfo.last_tc_time = time.time()
-        winfo.last_tc_message = workflow["status"].get("message", "")
+        if winfo.transient_condition is None:
+            winfo.transient_condition = TransientConditionInfo(workflow)
+        winfo.transient_condition.last_tc_message = workflow["status"].get(
+            "message", ""
+        )
         WORKFLOWS_IN_TC.add(winfo)
     else:
-        winfo.last_tc_time = None
-        winfo.last_tc_message = None
+        winfo.transient_condition = None
         WORKFLOWS_IN_TC.discard(winfo)
 
 
@@ -632,13 +643,17 @@ def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
     # otherwise an exception occurs because we modify the set as we
     # iterate over it.
     for winfo in WORKFLOWS_IN_TC.copy():
-        if curr_time - winfo.last_tc_time > tc_timeout:
+        if curr_time - winfo.transient_condition.last_time > tc_timeout:
+            LOGGER.info(
+                "Workflow was in TransientCondition too long: %s",
+                winfo.transient_condition.workflow,
+            )
             watcher.flux_handle.job_raise(
                 winfo.jobid,
                 "exception",
                 0,
                 "DWS/Rabbit interactions failed: workflow in 'TransientCondition' "
-                f"state too long: {winfo.last_tc_message}",
+                f"state too long: {winfo.transient_condition.last_message}",
             )
             WORKFLOWS_IN_TC.discard(winfo)
 
