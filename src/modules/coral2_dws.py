@@ -345,7 +345,7 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
         jobid = int(flux.job.JobID(workflow["spec"]["jobID"]))
         workflow_name = workflow["metadata"]["name"]
     except KeyError:
-        LOGGER.exception("Invalid workflow in event stream: ")
+        LOGGER.exception("Invalid event %s in workflow stream: ", event)
         return
     if not workflow_name.startswith(WORKFLOW_NAME_PREFIX):
         LOGGER.warning("unrecognized workflow '%s' in event stream", workflow_name)
@@ -361,7 +361,9 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
         )
     except Exception:
         LOGGER.exception(
-            "Failed to process event update for workflow with jobid %s:", jobid
+            "Failed to process event update for workflow '%s' with jobid %s:",
+            workflow_name,
+            jobid,
         )
         try:
             move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
@@ -369,8 +371,9 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
             remove_finalizer(winfo.name, k8s_api, workflow)
         except ApiException:
             LOGGER.exception(
-                "Failed to move workflow with jobid %s to 'teardown' "
+                "Failed to move workflow '%s' with jobid %s to 'teardown' "
                 "state after error: ",
+                workflow_name,
                 jobid,
             )
         else:
@@ -458,7 +461,7 @@ def _workflow_state_change_cb_inner(
         winfo.toredown = True
     if workflow["status"].get("status") == "Error":
         # a fatal error has occurred in the workflows, raise a job exception
-        LOGGER.info("workflow hit an error: %s", workflow)
+        LOGGER.info("workflow '%s' hit an error: %s", winfo.name, workflow)
         handle.job_raise(
             jobid,
             "exception",
@@ -476,7 +479,7 @@ def _workflow_state_change_cb_inner(
     elif workflow["status"].get("status") == "TransientCondition":
         # a potentially fatal error has occurred, but may resolve itself
         LOGGER.warning(
-            "Workflow %s has TransientCondition set, message is '%s', workflow is %s",
+            "Workflow '%s' has TransientCondition set, message is '%s', workflow is %s",
             winfo.name,
             workflow["status"].get("message", ""),
             workflow,
@@ -645,7 +648,8 @@ def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
     for winfo in WORKFLOWS_IN_TC.copy():
         if curr_time - winfo.transient_condition.last_time > tc_timeout:
             LOGGER.info(
-                "Workflow was in TransientCondition too long: %s",
+                "Workflow '%s' was in TransientCondition too long: %s",
+                winfo.name,
                 winfo.transient_condition.workflow,
             )
             watcher.flux_handle.job_raise(
