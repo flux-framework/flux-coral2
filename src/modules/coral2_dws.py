@@ -562,8 +562,14 @@ def rabbit_state_change_cb(
 def map_rabbits_to_fluxion_paths(graph_path):
     """Read the fluxion resource graph and map rabbit hostnames to resource paths."""
     rabbit_rpaths = {}
-    with open(graph_path) as fd:
-        nodes = json.load(fd)["scheduling"]["graph"]["nodes"]
+    try:
+        with open(graph_path) as fd:
+            nodes = json.load(fd)["scheduling"]["graph"]["nodes"]
+    except Exception as exc:
+        raise ValueError(
+            f"Could not load rabbit resource graph data from {graph_path} "
+            "expected a Flux R file augmented with JGF from 'flux-dws2jgf'"
+        ) from exc
     for vertex in nodes:
         metadata = vertex["metadata"]
         if metadata["type"] == "rack" and "rabbit" in metadata["properties"]:
