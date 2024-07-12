@@ -128,10 +128,8 @@ def message_callback_wrapper(func):
     return wrapper
 
 
-def remove_finalizer(workflow_name, k8s_api, workflow=None):
+def remove_finalizer(workflow_name, k8s_api, workflow):
     """Remove the finalizer from the workflow so it can be deleted."""
-    if workflow is None:
-        workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, workflow_name)
     try:
         workflow["metadata"]["finalizers"].remove(_FINALIZER)
     except ValueError:
@@ -143,6 +141,17 @@ def remove_finalizer(workflow_name, k8s_api, workflow=None):
             workflow_name,
             {"metadata": {"finalizers": workflow["metadata"]["finalizers"]}},
         )
+
+
+def move_workflow_to_teardown(winfo, k8s_api, workflow=None):
+    """Helper function for moving a workflow to Teardown."""
+    if workflow is None:
+        workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
+    LOGGER.debug("Moving workflow %s to Teardown, dump is %s", winfo.name, workflow)
+    move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
+    # Remove the finalizer so the resource can be deleted.
+    remove_finalizer(winfo.name, k8s_api, workflow)
+    winfo.toredown = True
 
 
 def move_workflow_desiredstate(workflow_name, desiredstate, k8s_api):
@@ -317,10 +326,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
     if not run_started:
         # the job hit an exception before beginning to run; transition
         # the workflow immediately to 'teardown'
-        move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
-        # Remove the finalizer so the resource can be deleted.
-        remove_finalizer(winfo.name, k8s_api)
-        winfo.toredown = True
+        move_workflow_to_teardown(winfo, k8s_api)
     else:
         move_workflow_desiredstate(winfo.name, "PostRun", k8s_api)
 
@@ -345,7 +351,7 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
         jobid = int(flux.job.JobID(workflow["spec"]["jobID"]))
         workflow_name = workflow["metadata"]["name"]
     except KeyError:
-        LOGGER.exception("Invalid workflow in event stream: ")
+        LOGGER.exception("Invalid event %s in workflow stream: ", event)
         return
     if not workflow_name.startswith(WORKFLOW_NAME_PREFIX):
         LOGGER.warning("unrecognized workflow '%s' in event stream", workflow_name)
@@ -361,16 +367,17 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
         )
     except Exception:
         LOGGER.exception(
-            "Failed to process event update for workflow with jobid %s:", jobid
+            "Failed to process event update for workflow '%s' with jobid %s:",
+            workflow_name,
+            jobid,
         )
         try:
-            move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
-            # Remove the finalizer so the resource can be deleted.
-            remove_finalizer(winfo.name, k8s_api, workflow)
+            move_workflow_to_teardown(winfo, k8s_api, workflow)
         except ApiException:
             LOGGER.exception(
-                "Failed to move workflow with jobid %s to 'teardown' "
+                "Failed to move workflow '%s' with jobid %s to 'teardown' "
                 "state after error: ",
+                workflow_name,
                 jobid,
             )
         else:
@@ -452,13 +459,10 @@ def _workflow_state_change_cb_inner(
         move_workflow_desiredstate(winfo.name, "DataOut", k8s_api)
     elif state_complete(workflow, "DataOut"):
         # move workflow to next stage, teardown
-        move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
-        # Remove the finalizer so the resource can be deleted.
-        remove_finalizer(winfo.name, k8s_api, workflow)
-        winfo.toredown = True
+        move_workflow_to_teardown(winfo, k8s_api, workflow)
     if workflow["status"].get("status") == "Error":
         # a fatal error has occurred in the workflows, raise a job exception
-        LOGGER.info("workflow hit an error: %s", workflow)
+        LOGGER.info("workflow '%s' hit an error: %s", winfo.name, workflow)
         handle.job_raise(
             jobid,
             "exception",
@@ -471,12 +475,11 @@ def _workflow_state_change_cb_inner(
         # workflow is in PostRun or DataOut, the exception won't affect the dws-epilog
         # action holding the job, so the workflow should be moved to Teardown now.
         if workflow["spec"]["desiredState"] in ("PostRun", "DataOut"):
-            move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
-            remove_finalizer(winfo.name, k8s_api, workflow)
+            move_workflow_to_teardown(winfo, k8s_api, workflow)
     elif workflow["status"].get("status") == "TransientCondition":
         # a potentially fatal error has occurred, but may resolve itself
         LOGGER.warning(
-            "Workflow %s has TransientCondition set, message is '%s', workflow is %s",
+            "Workflow '%s' has TransientCondition set, message is '%s', workflow is %s",
             winfo.name,
             workflow["status"].get("message", ""),
             workflow,
@@ -559,8 +562,14 @@ def rabbit_state_change_cb(
 def map_rabbits_to_fluxion_paths(graph_path):
     """Read the fluxion resource graph and map rabbit hostnames to resource paths."""
     rabbit_rpaths = {}
-    with open(graph_path) as fd:
-        nodes = json.load(fd)["scheduling"]["graph"]["nodes"]
+    try:
+        with open(graph_path) as fd:
+            nodes = json.load(fd)["scheduling"]["graph"]["nodes"]
+    except Exception as exc:
+        raise ValueError(
+            f"Could not load rabbit resource graph data from {graph_path} "
+            "expected a Flux R file augmented with JGF from 'flux-dws2jgf'"
+        ) from exc
     for vertex in nodes:
         metadata = vertex["metadata"]
         if metadata["type"] == "rack" and "rabbit" in metadata["properties"]:
@@ -645,7 +654,8 @@ def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
     for winfo in WORKFLOWS_IN_TC.copy():
         if curr_time - winfo.transient_condition.last_time > tc_timeout:
             LOGGER.info(
-                "Workflow was in TransientCondition too long: %s",
+                "Workflow '%s' was in TransientCondition too long: %s",
+                winfo.name,
                 winfo.transient_condition.workflow,
             )
             watcher.flux_handle.job_raise(
