@@ -576,14 +576,16 @@ static void resource_update_msg_cb (flux_t *h,
     json_int_t jobid;
     json_t *resources = NULL;
     json_t *jobspec;
+    int copy_offload;
 
-    if (flux_msg_unpack (msg, "{s:I, s:o}", "id", &jobid, "resources", &resources)
+    if (flux_msg_unpack (msg, "{s:I, s:o, s:b}", "id", &jobid, "resources", &resources, "copy-offload", &copy_offload)
         < 0) {
         flux_log_error (h, "received malformed dws.resource-update RPC");
         return;
     }
     if (!(jobspec = flux_jobtap_job_aux_get (p, jobid, "dws_jobspec"))
-        || json_object_set (jobspec, "resources", resources) < 0) {
+        || json_object_set (jobspec, "resources", resources) < 0
+        || flux_jobtap_job_aux_set (p, jobid, "flux::dws-copy-offload", copy_offload ? (void*) 1 : (void*) 0, NULL) < 0 ) {
         raise_job_exception (p,
                              jobid,
                              "dws",
@@ -611,10 +613,14 @@ static void prolog_remove_msg_cb (flux_t *h,
     json_int_t jobid;
     json_t *env = NULL, *rabbit_mapping = NULL;
     int *prolog_active, junk_prolog_active = 1;
+    int copy_offload = 0;
 
     if (flux_msg_unpack (msg, "{s:I, s:o, s:o}", "id", &jobid, "variables", &env, "rabbits", &rabbit_mapping) < 0) {
         flux_log_error (h, "received malformed dws.prolog-remove RPC");
         return;
+    }
+    if (flux_jobtap_job_aux_get (p, (flux_jobid_t)jobid, "flux::dws-copy-offload")){
+        copy_offload = 1;
     }
     if (!(prolog_active =
               flux_jobtap_job_aux_get (p, (flux_jobid_t)jobid, "dws_prolog_active"))) {
@@ -630,11 +636,13 @@ static void prolog_remove_msg_cb (flux_t *h,
     if (flux_jobtap_event_post_pack (p,
                                      jobid,
                                      "dws_environment",
-                                     "{s:O, s:O}",
+                                     "{s:O, s:O, s:b}",
                                      "variables",
                                      env,
                                      "rabbits",
-                                     rabbit_mapping)
+                                     rabbit_mapping,
+                                     "copy_offload",
+                                     copy_offload)
             < 0
         || flux_jobtap_job_aux_set (p, jobid, "flux::dws_run_started", (void *)1, NULL)
                < 0) {
