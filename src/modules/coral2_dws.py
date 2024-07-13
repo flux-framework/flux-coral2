@@ -154,9 +154,18 @@ def move_workflow_to_teardown(winfo, k8s_api, workflow=None):
     if workflow is None:
         workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
     LOGGER.debug("Moving workflow %s to Teardown, dump is %s", winfo.name, workflow)
-    move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
-    # Remove the finalizer so the resource can be deleted.
-    remove_finalizer(winfo.name, k8s_api, workflow)
+    try:
+        workflow["metadata"]["finalizers"].remove(_FINALIZER)
+    except ValueError:
+        pass
+    k8s_api.patch_namespaced_custom_object(
+        *WORKFLOW_CRD,
+        winfo.name,
+        {
+            "spec": {"desiredState": "Teardown"},
+            "metadata": {"finalizers": workflow["metadata"]["finalizers"]},
+        },
+    )
     winfo.toredown = True
     if LOGGER.isEnabledFor(logging.DEBUG):
         try:
