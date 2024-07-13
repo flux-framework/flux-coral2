@@ -137,6 +137,36 @@ test_expect_success 'job submission with valid DW string works' '
 	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
 		${jobid} prolog-finish &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event.json &&
+	jq -e .context.variables env-event.json && jq -e .context.rabbits env-event.json &&
+	jq -e ".context.copy_offload == false" env-event.json &&
+	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 15 ${jobid} clean
+'
+
+test_expect_success 'job requesting copy-offload in DW string works' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1
+			requires=copy-offload" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-remove &&
+	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
+		${jobid} memo &&
+	flux job wait-event -vt 15 ${jobid} depend &&
+	flux job wait-event -vt 15 ${jobid} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event2.json &&
+	jq -e .context.variables env-event2.json && jq -e .context.rabbits env-event2.json &&
+	jq -e ".context.copy_offload == true" env-event2.json &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
 	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
