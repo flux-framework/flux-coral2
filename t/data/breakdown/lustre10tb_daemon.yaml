@@ -1,0 +1,25 @@
+version: v1
+kind: DirectiveBreakdown
+metadata:
+  name: job456-0
+spec:
+  dwRecord:
+    dwDirectiveIndex: 0
+    dwDirective: jobdw type=lustre capacity=10TB name=lus-name
+  lifetime: job
+  name: my-lustre-storage
+status:
+  ready: true
+  requiredDaemons: copy-offload
+  servers:
+    kind: Servers
+    name: job456-0
+    namespace: default
+  storage:
+    allocationSets:
+    - allocationStrategy: AllocateAcrossServers
+      minimumCapacity: 2000000000
+      label: mgtmdt
+    - allocationStrategy: AllocateAcrossServers
+      minimumCapacity: 10995116277760
+      label: ost

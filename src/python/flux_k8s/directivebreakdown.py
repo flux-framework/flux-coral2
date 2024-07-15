@@ -78,8 +78,11 @@ def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
         }
     ]
     allocation_applied = False
+    copy_offload = False
     # update ssd_resources to the right number
     for breakdown in breakdown_list:
+        if "copy-offload" in breakdown["status"].get("requiredDaemons", []):
+            copy_offload = True
         if breakdown["kind"] != "DirectiveBreakdown":
             raise ValueError(f"unsupported breakdown kind {breakdown['kind']!r}")
         if not breakdown["status"]["ready"]:
@@ -89,8 +92,8 @@ def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
                 _apply_allocation(allocation, ssd_resources, nodecount, min_size)
                 allocation_applied = True
     if not allocation_applied:
-        return old_resources
-    return new_resources
+        return (old_resources, copy_offload)
+    return (new_resources, copy_offload)
 
 
 def fetch_breakdowns(k8s_api, workflow):

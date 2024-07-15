@@ -26,7 +26,7 @@ def create_cb(fh, t, msg, arg):
         return
     fh.rpc(
         "job-manager.dws.resource-update",
-        payload={"id": msg.payload["jobid"], "resources": msg.payload["resources"]},
+        payload={"id": msg.payload["jobid"], "resources": msg.payload["resources"], "copy-offload": False},
     )
 
 def setup_cb(fh, t, msg, arg):

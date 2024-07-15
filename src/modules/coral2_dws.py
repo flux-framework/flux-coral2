@@ -457,7 +457,11 @@ def _workflow_state_change_cb_inner(
                 "resources"
             ]
         if not disable_fluxion:
-            resources = directivebreakdown.apply_breakdowns(
+            resources, copy_offload = directivebreakdown.apply_breakdowns(
+                k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
+            )
+        else:
+            _, copy_offload = directivebreakdown.apply_breakdowns(
                 k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
             )
         handle.rpc(
@@ -465,6 +469,7 @@ def _workflow_state_change_cb_inner(
             payload={
                 "id": jobid,
                 "resources": resources,
+                "copy-offload": copy_offload,
             },
         ).then(log_rpc_response)
     elif state_complete(workflow, "Setup"):
