@@ -29,7 +29,13 @@ from flux.hostlist import Hostlist
 from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
-from flux_k8s.crd import WORKFLOW_CRD, RABBIT_CRD, COMPUTE_CRD, SERVER_CRD
+from flux_k8s.crd import (
+    WORKFLOW_CRD,
+    RABBIT_CRD,
+    COMPUTE_CRD,
+    SERVER_CRD,
+    DATAMOVEMENT_CRD,
+)
 from flux_k8s.watch import Watchers, Watch
 from flux_k8s import directivebreakdown
 
@@ -148,10 +154,39 @@ def move_workflow_to_teardown(winfo, k8s_api, workflow=None):
     if workflow is None:
         workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
     LOGGER.debug("Moving workflow %s to Teardown, dump is %s", winfo.name, workflow)
-    move_workflow_desiredstate(winfo.name, "Teardown", k8s_api)
-    # Remove the finalizer so the resource can be deleted.
-    remove_finalizer(winfo.name, k8s_api, workflow)
+    try:
+        workflow["metadata"]["finalizers"].remove(_FINALIZER)
+    except ValueError:
+        pass
+    k8s_api.patch_namespaced_custom_object(
+        *WORKFLOW_CRD,
+        winfo.name,
+        {
+            "spec": {"desiredState": "Teardown"},
+            "metadata": {"finalizers": workflow["metadata"]["finalizers"]},
+        },
+    )
     winfo.toredown = True
+    if LOGGER.isEnabledFor(logging.DEBUG):
+        try:
+            api_response = k8s_api.list_namespaced_custom_object(
+                *DATAMOVEMENT_CRD,
+                label_selector=(
+                    f"dataworkflowservices.github.io/workflow.name={winfo.name},"
+                    "dataworkflowservices.github.io/workflow.namespace=default"
+                ),
+            )
+        except Exception as exc:
+            LOGGER.debug(
+                "Failed to fetch nnfdatamovement crds for workflow '%s': %s",
+                winfo.name,
+                exc,
+            )
+        else:
+            for crd in api_response["items"]:
+                LOGGER.debug(
+                    "Found nnfdatamovement crd for workflow '%s': %s", winfo.name, crd
+                )
 
 
 def move_workflow_desiredstate(workflow_name, desiredstate, k8s_api):
