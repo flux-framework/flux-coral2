@@ -1,3 +1,5 @@
+"""Module defining functions related to DirectiveBreakdown resources."""
+
 import enum
 import copy
 import functools
@@ -7,6 +9,8 @@ from flux_k8s.crd import DIRECTIVEBREAKDOWN_CRD
 
 
 class AllocationStrategy(enum.Enum):
+    """Enum defining different AllocationStrategies."""
+
     PER_COMPUTE = "AllocatePerCompute"
     SINGLE_SERVER = "AllocateSingleServer"
     ACROSS_SERVERS = "AllocateAcrossServers"
@@ -17,6 +21,7 @@ LUSTRE_TYPES = ("ost", "mdt", "mgt", "mgtmdt")
 
 
 def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_size):
+    """Build the allocationSet for a Server based on its DirectiveBreakdown."""
     allocation_sets = []
     for alloc_set in breakdown_alloc_sets:
         storage_field = []
@@ -61,7 +66,6 @@ def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
     """Apply all of the directive breakdown information to a jobspec's `resources`."""
     resources = copy.deepcopy(old_resources)
     breakdown_list = list(fetch_breakdowns(k8s_api, workflow))
-    per_compute_total = 0  # total bytes of per-compute storage
     if not resources:
         raise ValueError("jobspec resources empty")
     if len(resources) > 1 or resources[0]["type"] != "node":
@@ -106,7 +110,7 @@ def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
 def fetch_breakdowns(k8s_api, workflow):
     """Fetch all of the directive breakdowns associated with a workflow."""
     if not workflow["status"].get("directiveBreakdowns"):
-        return []  # destroy_persistent DW directives have no breakdowns
+        return  # destroy_persistent DW directives have no breakdowns
     for breakdown in workflow["status"]["directiveBreakdowns"]:
         yield k8s_api.get_namespaced_custom_object(
             DIRECTIVEBREAKDOWN_CRD.group,
