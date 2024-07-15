@@ -1,5 +1,7 @@
 import enum
 import copy
+import functools
+import math
 
 from flux_k8s.crd import DIRECTIVEBREAKDOWN_CRD
 
@@ -12,6 +14,47 @@ class AllocationStrategy(enum.Enum):
 
 PER_COMPUTE_TYPES = ("xfs", "gfs2", "raw")
 LUSTRE_TYPES = ("ost", "mdt", "mgt", "mgtmdt")
+
+
+def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_size):
+    allocation_sets = []
+    for alloc_set in breakdown_alloc_sets:
+        storage_field = []
+        server_alloc_set = {
+            "allocationSize": alloc_set["minimumCapacity"],
+            "label": alloc_set["label"],
+            "storage": storage_field,
+        }
+        if alloc_set["allocationStrategy"] == AllocationStrategy.PER_COMPUTE.value:
+            # make an allocation on every rabbit attached to compute nodes
+            # in the job
+            for nnf_name, nodecount in nodes_per_nnf.items():
+                storage_field.append(
+                    {
+                        "allocationCount": nodecount,
+                        "name": nnf_name,
+                    }
+                )
+        elif alloc_set["allocationStrategy"] == AllocationStrategy.ACROSS_SERVERS.value:
+            nodecount_gcd = functools.reduce(math.gcd, nodes_per_nnf.values())
+            server_alloc_set["allocationSize"] = math.ceil(
+                nodecount_gcd * alloc_set["minimumCapacity"] / len(hlist)
+            )
+            # split lustre across every rabbit, weighting the split based on
+            # the number of the job's nodes associated with each rabbit
+            for rabbit_name in nodes_per_nnf:
+                storage_field.append(
+                    {
+                        "allocationCount": nodes_per_nnf[rabbit_name] / nodecount_gcd,
+                        "name": rabbit_name,
+                    }
+                )
+        # enforce the minimum allocation size
+        server_alloc_set["allocationSize"] = max(
+            server_alloc_set["allocationSize"], min_alloc_size * 1024**3
+        )
+        allocation_sets.append(server_alloc_set)
+    return allocation_sets
 
 
 def apply_breakdowns(k8s_api, workflow, old_resources, min_size):

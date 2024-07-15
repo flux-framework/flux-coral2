@@ -17,7 +17,6 @@ import logging
 import pwd
 import time
 import pathlib
-import math
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
@@ -285,50 +284,12 @@ def setup_cb(handle, _t, msg, k8s_api):
         # if a breakdown doesn't have a storage field (e.g. persistentdw) directives
         # ignore it and proceed
         if "storage" in breakdown["status"]:
-            allocation_sets = []
-            for alloc_set in breakdown["status"]["storage"]["allocationSets"]:
-                storage_field = []
-                server_alloc_set = {
-                    "allocationSize": alloc_set["minimumCapacity"],
-                    "label": alloc_set["label"],
-                    "storage": storage_field,
-                }
-                if (
-                    alloc_set["allocationStrategy"]
-                    == directivebreakdown.AllocationStrategy.PER_COMPUTE.value
-                ):
-                    # make an allocation on every rabbit attached to compute nodes
-                    # in the job
-                    for nnf_name, nodecount in nodes_per_nnf.items():
-                        storage_field.append(
-                            {
-                                "allocationCount": nodecount,
-                                "name": nnf_name,
-                            }
-                        )
-                elif (
-                    alloc_set["allocationStrategy"]
-                    == directivebreakdown.AllocationStrategy.ACROSS_SERVERS.value
-                ):
-                    nodecount_gcd = functools.reduce(math.gcd, nodes_per_nnf.values())
-                    server_alloc_set["allocationSize"] = math.ceil(
-                        nodecount_gcd * alloc_set["minimumCapacity"] / len(hlist)
-                    )
-                    # split lustre across every rabbit, weighting the split based on
-                    # the number of the job's nodes associated with each rabbit
-                    for rabbit_name in nodes_per_nnf:
-                        storage_field.append(
-                            {
-                                "allocationCount": nodes_per_nnf[rabbit_name]
-                                / nodecount_gcd,
-                                "name": rabbit_name,
-                            }
-                        )
-                # enforce the minimum allocation size
-                server_alloc_set["allocationSize"] = max(
-                    server_alloc_set["allocationSize"], _MIN_ALLOCATION_SIZE * 1024**3
-                )
-                allocation_sets.append(server_alloc_set)
+            allocation_sets = directivebreakdown.build_allocation_sets(
+                breakdown["status"]["storage"]["allocationSets"],
+                nodes_per_nnf,
+                hlist,
+                _MIN_ALLOCATION_SIZE,
+            )
             k8s_api.patch_namespaced_custom_object(
                 SERVER_CRD.group,
                 SERVER_CRD.version,
