@@ -144,7 +144,8 @@ test_expect_success 'job submission with valid DW string works' '
 		${jobid} epilog-start &&
 	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean
+	flux job wait-event -vt 15 ${jobid} clean &&
+	flux jobs -n ${jobid} -o "{user.rabbits}" | flux hostlist -q -
 '
 
 test_expect_success 'job requesting copy-offload in DW string works' '
@@ -209,7 +210,8 @@ test_expect_success 'job submission with multiple valid DW strings on different 
 		${jobid} epilog-start &&
 	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean
+	flux job wait-event -vt 15 ${jobid} clean &&
+	flux jobs -n ${jobid} -o "{user.rabbits}" | flux hostlist -q -
 '
 
 test_expect_success 'job submission with multiple valid DW strings on the same line works' '

@@ -270,7 +270,7 @@ def setup_cb(handle, _t, msg, k8s_api):
         nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
     handle.rpc(
         "job-manager.memo",
-        payload={"id": jobid, "memo": {"rabbits": list(nodes_per_nnf.keys())}},
+        payload={"id": jobid, "memo": {"rabbits": Hostlist(nodes_per_nnf.keys()).encode()}},
     ).then(log_rpc_response)
     k8s_api.patch_namespaced_custom_object(
         COMPUTE_CRD.group,
