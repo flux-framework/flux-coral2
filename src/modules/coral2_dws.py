@@ -793,11 +793,16 @@ def raise_self_exception(handle):
     testing purposes.
     Once https://github.com/flux-framework/flux-core/issues/3821 is
     implemented/closed, this can be replaced with that solution.
+
+    Also, remove FLUX_KVS_NAMESPACE from the environment, because otherwise
+    KVS lookups will look relative to that namespace, changing the behavior
+    relative to when the script runs as a service.
     """
     try:
         jobid = id_parse(os.environ["FLUX_JOB_ID"])
     except KeyError:
         return
+    del os.environ["FLUX_KVS_NAMESPACE"]
     Future(handle.job_raise(jobid, "exception", 7, "dws watchers setup")).get()
 
 
