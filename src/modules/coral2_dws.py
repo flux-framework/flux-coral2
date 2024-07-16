@@ -148,11 +148,18 @@ def remove_finalizer(workflow_name, k8s_api, workflow):
         )
 
 
-def move_workflow_to_teardown(winfo, k8s_api, workflow=None):
+def move_workflow_to_teardown(handle, winfo, k8s_api, workflow=None):
     """Helper function for moving a workflow to Teardown."""
     if workflow is None:
         workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
-    LOGGER.debug("Moving workflow %s to Teardown, dump is %s", winfo.name, workflow)
+    try:
+        kvsdir = flux.job.job_kvs(handle, winfo.jobid)
+        kvsdir["rabbit_workflow"] = workflow
+        kvsdir.commit()
+    except Exception:
+        LOGGER.exception(
+            "Failed to update KVS for job %s: workflow is", winfo.jobid, workflow
+        )
     try:
         workflow["metadata"]["finalizers"].remove(_FINALIZER)
     except ValueError:
@@ -270,7 +277,10 @@ def setup_cb(handle, _t, msg, k8s_api):
         nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
     handle.rpc(
         "job-manager.memo",
-        payload={"id": jobid, "memo": {"rabbits": Hostlist(nodes_per_nnf.keys()).encode()}},
+        payload={
+            "id": jobid,
+            "memo": {"rabbits": Hostlist(nodes_per_nnf.keys()).encode()},
+        },
     ).then(log_rpc_response)
     k8s_api.patch_namespaced_custom_object(
         COMPUTE_CRD.group,
@@ -322,7 +332,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
     if not run_started:
         # the job hit an exception before beginning to run; transition
         # the workflow immediately to 'teardown'
-        move_workflow_to_teardown(winfo, k8s_api)
+        move_workflow_to_teardown(handle, winfo, k8s_api)
     else:
         move_workflow_desiredstate(winfo.name, "PostRun", k8s_api)
 
@@ -368,7 +378,7 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
             jobid,
         )
         try:
-            move_workflow_to_teardown(winfo, k8s_api, workflow)
+            move_workflow_to_teardown(handle, winfo, k8s_api, workflow)
         except ApiException:
             LOGGER.exception(
                 "Failed to move workflow '%s' with jobid %s to 'teardown' "
@@ -460,7 +470,7 @@ def _workflow_state_change_cb_inner(
         move_workflow_desiredstate(winfo.name, "DataOut", k8s_api)
     elif state_complete(workflow, "DataOut"):
         # move workflow to next stage, teardown
-        move_workflow_to_teardown(winfo, k8s_api, workflow)
+        move_workflow_to_teardown(handle, winfo, k8s_api, workflow)
     if workflow["status"].get("status") == "Error":
         # a fatal error has occurred in the workflows, raise a job exception
         LOGGER.info("workflow '%s' hit an error: %s", winfo.name, workflow)
@@ -476,7 +486,7 @@ def _workflow_state_change_cb_inner(
         # workflow is in PostRun or DataOut, the exception won't affect the dws-epilog
         # action holding the job, so the workflow should be moved to Teardown now.
         if workflow["spec"]["desiredState"] in ("PostRun", "DataOut"):
-            move_workflow_to_teardown(winfo, k8s_api, workflow)
+            move_workflow_to_teardown(handle, winfo, k8s_api, workflow)
     elif workflow["status"].get("status") == "TransientCondition":
         # a potentially fatal error has occurred, but may resolve itself
         LOGGER.warning(
