@@ -1,10 +1,17 @@
+"""Module defining functions related to DirectiveBreakdown resources."""
+
 import enum
 import copy
+import functools
+import math
+import collections
 
 from flux_k8s.crd import DIRECTIVEBREAKDOWN_CRD
 
 
 class AllocationStrategy(enum.Enum):
+    """Enum defining different AllocationStrategies."""
+
     PER_COMPUTE = "AllocatePerCompute"
     SINGLE_SERVER = "AllocateSingleServer"
     ACROSS_SERVERS = "AllocateAcrossServers"
@@ -14,47 +21,78 @@ PER_COMPUTE_TYPES = ("xfs", "gfs2", "raw")
 LUSTRE_TYPES = ("ost", "mdt", "mgt", "mgtmdt")
 
 
-def build_allocation_sets(allocation_sets, local_allocations, nodes_per_nnf):
-    ret = []
-    for allocation in allocation_sets:
-        alloc_entry = {
-            "allocationSize": 0,
-            "label": allocation["label"],
-            "storage": [],
+def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_size):
+    """Build the allocationSet for a Server based on its DirectiveBreakdown."""
+    allocation_sets = []
+    for alloc_set in breakdown_alloc_sets:
+        storage_field = []
+        server_alloc_set = {
+            "allocationSize": alloc_set["minimumCapacity"],
+            "label": alloc_set["label"],
+            "storage": storage_field,
         }
-        max_alloc_size = 0
-        # build the storage field of alloc_entry
-        for nnf_name in local_allocations:
-            if allocation["label"] in PER_COMPUTE_TYPES:
-                alloc_size = int(
-                    local_allocations[nnf_name]
-                    * allocation["percentage_of_total"]
-                    / nodes_per_nnf[nnf_name]
+        if alloc_set["allocationStrategy"] == AllocationStrategy.PER_COMPUTE.value:
+            # make an allocation on every rabbit attached to compute nodes
+            # in the job
+            for nnf_name, nodecount in nodes_per_nnf.items():
+                storage_field.append(
+                    {
+                        "allocationCount": nodecount,
+                        "name": nnf_name,
+                    }
                 )
-                if alloc_size < allocation["minimumCapacity"]:
-                    raise RuntimeError(
-                        "Expected an allocation size of at least "
-                        f"{allocation['minimumCapacity']}, got {alloc_size}"
-                    )
-                if max_alloc_size == 0:
-                    max_alloc_size = alloc_size
-                else:
-                    max_alloc_size = min(max_alloc_size, alloc_size)
-                alloc_entry["storage"].append(
-                    {"allocationCount": nodes_per_nnf[nnf_name], "name": nnf_name}
+        elif alloc_set["allocationStrategy"] == AllocationStrategy.ACROSS_SERVERS.value:
+            if "count" in alloc_set.get("constraints", {}):
+                # a specific number of allocations is required (generally for MDTs)
+                count = alloc_set["constraints"]["count"]
+                server_alloc_set["allocationSize"] = math.ceil(
+                    alloc_set["minimumCapacity"] / count
                 )
+                # place the allocations on the rabbits with the most nodes allocated
+                # to this job (and therefore the largest storage allocations)
+                while count > 0:
+                    # count may be greater than the rabbits available, so we may need
+                    # to place multiple on a single rabbit (hence the outer while-loop)
+                    for name, _ in collections.Counter(nodes_per_nnf).most_common(
+                        count
+                    ):
+                        storage_field.append(
+                            {
+                                "allocationCount": 1,
+                                "name": name,
+                            }
+                        )
+                        count -= 1
+                        if count == 0:
+                            break
             else:
-                raise ValueError(f"{allocation['label']} not currently supported")
-        alloc_entry["allocationSize"] = max_alloc_size
-        ret.append(alloc_entry)
-    return ret
+                nodecount_gcd = functools.reduce(math.gcd, nodes_per_nnf.values())
+                server_alloc_set["allocationSize"] = math.ceil(
+                    nodecount_gcd * alloc_set["minimumCapacity"] / len(hlist)
+                )
+                # split lustre across every rabbit, weighting the split based on
+                # the number of the job's nodes associated with each rabbit
+                for rabbit_name in nodes_per_nnf:
+                    storage_field.append(
+                        {
+                            "allocationCount": int(
+                                nodes_per_nnf[rabbit_name] / nodecount_gcd
+                            ),
+                            "name": rabbit_name,
+                        }
+                    )
+        # enforce the minimum allocation size
+        server_alloc_set["allocationSize"] = max(
+            server_alloc_set["allocationSize"], min_alloc_size * 1024**3
+        )
+        allocation_sets.append(server_alloc_set)
+    return allocation_sets
 
 
 def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
     """Apply all of the directive breakdown information to a jobspec's `resources`."""
     resources = copy.deepcopy(old_resources)
     breakdown_list = list(fetch_breakdowns(k8s_api, workflow))
-    per_compute_total = 0  # total bytes of per-compute storage
     if not resources:
         raise ValueError("jobspec resources empty")
     if len(resources) > 1 or resources[0]["type"] != "node":
@@ -99,7 +137,7 @@ def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
 def fetch_breakdowns(k8s_api, workflow):
     """Fetch all of the directive breakdowns associated with a workflow."""
     if not workflow["status"].get("directiveBreakdowns"):
-        return []  # destroy_persistent DW directives have no breakdowns
+        return  # destroy_persistent DW directives have no breakdowns
     for breakdown in workflow["status"]["directiveBreakdowns"]:
         yield k8s_api.get_namespaced_custom_object(
             DIRECTIVEBREAKDOWN_CRD.group,
