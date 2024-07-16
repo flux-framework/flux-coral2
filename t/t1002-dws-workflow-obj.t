@@ -145,7 +145,12 @@ test_expect_success 'job submission with valid DW string works' '
 	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
 	flux job wait-event -vt 15 ${jobid} clean &&
-	flux jobs -n ${jobid} -o "{user.rabbits}" | flux hostlist -q -
+	flux jobs -n ${jobid} -o "{user.rabbits}" | flux hostlist -q - &&
+	flux job info ${jobid} rabbit_workflow &&
+	flux job info ${jobid} rabbit_workflow | \
+		jq -e ".metadata.name == \"fluxjob-$(flux job id ${jobid})\"" &&
+	flux job info ${jobid} rabbit_workflow | jq -e ".spec.wlmID == \"flux\"" &&
+	flux job info ${jobid} rabbit_workflow | jq -e ".kind == \"Workflow\""
 '
 
 test_expect_success 'job requesting copy-offload in DW string works' '
@@ -172,7 +177,12 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 		${jobid} epilog-start &&
 	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean
+	flux job wait-event -vt 15 ${jobid} clean &&
+	flux job info ${jobid} rabbit_workflow &&
+	flux job info ${jobid} rabbit_workflow | \
+		jq -e ".metadata.name == \"fluxjob-$(flux job id ${jobid})\"" &&
+	flux job info ${jobid} rabbit_workflow | jq -e ".spec.wlmID == \"flux\"" &&
+	flux job info ${jobid} rabbit_workflow | jq -e ".kind == \"Workflow\""
 '
 
 test_expect_success 'job requesting too much storage is rejected' '
