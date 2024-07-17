@@ -1,3 +1,17 @@
+flux-coral2 0.15.0 - 2024-07-17
+-------------------------------
+
+### New Features
+
+ * dws: change rabbit memo to hostlist (#182)
+ * dws: crudely enforce mdt count constraints (#181)
+ * dws: add marker for prolog to enable the nnf-dm daemon (#179)
+ * dws: dump datamovements to logs (#178)
+ * dws: Exception log improvements (#177)
+ * dws: dump workflows when killing jobs (#176)
+ * dws: save workflows to KVS (#183)
+
+
 flux-coral2 0.14.0 - 2024-07-04
 -------------------------------
 
