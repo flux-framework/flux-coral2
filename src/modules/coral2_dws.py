@@ -473,7 +473,6 @@ def _workflow_state_change_cb_inner(
         move_workflow_to_teardown(handle, winfo, k8s_api, workflow)
     if workflow["status"].get("status") == "Error":
         # a fatal error has occurred in the workflows, raise a job exception
-        LOGGER.info("workflow '%s' hit an error: %s", winfo.name, workflow)
         handle.job_raise(
             jobid,
             "exception",
@@ -664,11 +663,6 @@ def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
     # iterate over it.
     for winfo in WORKFLOWS_IN_TC.copy():
         if curr_time - winfo.transient_condition.last_time > tc_timeout:
-            LOGGER.info(
-                "Workflow '%s' was in TransientCondition too long: %s",
-                winfo.name,
-                winfo.transient_condition.workflow,
-            )
             watcher.flux_handle.job_raise(
                 winfo.jobid,
                 "exception",
