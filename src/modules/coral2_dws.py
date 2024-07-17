@@ -651,12 +651,13 @@ def init_rabbits(k8s_api, handle, watchers, args):
     )
 
 
-def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
+def kill_workflows_in_tc(_reactor, watcher, _r, arg):
     """Callback firing every (tc_timeout / 2) seconds.
 
     Raise exceptions on jobs stuck in TransientCondition for more than
     tc_timeout seconds.
     """
+    tc_timeout, k8s_api = arg
     curr_time = time.time()
     # iterate over a copy of the set
     # otherwise an exception occurs because we modify the set as we
@@ -670,6 +671,21 @@ def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
                 "DWS/Rabbit interactions failed: workflow in 'TransientCondition' "
                 f"state too long: {winfo.transient_condition.last_message}",
             )
+            # for most states, raising an exception should be enough to trigger other
+            # logic that eventually moves the workflow to Teardown. However, if the
+            # workflow is in PostRun or DataOut, the exception won't affect the
+            # dws-epilog action holding the job, so the workflow should be moved
+            # to Teardown now.
+            if winfo.transient_condition.workflow["spec"]["desiredState"] in (
+                "PostRun",
+                "DataOut",
+            ):
+                move_workflow_to_teardown(
+                    watcher.flux_handle,
+                    winfo,
+                    k8s_api,
+                    winfo.transient_condition.workflow,
+                )
             WORKFLOWS_IN_TC.discard(winfo)
 
 
@@ -838,7 +854,7 @@ def main():
         args.transient_condition_timeout / 2,
         kill_workflows_in_tc,
         repeat=args.transient_condition_timeout / 2,
-        args=args.transient_condition_timeout,
+        args=(args.transient_condition_timeout, k8s_api),
     ).start()
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
