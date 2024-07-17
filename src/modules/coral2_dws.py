@@ -173,7 +173,7 @@ def move_workflow_to_teardown(handle, winfo, k8s_api, workflow=None):
         },
     )
     winfo.toredown = True
-    if LOGGER.isEnabledFor(logging.DEBUG):
+    if LOGGER.isEnabledFor(logging.INFO):
         try:
             api_response = k8s_api.list_namespaced_custom_object(
                 *DATAMOVEMENT_CRD,
@@ -183,14 +183,14 @@ def move_workflow_to_teardown(handle, winfo, k8s_api, workflow=None):
                 ),
             )
         except Exception as exc:
-            LOGGER.debug(
+            LOGGER.info(
                 "Failed to fetch nnfdatamovement crds for workflow '%s': %s",
                 winfo.name,
                 exc,
             )
         else:
             for crd in api_response["items"]:
-                LOGGER.debug(
+                LOGGER.info(
                     "Found nnfdatamovement crd for workflow '%s': %s", winfo.name, crd
                 )
 
@@ -488,7 +488,7 @@ def _workflow_state_change_cb_inner(
             move_workflow_to_teardown(handle, winfo, k8s_api, workflow)
     elif workflow["status"].get("status") == "TransientCondition":
         # a potentially fatal error has occurred, but may resolve itself
-        LOGGER.warning(
+        LOGGER.info(
             "Workflow '%s' has TransientCondition set, message is '%s', workflow is %s",
             winfo.name,
             workflow["status"].get("message", ""),
