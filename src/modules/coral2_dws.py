@@ -756,9 +756,9 @@ def setup_parsing():
 def config_logging(args):
     """Configure logging for the script."""
     log_level = logging.WARNING
-    if args.verbose > 1:
+    if args.verbose > 0:
         log_level = logging.INFO
-    if args.verbose > 2:
+    if args.verbose > 1:
         log_level = logging.DEBUG
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(message)s",
