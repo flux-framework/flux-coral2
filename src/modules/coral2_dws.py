@@ -33,7 +33,6 @@ from flux_k8s.crd import (
     RABBIT_CRD,
     COMPUTE_CRD,
     SERVER_CRD,
-    DATAMOVEMENT_CRD,
 )
 from flux_k8s.watch import Watchers, Watch
 from flux_k8s import directivebreakdown
@@ -160,23 +159,12 @@ def move_workflow_to_teardown(handle, winfo, k8s_api, workflow=None):
         LOGGER.exception(
             "Failed to update KVS for job %s: workflow is", winfo.jobid, workflow
         )
-    try:
-        workflow["metadata"]["finalizers"].remove(_FINALIZER)
-    except ValueError:
-        pass
-    k8s_api.patch_namespaced_custom_object(
-        *WORKFLOW_CRD,
-        winfo.name,
-        {
-            "spec": {"desiredState": "Teardown"},
-            "metadata": {"finalizers": workflow["metadata"]["finalizers"]},
-        },
-    )
-    winfo.toredown = True
     if LOGGER.isEnabledFor(logging.INFO):
         try:
-            api_response = k8s_api.list_namespaced_custom_object(
-                *DATAMOVEMENT_CRD,
+            api_response = k8s_api.list_cluster_custom_object(
+                group="nnf.cray.hpe.com",
+                version="v1alpha1",
+                plural="nnfdatamovements",
                 label_selector=(
                     f"dataworkflowservices.github.io/workflow.name={winfo.name},"
                     "dataworkflowservices.github.io/workflow.namespace=default"
@@ -191,8 +179,23 @@ def move_workflow_to_teardown(handle, winfo, k8s_api, workflow=None):
         else:
             for crd in api_response["items"]:
                 LOGGER.info(
-                    "Found nnfdatamovement crd for workflow '%s': %s", winfo.name, crd
+                    "Found nnfdatamovement crd for workflow '%s': %s",
+                    winfo.name,
+                    json.dumps(crd),
                 )
+    try:
+        workflow["metadata"]["finalizers"].remove(_FINALIZER)
+    except ValueError:
+        pass
+    k8s_api.patch_namespaced_custom_object(
+        *WORKFLOW_CRD,
+        winfo.name,
+        {
+            "spec": {"desiredState": "Teardown"},
+            "metadata": {"finalizers": workflow["metadata"]["finalizers"]},
+        },
+    )
+    winfo.toredown = True
 
 
 def move_workflow_desiredstate(workflow_name, desiredstate, k8s_api):

@@ -36,10 +36,3 @@ SERVER_CRD = CRD(
     namespace="default",
     plural="servers",
 )
-
-DATAMOVEMENT_CRD = CRD(
-    group="dataworkflowservices.github.io",
-    version="v1alpha2",
-    namespace="default",
-    plural="nnfdatamovements",
-)
