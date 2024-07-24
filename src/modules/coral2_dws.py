@@ -402,7 +402,7 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
         return
     try:
         _workflow_state_change_cb_inner(
-            workflow, jobid, winfo, handle, k8s_api, disable_fluxion
+            workflow, winfo, handle, k8s_api, disable_fluxion
         )
     except Exception:
         LOGGER.exception(
@@ -424,9 +424,9 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
         handle.job_raise(jobid, "exception", 0, "DWS/Rabbit interactions failed")
 
 
-def _workflow_state_change_cb_inner(
-    workflow, jobid, winfo, handle, k8s_api, disable_fluxion
-):
+def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fluxion):
+    """Handle workflow state transitions."""
+    jobid = winfo.jobid
     if "state" not in workflow["status"]:
         # workflow was just submitted, DWS still needs to give workflow
         # a state of 'Proposal'
@@ -545,6 +545,13 @@ def _workflow_state_change_cb_inner(
 
 
 def drain_offline_nodes(handle, rabbit_name, nodelist, disable_draining, allowlist):
+    """Drain nodes listed as offline in a given Storage resource.
+
+    Drain all the nodes in `nodelist` that are Offline, provided they are
+    in `allowlist`.
+
+    If disable_draining is True, do nothing.
+    """
     if disable_draining:
         return
     offline_nodes = Hostlist()
@@ -612,8 +619,8 @@ def map_rabbits_to_fluxion_paths(graph_path):
     """Read the fluxion resource graph and map rabbit hostnames to resource paths."""
     rabbit_rpaths = {}
     try:
-        with open(graph_path) as fd:
-            nodes = json.load(fd)["scheduling"]["graph"]["nodes"]
+        with open(graph_path, encoding="utf8") as graph_fd:
+            nodes = json.load(graph_fd)["scheduling"]["graph"]["nodes"]
     except Exception as exc:
         raise ValueError(
             f"Could not load rabbit resource graph data from {graph_path} "
