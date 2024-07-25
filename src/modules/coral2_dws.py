@@ -147,18 +147,48 @@ def remove_finalizer(workflow_name, k8s_api, workflow):
         )
 
 
+def save_elapsed_time_to_kvs(handle, jobid, workflow):
+    """Save the elapsedTime field to a job's KVS, ignoring errors."""
+    try:
+        timing = workflow["status"]["elapsedTimeLastState"]
+        state = workflow["status"]["state"].lower()
+    except KeyError:
+        return
+    try:
+        kvsdir = flux.job.job_kvs(handle, jobid)
+        kvsdir[f"rabbit_{state}_timing"] = timing
+        kvsdir.commit()
+    except Exception:
+        LOGGER.exception(
+            "Failed to update KVS for job %s: workflow is", jobid, workflow
+        )
+
+
+def save_workflow_to_kvs(handle, jobid, workflow):
+    """Save a workflow to a job's KVS, ignoring errors."""
+    try:
+        timing = workflow["status"]["elapsedTimeLastState"]
+        state = workflow["status"]["state"].lower()
+    except KeyError:
+        timing = None
+        state = None
+    try:
+        kvsdir = flux.job.job_kvs(handle, jobid)
+        kvsdir["rabbit_workflow"] = workflow
+        if timing is not None and state is not None:
+            kvsdir[f"rabbit_{state}_timing"] = timing
+        kvsdir.commit()
+    except Exception:
+        LOGGER.exception(
+            "Failed to update KVS for job %s: workflow is", jobid, workflow
+        )
+
+
 def move_workflow_to_teardown(handle, winfo, k8s_api, workflow=None):
     """Helper function for moving a workflow to Teardown."""
     if workflow is None:
         workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
-    try:
-        kvsdir = flux.job.job_kvs(handle, winfo.jobid)
-        kvsdir["rabbit_workflow"] = workflow
-        kvsdir.commit()
-    except Exception:
-        LOGGER.exception(
-            "Failed to update KVS for job %s: workflow is", winfo.jobid, workflow
-        )
+    save_workflow_to_kvs(handle, winfo.jobid, workflow)
     if LOGGER.isEnabledFor(logging.INFO):
         try:
             api_response = k8s_api.list_cluster_custom_object(
@@ -446,12 +476,15 @@ def _workflow_state_change_cb_inner(
                 "copy-offload": copy_offload,
             },
         ).then(log_rpc_response)
+        save_workflow_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
         move_workflow_desiredstate(winfo.name, "DataIn", k8s_api)
+        save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "DataIn"):
         # move workflow to next stage, PreRun
         move_workflow_desiredstate(winfo.name, "PreRun", k8s_api)
+        save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "PreRun"):
         # tell DWS jobtap plugin that the job can start
         if winfo.rabbits is not None:
@@ -468,9 +501,11 @@ def _workflow_state_change_cb_inner(
                 },
             },
         ).then(log_rpc_response)
+        save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "PostRun"):
         # move workflow to next stage, DataOut
         move_workflow_desiredstate(winfo.name, "DataOut", k8s_api)
+        save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "DataOut"):
         # move workflow to next stage, teardown
         move_workflow_to_teardown(handle, winfo, k8s_api, workflow)

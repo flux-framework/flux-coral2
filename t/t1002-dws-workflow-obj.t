@@ -150,7 +150,13 @@ test_expect_success 'job submission with valid DW string works' '
 	flux job info ${jobid} rabbit_workflow | \
 		jq -e ".metadata.name == \"fluxjob-$(flux job id ${jobid})\"" &&
 	flux job info ${jobid} rabbit_workflow | jq -e ".spec.wlmID == \"flux\"" &&
-	flux job info ${jobid} rabbit_workflow | jq -e ".kind == \"Workflow\""
+	flux job info ${jobid} rabbit_workflow | jq -e ".kind == \"Workflow\"" &&
+	flux job info ${jobid} rabbit_proposal_timing &&
+	flux job info ${jobid} rabbit_setup_timing &&
+	flux job info ${jobid} rabbit_datain_timing &&
+	flux job info ${jobid} rabbit_prerun_timing &&
+	flux job info ${jobid} rabbit_postrun_timing &&
+	flux job info ${jobid} rabbit_dataout_timing
 '
 
 test_expect_success 'job requesting copy-offload in DW string works' '
@@ -182,7 +188,13 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 	flux job info ${jobid} rabbit_workflow | \
 		jq -e ".metadata.name == \"fluxjob-$(flux job id ${jobid})\"" &&
 	flux job info ${jobid} rabbit_workflow | jq -e ".spec.wlmID == \"flux\"" &&
-	flux job info ${jobid} rabbit_workflow | jq -e ".kind == \"Workflow\""
+	flux job info ${jobid} rabbit_workflow | jq -e ".kind == \"Workflow\"" &&
+	flux job info ${jobid} rabbit_proposal_timing &&
+	flux job info ${jobid} rabbit_setup_timing &&
+	flux job info ${jobid} rabbit_datain_timing &&
+	flux job info ${jobid} rabbit_prerun_timing &&
+	flux job info ${jobid} rabbit_postrun_timing &&
+	flux job info ${jobid} rabbit_dataout_timing
 '
 
 test_expect_success 'job requesting too much storage is rejected' '
