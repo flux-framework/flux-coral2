@@ -147,18 +147,23 @@ def remove_finalizer(workflow_name, k8s_api, workflow):
         )
 
 
-def move_workflow_to_teardown(handle, winfo, k8s_api, workflow=None):
-    """Helper function for moving a workflow to Teardown."""
-    if workflow is None:
-        workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
+def save_workflow_to_kvs(handle, jobid, workflow):
+    """Save a workflow to a job's KVS, ignoring errors."""
     try:
-        kvsdir = flux.job.job_kvs(handle, winfo.jobid)
+        kvsdir = flux.job.job_kvs(handle, jobid)
         kvsdir["rabbit_workflow"] = workflow
         kvsdir.commit()
     except Exception:
         LOGGER.exception(
-            "Failed to update KVS for job %s: workflow is", winfo.jobid, workflow
+            "Failed to update KVS for job %s: workflow is", jobid, workflow
         )
+
+
+def move_workflow_to_teardown(handle, winfo, k8s_api, workflow=None):
+    """Helper function for moving a workflow to Teardown."""
+    if workflow is None:
+        workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
+    save_workflow_to_kvs(handle, winfo.jobid, workflow)
     if LOGGER.isEnabledFor(logging.INFO):
         try:
             api_response = k8s_api.list_cluster_custom_object(
@@ -446,6 +451,7 @@ def _workflow_state_change_cb_inner(
                 "copy-offload": copy_offload,
             },
         ).then(log_rpc_response)
+        save_workflow_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
         move_workflow_desiredstate(winfo.name, "DataIn", k8s_api)
