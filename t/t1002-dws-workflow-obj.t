@@ -371,6 +371,22 @@ test_expect_success 'job submission with persistent DW string works' '
 	flux job wait-event -vt 30 ${jobid} clean
 '
 
+test_expect_success 'job submission with standalone MGT persistent DW string works' '
+	kubectl get nnfstorageprofiles -nnnf-system default -ojson | \
+		jq ".data.lustreStorage.standaloneMgtPoolName = \"mypool\" |
+		.metadata.name = \"mypoolprofile\" | .data.default = false |
+		.data.lustreStorage.combinedMgtMdt = false" \
+		| kubectl apply -f - &&
+	flux run --setattr=system.dw="#DW create_persistent type=lustre name=project1 profile=mypoolprofile" \
+		-N1 -n1 -c1 hostname &&
+	jobid=$(flux submit --setattr=system.dw="#DW destroy_persistent name=project1" \
+		-N1 -n1 -c1 hostname) &&
+	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 30 ${jobid} clean &&
+	kubectl delete nnfstorageprofiles -nnnf-system mypoolprofile
+'
+
 test_expect_success 'dws service script handles restarts while a job is running' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 sleep 5) &&
