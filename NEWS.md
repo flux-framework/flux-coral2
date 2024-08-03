@@ -1,3 +1,15 @@
+flux-coral2 0.16.0 - 2024-08-05
+-------------------------------
+
+### New Features
+ * dws: KVS workflow timings (#187)
+ * dws: handling for Lustre MGTs (#189)
+ * dws: save workflow teardown timings to KVS (#191)
+
+### Fixes
+ * dws: Fix NnfDataMovement logging (#185)
+
+
 flux-coral2 0.15.0 - 2024-07-17
 -------------------------------
 
