@@ -26,12 +26,13 @@ def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_
     allocation_sets = []
     for alloc_set in breakdown_alloc_sets:
         storage_field = []
+        strategy = alloc_set["allocationStrategy"]
         server_alloc_set = {
             "allocationSize": alloc_set["minimumCapacity"],
             "label": alloc_set["label"],
             "storage": storage_field,
         }
-        if alloc_set["allocationStrategy"] == AllocationStrategy.PER_COMPUTE.value:
+        if strategy == AllocationStrategy.PER_COMPUTE.value:
             # make an allocation on every rabbit attached to compute nodes
             # in the job
             for nnf_name, nodecount in nodes_per_nnf.items():
@@ -41,10 +42,17 @@ def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_
                         "name": nnf_name,
                     }
                 )
-        elif alloc_set["allocationStrategy"] == AllocationStrategy.ACROSS_SERVERS.value:
-            if "count" in alloc_set.get("constraints", {}):
+        else:
+            # handle SINGLE_SERVER the same as ACROSS_SERVERS with a count constraint of 1
+            if (
+                "count" in alloc_set.get("constraints", {})
+                or strategy == AllocationStrategy.SINGLE_SERVER.value
+            ):
                 # a specific number of allocations is required (generally for MDTs)
-                count = alloc_set["constraints"]["count"]
+                if strategy == AllocationStrategy.SINGLE_SERVER.value:
+                    count = 1
+                else:
+                    count = alloc_set["constraints"]["count"]
                 server_alloc_set["allocationSize"] = math.ceil(
                     alloc_set["minimumCapacity"] / count
                 )
@@ -168,10 +176,5 @@ def _apply_allocation(allocation, ssd_resources, nodecount, min_size):
         )
     if allocation["label"] in PER_COMPUTE_TYPES:
         ssd_resources["count"] += capacity_gb
-    elif (
-        expected_alloc_strats[allocation["label"]]
-        == AllocationStrategy.ACROSS_SERVERS.value
-    ):
-        ssd_resources["count"] += capacity_gb // nodecount
     else:
-        raise ValueError(f"{allocation['label']} not supported")
+        ssd_resources["count"] += capacity_gb // nodecount
