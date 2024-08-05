@@ -448,6 +448,7 @@ def _workflow_state_change_cb_inner(
         handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
             log_rpc_response
         )
+        save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
         # Without this early 'return', this function may try to
