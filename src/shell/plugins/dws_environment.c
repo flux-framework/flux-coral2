@@ -93,7 +93,7 @@ static int read_future (flux_shell_t *shell, flux_future_t *fut)
     json_t *env, *rabbit_mapping;
     const char *name, *event = NULL;
 
-    while (flux_future_wait_for (fut, 2.0) == 0
+    while (flux_future_wait_for (fut, 30.0) == 0
            && flux_job_event_watch_get (fut, &event) == 0) {
         if (!(o = eventlog_entry_decode (event))) {
             shell_log_errno ("Error decoding eventlog entry");
