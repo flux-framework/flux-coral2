@@ -160,7 +160,7 @@ def save_elapsed_time_to_kvs(handle, jobid, workflow):
         kvsdir.commit()
     except Exception:
         LOGGER.exception(
-            "Failed to update KVS for job %s: workflow is", jobid, workflow
+            "Failed to update KVS for job %s: workflow is %s", jobid, workflow
         )
 
 
@@ -180,7 +180,7 @@ def save_workflow_to_kvs(handle, jobid, workflow):
         kvsdir.commit()
     except Exception:
         LOGGER.exception(
-            "Failed to update KVS for job %s: workflow is", jobid, workflow
+            "Failed to update KVS for job %s: workflow is %s", jobid, workflow
         )
 
 

@@ -28,12 +28,14 @@ test_expect_success 'shell: jobs with DW attr fail when plugin loaded and no eve
 '
 
 test_expect_success 'shell: plugin sets env vars properly' '
+	depend_job=$(flux submit sleep 10) &&
 	jobid=$(flux submit -o userrc=$(pwd)/$USERRC_NAME \
-		--setattr=dw="foo" env) &&
+		--setattr=dw="foo" --dependency=afterany:$depend_job env) &&
 	kvsdir=$(flux job id --to=kvs $jobid) &&
 	flux kvs eventlog append ${kvsdir}.eventlog dws_environment \
 		"{\"variables\":{\"DWS_TEST_VAR1\": \"foo\", \"DWS_TEST_VAR2\": \"bar\"}, \
 		\"rabbits\":{\"rabbit1\": \"$(hostname)\"}}" &&
+	flux cancel $depend_job &&
 	environment=$(flux job attach ${jobid}) &&
 	echo "$environment" | grep DWS_TEST_VAR1=foo &&
 	echo "$environment" | grep DWS_TEST_VAR2=bar &&
@@ -41,13 +43,15 @@ test_expect_success 'shell: plugin sets env vars properly' '
 	'
 
 test_expect_success 'shell: plugin sets env vars properly with multiple rabbits' '
+	depend_job=$(flux submit sleep 10) &&
 	jobid=$(flux submit -o userrc=$(pwd)/$USERRC_NAME \
-		--setattr=dw="foo" env) &&
+		--setattr=dw="foo" --dependency=afterany:$depend_job env) &&
 	kvsdir=$(flux job id --to=kvs $jobid) &&
 	flux kvs eventlog append ${kvsdir}.eventlog dws_environment \
 		"{\"variables\":{\"DWS_TEST_VAR1\": \"foo\", \"DWS_TEST_VAR2\": \"bar\"}, \
 		\"rabbits\":{\"rabbit96\": \"compute[265-1056]\", \"rabbit7\": \"compute[01-72]\", \
 		\"rabbit15\": \"$(hostname)\"}}" &&
+	flux cancel $depend_job &&
 	environment=$(flux job attach ${jobid}) &&
 	echo "$environment" | grep DWS_TEST_VAR1=foo &&
 	echo "$environment" | grep DWS_TEST_VAR2=bar &&
