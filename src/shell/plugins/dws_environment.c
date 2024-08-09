@@ -104,7 +104,13 @@ static int read_future (flux_shell_t *shell, flux_future_t *fut)
             json_decref (o);
             return -1;
         }
-        if (!strcmp (name, "dws_environment")) {
+        if (!strcmp (name, "start")) {
+            //  'start' event with no dws_environment event.
+            shell_log_error ("'start' event found before 'dws_environment'");
+            json_decref (o);
+            return -1;
+        }
+        else if (!strcmp (name, "dws_environment")) {
             if (json_unpack (context,
                              "{s:o, s:o}",
                              "variables",
@@ -130,7 +136,7 @@ static int read_future (flux_shell_t *shell, flux_future_t *fut)
             json_decref (o);
         }
     }
-    shell_log_error ("No 'dws_environment' event posted");
+    shell_log_error ("No 'dws_environment' event posted within timeout");
     return -1;
 }
 
