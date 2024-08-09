@@ -171,9 +171,12 @@ static int dws_environment_init (flux_plugin_t *p,
     }
     if (read_future (shell, fut) < 0) {
         shell_log_error ("Error reading DW environment from eventlog");
+        flux_job_event_watch_cancel (fut);
         flux_future_destroy (fut);
         return -1;
     }
+    if ((flux_job_event_watch_cancel (fut)) < 0)
+        shell_log_error ("flux_job_event_watch_cancel");
     flux_future_destroy (fut);
     return 0;
 }
