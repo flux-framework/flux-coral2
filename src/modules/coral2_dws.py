@@ -796,6 +796,16 @@ def setup_parsing():
         action="store_true",
         help="Disable Fluxion scheduling of rabbits",
     )
+    parser.add_argument(
+        "--retry-delay",
+        metavar="N",
+        default=10,
+        type=float,
+        help=(
+            "Seconds to wait after a kubernetes call fails, doubling each time "
+            "failures occur back-to-back"
+        ),
+    )
     return parser
 
 
@@ -872,6 +882,29 @@ def raise_self_exception(handle):
     Future(handle.job_raise(jobid, "exception", 7, "dws watchers setup")).get()
 
 
+def kubernetes_backoff(handle, orig_retry_delay):
+    """Wrapper around reactor_run to back off if k8s is unresponsive."""
+    retry_delay = orig_retry_delay
+    last_error = 0
+    while True:
+        try:
+            handle.reactor_run()
+        except urllib3.exceptions.HTTPError as k8s_err:
+            LOGGER.warning(
+                "Hit an exception: '%s' while contacting kubernetes, sleeping for %s seconds",
+                k8s_err, retry_delay,
+            )
+            now = time.time()
+            if now - last_error < retry_delay + 5:
+                # double the retry delay if we hit an error within
+                # five seconds of trying again
+                retry_delay = min(retry_delay * 2, 300)  # max out at 5 min
+            else:
+                retry_delay = orig_retry_delay
+            last_error = now
+            time.sleep(retry_delay)
+
+
 def main():
     """Init script, begin processing of services."""
     args = setup_parsing().parse_args()
@@ -924,17 +957,11 @@ def main():
             )
         )
         raise_self_exception(handle)
-
-        handle.reactor_run()
-
+        kubernetes_backoff(handle, args.retry_delay)
         for service in services:
             service.stop()
             service.destroy()
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except urllib3.exceptions.MaxRetryError:
-        LOGGER.exception("K8s not responding, service will shut down")
-        sys.exit(_EXITCODE_NORESTART)
+    main()
