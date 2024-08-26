@@ -410,6 +410,73 @@ test_expect_success 'dws service script handles restarts while a job is running'
 	flux job wait-event -vt 25 ${jobid} clean
 '
 
+test_expect_success 'launch service with storage maximum arguments' '
+	flux job cancel $DWS_JOBID &&
+	DWS_JOBID=$(flux submit \
+		--setattr=system.alloc-bypass.R="$R" \
+		-o per-resource.type=node --output=dws4.out --error=dws4.err \
+		python ${DWS_MODULE_PATH} -e1 --kubeconfig $PWD/kubeconfig -vvv -rR.local \
+		--max-xfs 500 --max-lustre 100 --max-gfs2 200 --max-raw 300) &&
+	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
+	${RPC} "dws.create"
+'
+
+test_expect_success 'job submission with storage within max works' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=500GiB type=xfs name=project1
+		#DW jobdw capacity=200GiB type=gfs2 name=project2
+		#DW jobdw capacity=300GiB type=raw name=project3
+		#DW jobdw capacity=100GiB type=lustre name=project4" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-remove &&
+	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
+		${jobid} memo &&
+	flux job wait-event -vt 15 ${jobid} depend &&
+	flux job wait-event -vt 15 ${jobid} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 15 ${jobid} clean
+'
+
+test_expect_success 'job submission with xfs storage beyond max fails' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=600GiB type=xfs name=project1" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 10 ${jobid} exception &&
+	flux job wait-event -vt 15 ${jobid} clean &&
+	flux job wait-event -t 1 ${jobid} exception | grep "max is 500 GiB per node"
+'
+
+test_expect_success 'job submission with combined gfs2 storage beyond max fails' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=150GiB type=gfs2 name=project1 \
+		#DW jobdw capacity=150GiB type=gfs2 name=project2" -N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 10 ${jobid} exception &&
+	flux job wait-event -vt 15 ${jobid} clean &&
+	flux job wait-event -t 1 ${jobid} exception | grep "max is 200 GiB per node"
+'
+
+test_expect_success 'job submission with lustre storage beyond max fails' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=120GiB type=lustre name=project1" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 20 ${jobid} exception &&
+	flux job wait-event -vt 15 ${jobid} clean &&
+	flux job wait-event -t 1 ${jobid} exception | grep "max is 100 GiB per node"
+'
+
 test_expect_success 'cleanup: unload fluxion' '
 	# all jobs must be canceled before unloading fluxion or a hang will occur during
 	# shutdown, unless another scheduler is loaded afterwards
