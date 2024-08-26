@@ -372,6 +372,7 @@ test_expect_success 'job submission with persistent DW string works' '
 '
 
 test_expect_success 'job submission with standalone MGT persistent DW string works' '
+	(kubectl delete nnfstorageprofiles -nnnf-system mypoolprofile || true) &&
 	kubectl get nnfstorageprofiles -nnnf-system default -ojson | \
 		jq ".data.lustreStorage.standaloneMgtPoolName = \"mypool\" |
 		.metadata.name = \"mypoolprofile\" | .data.default = false |
