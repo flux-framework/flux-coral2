@@ -377,9 +377,9 @@ test_expect_success 'job submission with standalone MGT persistent DW string wor
 		.metadata.name = \"mypoolprofile\" | .data.default = false |
 		.data.lustreStorage.combinedMgtMdt = false" \
 		| kubectl apply -f - &&
-	flux run --setattr=system.dw="#DW create_persistent type=lustre name=project1 profile=mypoolprofile" \
+	flux run --setattr=system.dw="#DW create_persistent type=lustre name=mgtpooltest profile=mypoolprofile" \
 		-N1 -n1 -c1 hostname &&
-	jobid=$(flux submit --setattr=system.dw="#DW destroy_persistent name=project1" \
+	jobid=$(flux submit --setattr=system.dw="#DW destroy_persistent name=mgtpooltest" \
 		-N1 -n1 -c1 hostname) &&
 	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
