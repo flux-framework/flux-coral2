@@ -457,24 +457,31 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         return
     elif state_complete(workflow, "Proposal"):
         resources = winfo.resources
+        copy_offload = False
         if resources is None:
             resources = flux.job.kvslookup.job_kvs_lookup(handle, jobid)["jobspec"][
                 "resources"
             ]
-        if not disable_fluxion:
-            resources, copy_offload = directivebreakdown.apply_breakdowns(
-                k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
-            )
+        try:
+            if not disable_fluxion:
+                resources, copy_offload = directivebreakdown.apply_breakdowns(
+                    k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
+                )
+            else:
+                _, copy_offload = directivebreakdown.apply_breakdowns(
+                    k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
+                )
+        except ValueError as exc:
+            errmsg = str(exc.args[0])
         else:
-            _, copy_offload = directivebreakdown.apply_breakdowns(
-                k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
-            )
+            errmsg = None
         handle.rpc(
             "job-manager.dws.resource-update",
             payload={
                 "id": jobid,
                 "resources": resources,
                 "copy-offload": copy_offload,
+                "errmsg": errmsg,
             },
         ).then(log_rpc_response)
         save_workflow_to_kvs(handle, jobid, workflow)
@@ -806,6 +813,18 @@ def setup_parsing():
             "failures occur back-to-back"
         ),
     )
+    for fs_option, fs_help in (
+        ("xfs", "XFS"),
+        ("gfs2", "GFS2"),
+        ("lustre", "Lustre"),
+        ("raw", "raw"),
+    ):
+        parser.add_argument(
+            f"--max-{fs_option}",
+            metavar="N",
+            help=f"Maximum {fs_help} capacity per node, in GiB",
+            type=int,
+        )
     return parser
 
 
@@ -910,6 +929,11 @@ def main():
     args = setup_parsing().parse_args()
     _MIN_ALLOCATION_SIZE = args.min_allocation_size
     config_logging(args)
+    # set the maximum allowable allocation sizes on the ResourceLimits class
+    for fs_type in directivebreakdown.ResourceLimits.TYPES:
+        setattr(
+            directivebreakdown.ResourceLimits, fs_type, getattr(args, f"max_{fs_type}")
+        )
     try:
         k8s_client = k8s.config.new_client_from_config(config_file=args.kubeconfig)
     except ConfigException:

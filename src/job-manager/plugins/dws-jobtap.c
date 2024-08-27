@@ -574,22 +574,36 @@ static void resource_update_msg_cb (flux_t *h,
 {
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
-    json_t *resources = NULL;
-    json_t *jobspec;
+    json_t *resources = NULL, *errmsg, *jobspec;
     int copy_offload;
+    const char *errmsg_str;
 
-    if (flux_msg_unpack (msg, "{s:I, s:o, s:b}", "id", &jobid, "resources", &resources, "copy-offload", &copy_offload)
+    if (flux_msg_unpack (msg,
+                         "{s:I, s:o, s:b, s:o}",
+                         "id", &jobid,
+                         "resources", &resources,
+                         "copy-offload", &copy_offload,
+                         "errmsg", &errmsg)
         < 0) {
         flux_log_error (h, "received malformed dws.resource-update RPC");
         return;
     }
-    if (!(jobspec = flux_jobtap_job_aux_get (p, jobid, "dws_jobspec"))
+    if (!json_is_null (errmsg)) {
+        if (!(errmsg_str = json_string_value (errmsg))){
+            flux_log_error (h, "received malformed dws.resource-update RPC, errmsg must be string or JSON null");
+            errmsg_str = "<could not fetch error message>";
+        }
+        raise_job_exception (p, jobid, "dws", errmsg_str);
+        return;
+    }
+    else if (!(jobspec = flux_jobtap_job_aux_get (p, jobid, "dws_jobspec"))
         || json_object_set (jobspec, "resources", resources) < 0
         || flux_jobtap_job_aux_set (p, jobid, "flux::dws-copy-offload", copy_offload ? (void*) 1 : (void*) 0, NULL) < 0 ) {
         raise_job_exception (p,
                              jobid,
                              "dws",
                              "Internal error: failed to update jobspec");
+        return;
     }
     if (flux_jobtap_dependency_remove (p, jobid, CREATE_DEP_NAME) < 0) {
         raise_job_exception (p,

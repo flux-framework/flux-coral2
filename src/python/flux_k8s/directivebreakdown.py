@@ -21,6 +21,50 @@ PER_COMPUTE_TYPES = ("xfs", "gfs2", "raw")
 LUSTRE_TYPES = ("ost", "mdt", "mgt", "mgtmdt")
 
 
+class ResourceLimits:
+    """Class for handling resource limits.
+
+    Store limits as class attributes.
+    """
+
+    TYPES = PER_COMPUTE_TYPES + ("lustre",)
+    xfs = None
+    gfs2 = None
+    lustre = None
+    raw = None
+
+    def __init__(self):
+        """Store requested amounts as instance attributes."""
+        self.xfs = 0
+        self.gfs2 = 0
+        self.lustre = 0
+        self.raw = 0
+
+    def validate(self, nodecount):
+        """Raise a ValueError if the capacity requested per node is above the limit."""
+        for attr in self.TYPES:
+            requested = getattr(self, attr)
+            allowable = getattr(type(self), attr)
+            if attr == "lustre":
+                requested = requested / nodecount
+            if allowable is not None and requested > allowable:
+                raise ValueError(
+                    f"Requested a total of {requested} GiB of {attr} storage "
+                    f"per node but max is {allowable} GiB per node"
+                )
+
+    def increment(self, attr, capacity):
+        """Increase the requested amount of 'attr' storage by 'capacity'."""
+        if attr in LUSTRE_TYPES:
+            # ignore everything except OSTs, should be small anyway
+            if attr == "ost":
+                self.lustre += capacity
+        elif attr in PER_COMPUTE_TYPES:
+            setattr(self, attr, getattr(self, attr) + capacity)
+        else:
+            raise AttributeError(attr)
+
+
 def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_size):
     """Build the allocationSet for a Server based on its DirectiveBreakdown."""
     allocation_sets = []
@@ -99,6 +143,7 @@ def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_
 
 def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
     """Apply all of the directive breakdown information to a jobspec's `resources`."""
+    limits = ResourceLimits()
     resources = copy.deepcopy(old_resources)
     breakdown_list = list(fetch_breakdowns(k8s_api, workflow))
     if not resources:
@@ -135,8 +180,11 @@ def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
             raise RuntimeError("Breakdown marked as not ready")
         if "storage" in breakdown["status"]:  # persistentdw directives have no storage
             for allocation in breakdown["status"]["storage"]["allocationSets"]:
-                _apply_allocation(allocation, ssd_resources, nodecount, min_size)
+                _apply_allocation(
+                    allocation, ssd_resources, nodecount, min_size, limits
+                )
                 allocation_applied = True
+    limits.validate(nodecount)
     if not allocation_applied:
         return (old_resources, copy_offload)
     return (new_resources, copy_offload)
@@ -156,7 +204,7 @@ def fetch_breakdowns(k8s_api, workflow):
         )
 
 
-def _apply_allocation(allocation, ssd_resources, nodecount, min_size):
+def _apply_allocation(allocation, ssd_resources, nodecount, min_size, limits):
     """Parse a single 'allocationSet' and apply to it a jobspec's ``resources``."""
     expected_alloc_strats = {
         "xfs": AllocationStrategy.PER_COMPUTE.value,
@@ -174,6 +222,7 @@ def _apply_allocation(allocation, ssd_resources, nodecount, min_size):
             f"must be {expected_alloc_strats[allocation['label']]!r} "
             f"but got {allocation['allocationStrategy']!r}"
         )
+    limits.increment(allocation["label"], capacity_gb)
     if allocation["label"] in PER_COMPUTE_TYPES:
         ssd_resources["count"] += capacity_gb
     else:
