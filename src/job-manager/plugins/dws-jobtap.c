@@ -603,6 +603,7 @@ static void resource_update_msg_cb (flux_t *h,
                              jobid,
                              "dws",
                              "Internal error: failed to update jobspec");
+        return;
     }
     if (flux_jobtap_dependency_remove (p, jobid, CREATE_DEP_NAME) < 0) {
         raise_job_exception (p,
