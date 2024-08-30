@@ -6,6 +6,7 @@ import json
 import re
 import logging
 import itertools
+import subprocess
 import socket
 
 import flux
@@ -255,7 +256,10 @@ def main():
     parser = argparse.ArgumentParser(
         prog="flux-dws2jgf",
         formatter_class=flux.util.help_formatter(),
-        description="Print JGF representation of Rabbit nodes",
+        description=(
+            "Print JGF representation of Rabbit nodes. Reads R from stdin"
+            "or a config file passed with the --from-config option."
+        ),
     )
     parser.add_argument(
         "--no-validate",
@@ -281,13 +285,34 @@ def main():
             "If unspecified, use the hostname stripped of numerics."
         ),
     )
+    parser.add_argument(
+        "--from-config",
+        metavar="FILE",
+        help=(
+            "Generate JGF based on a Flux config TOML file containing "
+            "a resource.config table"
+        ),
+    )
     args = parser.parse_args()
     if not args.cluster_name:
         args.cluster_name = "".join(
             i for i in socket.gethostname() if not i.isdigit()
         ).rstrip("-")
 
-    input_r = json.load(sys.stdin)
+    if args.from_config is None:
+        input_r = json.load(sys.stdin)
+    else:
+        proc = subprocess.run(
+            f"flux R parse-config {args.from_config}".split(),
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            raise ValueError(
+                f"Could not parse config file {args.from_config!r}, "
+                "error message was {proc.stderr}"
+            )
+        input_r = json.load(proc.stdout)
     nnfs = [x for x in get_storage()["items"]]
     r_hostlist = Hostlist(input_r["execution"]["nodelist"])
     dws_computes = set(
