@@ -87,8 +87,9 @@ test_expect_success 'job submission with valid DW string works with fluxion-rabb
 
 test_expect_success 'load fluxion with rabbits' '
     flux cancel ${DWS_JOBID} &&
+    flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-rabbitmapping.py > rabbits.json &&
 	flux R encode -l | flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-dws2jgf.py \
-	--no-validate | jq . > R.local &&
+	--no-validate rabbits.json | jq . > R.local &&
 	flux kvs put resource.R="$(cat R.local)" &&
 	flux module remove -f sched-fluxion-qmanager &&
 	flux module remove -f sched-fluxion-resource &&

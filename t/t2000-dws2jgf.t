@@ -33,27 +33,32 @@ test_expect_success HAVE_JQ 'smoke test to ensure the storage resources are expe
 	test $(hostname) = compute-01
 '
 
+test_expect_success HAVE_JQ 'flux-rabbitmapping outputs expected mapping' '
+	flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-rabbitmapping.py -i2 > rabbits.json
+	test_cmp ${DATADIR}/rabbits.json rabbits.json
+'
+
 test_expect_success HAVE_JQ 'flux-dws2jgf.py outputs expected JGF for single compute node' '
 	flux R encode -Hcompute-01 | flux python ${CMD} --no-validate --cluster-name=ElCapitan \
-	| jq . > actual-compute-01.jgf &&
+		rabbits.json | jq . > actual-compute-01.jgf &&
 	test_cmp ${DATADIR}/expected-compute-01.jgf actual-compute-01.jgf
 '
 
 test_expect_success HAVE_JQ 'flux-dws2jgf.py outputs expected JGF for multiple compute nodes' '
 	flux R encode -Hcompute-[01-04] -c0-4 | flux python ${CMD} --no-validate --cluster-name=ElCapitan \
-	| jq . > actual-compute-01-04.jgf &&
+		rabbits.json | jq . > actual-compute-01-04.jgf &&
 	test_cmp ${DATADIR}/expected-compute-01-04.jgf actual-compute-01-04.jgf
 '
 
 test_expect_success HAVE_JQ 'flux-dws2jgf.py outputs expected JGF for compute nodes not in DWS' '
 	flux R encode -Hcompute-[01-04],nodws[0-5] -c0-4 | \
-	flux python ${CMD} --no-validate | jq . > actual-compute-01-nodws.jgf &&
+	flux python ${CMD} --no-validate rabbits.json | jq . > actual-compute-01-nodws.jgf &&
 	test_cmp ${DATADIR}/expected-compute-01-nodws.jgf actual-compute-01-nodws.jgf
 '
 
 test_expect_success HAVE_JQ 'flux-dws2jgf.py handles properties correctly' '
 	cat ${DATADIR}/R-properties | \
-	flux python ${CMD} --no-validate | jq . > actual-properties.jgf &&
+	flux python ${CMD} --no-validate rabbits.json | jq . > actual-properties.jgf &&
 	test_cmp ${DATADIR}/expected-properties.jgf actual-properties.jgf
 '
 
@@ -70,7 +75,8 @@ test_expect_success HAVE_JQ 'fluxion rejects a rack/rabbit job when no rabbits a
 
 test_expect_success HAVE_JQ 'fluxion can be loaded with output of dws2jgf' '
 	flux run -n1 hostname &&
-	flux R encode -l | flux python ${CMD} --no-validate --cluster-name=ElCapitan | jq . > R.local &&
+	flux R encode -l | flux python ${CMD} --no-validate --cluster-name=ElCapitan rabbits.json \
+		| jq . > R.local &&
 	flux kvs put resource.R="$(cat R.local)" &&
 	flux module list &&
 	flux module remove -f sched-fluxion-qmanager &&

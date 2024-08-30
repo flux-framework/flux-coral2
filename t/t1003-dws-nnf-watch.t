@@ -30,8 +30,9 @@ test_expect_success 'job-manager: load alloc-bypass plugin' '
 
 test_expect_success 'load Fluxion with rabbit resource graph' '
     echo $PYTHONPATH >&2 &&
+    flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-rabbitmapping.py > rabbits.json &&
     flux R encode -l | flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-dws2jgf.py \
-    --no-validate | jq . > R.local &&
+        --no-validate rabbits.json | jq . > R.local &&
     flux kvs put resource.R="$(cat R.local)" &&
     flux module remove -f sched-fluxion-qmanager &&
     flux module remove -f sched-fluxion-resource &&
@@ -172,7 +173,7 @@ test_expect_success 'exec Storage watching script with invalid --drain-queues ar
 test_expect_success 'configure flux with queues' '
     flux R encode -l | jq ".execution.properties.debug = \"0\"" | \
     flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-dws2jgf.py \
-    --no-validate | jq . > R.local.queues &&
+        --no-validate rabbits.json | jq . > R.local.queues &&
     flux kvs put resource.R="$(cat R.local.queues)" &&
     flux module remove -f sched-fluxion-qmanager &&
     flux module remove -f sched-fluxion-resource &&
