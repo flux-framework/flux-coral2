@@ -23,14 +23,14 @@ class ElCapResourcePoolV1(FluxionResourcePoolV1):
     """
 
     @staticmethod
-    def constraints(resType):
-        return resType in [
+    def constraints(resource_type):
+        return resource_type in [
             "rack",
             "rabbit",
             "ssd",
         ] or super(
             ElCapResourcePoolV1, ElCapResourcePoolV1
-        ).constraints(resType)
+        ).constraints(resource_type)
 
     @property
     def path(self):
@@ -65,115 +65,80 @@ class Coral2Graph(FluxionResourceGraphV1):
         # Call super().__init__() last since it calls __encode
         super().__init__(rv1)
 
-    def _encode_rank(self, parent, rank, children, hName):
-        hPath = f"{parent.path}/{hName}"
-        iden = self._extract_id_from_hn(hName)
-        vtx = ElCapResourcePoolV1(
-            self._uniqId,
-            "node",
-            "node",
-            hName,
-            iden,
-            self._uniqId,
-            rank,
-            True,
-            "",
-            1,
-            self._rank_to_properties.get(rank, {}),
-            hPath,
-        )
-        edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
-        self._add_and_tick_uniq_id(vtx, edg)
-        for key, val in children.items():
-            for i in IDset(val):
-                self._encode_child(vtx.get_id(), hPath, rank, str(key), i, {})
-
-    def _encode_ssds(self, parent, capacity):
+    def _encode_ssds(self, parent_id, parent_path, capacity):
         res_type = "ssd"
         for i in range(self._chunks_per_nnf):
-            res_name = f"{res_type}{i}"
             vtx = ElCapResourcePoolV1(
                 self._uniqId,
                 res_type,
-                res_type,
-                res_name,
-                i,
-                self._uniqId,
-                -1,
-                True,
-                "GiB",
-                to_gibibytes(capacity // self._chunks_per_nnf),
-                {},
-                f"{parent.path}/{res_name}",
-                1,  # status=1 marks the ssds as 'down' initially
+                unit="GiB",
+                size=to_gibibytes(capacity // self._chunks_per_nnf),
+                status=1,  # status=1 marks the ssds as 'down' initially
+                path=f"{parent_path}/{res_type}{i}",
             )
-            edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
+            edg = ElCapResourceRelationshipV1(parent_id, vtx.get_id())
             self._add_and_tick_uniq_id(vtx, edg)
 
-    def _encode_rack(self, parent, rabbit_name, entry):
-        res_type = "rack"
-        res_name = f"{res_type}{self._rackids}"
+    def _encode_rack(self, parent_id, parent_path, rabbit_name, entry):
+        path = f"{parent_path}/rack{self._rackids}"
         vtx = ElCapResourcePoolV1(
             self._uniqId,
-            res_type,
-            res_type,
-            res_name,
-            self._rackids,
-            self._uniqId,
-            -1,
-            True,
-            "",
-            1,
-            {"rabbit": rabbit_name, "ssdcount": str(self._chunks_per_nnf)},
-            f"{parent.path}/{res_name}",
+            "rack",
+            iden=self._rackids,
+            properties={"rabbit": rabbit_name, "ssdcount": str(self._chunks_per_nnf)},
+            path=path,
         )
-        edg = ElCapResourceRelationshipV1(parent.get_id(), vtx.get_id())
+        edg = ElCapResourceRelationshipV1(parent_id, vtx.get_id())
         self._add_and_tick_uniq_id(vtx, edg)
-        self._encode_ssds(vtx, entry["capacity"])
+        self._encode_ssds(vtx.get_id(), path, entry["capacity"])
         for node in Hostlist(entry["hostlist"]):
             try:
                 index = self._r_hostlist.index(node)[0]
             except FileNotFoundError:
                 pass
             else:
-                self._encode_rank(vtx, index, self._rank_to_children[index], node)
+                self._encode_rank(
+                    vtx.get_id(),
+                    path,
+                    index,
+                    self._rank_to_children[index],
+                    node,
+                    self._rank_to_properties.get(index, {}),
+                )
         # if the rabbit itself is in R, add it to the rack as a compute node as well
         try:
             index = self._r_hostlist.index(rabbit_name)[0]
         except FileNotFoundError:
             pass
         else:
-            self._encode_rank(vtx, index, self._rank_to_children[index], rabbit_name)
+            self._encode_rank(
+                vtx.get_id(),
+                path,
+                index,
+                self._rank_to_children[index],
+                rabbit_name,
+                None,
+            )
         self._rackids += 1
 
     def _encode(self):
+        path = "/" + self._cluster_name
         vtx = ElCapResourcePoolV1(
             self._uniqId,
             "cluster",
-            self._cluster_name,
-            self._cluster_name + "0",
-            0,
-            self._uniqId,
-            -1,
-            True,
-            "",
-            1,
-            {},
-            f"/{self._cluster_name}0",
+            name=self._cluster_name,
+            path=path,
         )
         self._add_and_tick_uniq_id(vtx)
         for rabbit_name, entry in self._rabbit_mapping["rabbits"].items():
-            self._encode_rack(vtx, rabbit_name, entry)
+            self._encode_rack(vtx.get_id(), path, rabbit_name, entry)
         # add nodes not in rabbit racks, making the nodes contained by 'cluster'
         dws_computes = set(self._rabbit_mapping["computes"].keys())
         dws_computes |= set(self._rabbit_mapping["rabbits"].keys())
         for rank, node in enumerate(self._r_hostlist):
             if node not in dws_computes:
                 self._encode_rank(
-                    vtx,
-                    rank,
-                    self._rank_to_children[rank],
-                    node,
+                    vtx.get_id(), path, rank, self._rank_to_children[rank], node, None
                 )
 
 
