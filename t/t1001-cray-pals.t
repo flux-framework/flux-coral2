@@ -158,7 +158,7 @@ test_expect_success 'shell: pals shell plugin creates apinfo file' '
 	&& test ! -z \$PALS_APINFO && test -f \$PALS_APINFO"
 '
 
-test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for one task' '
+test_expect_success 'shell: apinfo file contents are valid for one task' '
 	apinfo=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 ${PYTHON:-python3} \
 	${SHARNESS_TEST_SRCDIR}/scripts/apinfo_checker.py) &&
 	echo "$apinfo" | jq -e ".version == 1" &&
@@ -175,7 +175,7 @@ test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for one task'
 	echo "$apinfo" | jq -e ".pes | length == 1"
 '
 
-test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for multiple tasks' '
+test_expect_success 'shell: apinfo file contents are valid for multiple tasks' '
 	apinfo=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n2 --label-io \
 	${PYTHON:-python3} ${SHARNESS_TEST_SRCDIR}/scripts/apinfo_checker.py \
 	| sed -n "s/^1: //p") &&
@@ -194,7 +194,7 @@ test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for multiple 
 	echo "$apinfo" | jq -e ".pes | length == 2"
 '
 
-test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for multiple nodes' '
+test_expect_success 'shell: apinfo file contents are valid for multiple nodes' '
     apinfo=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N2 -n4 --label-io \
     ${PYTHON:-python3} ${SHARNESS_TEST_SRCDIR}/scripts/apinfo_checker.py \
     | sed -n "s/^1: //p") &&
@@ -217,7 +217,7 @@ test_expect_success HAVE_JQ 'shell: apinfo file contents are valid for multiple 
     echo "$apinfo" | jq -e ".pes | length == 4"
 '
 
-test_expect_success HAVE_JQ 'shell: apinfo file contents are valid with cyclic task placement' '
+test_expect_success 'shell: apinfo file contents are valid with cyclic task placement' '
     apinfo=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N2 -n4 --label-io --taskmap=cyclic \
     ${PYTHON:-python3} ${SHARNESS_TEST_SRCDIR}/scripts/apinfo_checker.py \
     | sed -n "s/^1: //p") &&
@@ -243,7 +243,7 @@ test_expect_success HAVE_JQ 'shell: apinfo file contents are valid with cyclic t
     echo "$apinfo" | jq -e ".pes | length == 4"
 '
 
-test_expect_success HAVE_JQ 'shell: apinfo file contents are valid with manual task placement' '
+test_expect_success 'shell: apinfo file contents are valid with manual task placement' '
     apinfo=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N2 -n4 --label-io \
     --taskmap="manual:[[1,1,2,1],[0,1,2,1]]" \
     ${PYTHON:-python3} ${SHARNESS_TEST_SRCDIR}/scripts/apinfo_checker.py \
