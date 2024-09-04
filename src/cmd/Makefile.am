@@ -1,2 +1,3 @@
 dist_fluxcmd_SCRIPTS = \
-	flux-dws2jgf.py
+	flux-dws2jgf.py \
+	flux-rabbitmapping.py

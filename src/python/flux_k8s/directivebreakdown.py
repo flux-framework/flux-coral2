@@ -46,7 +46,7 @@ class ResourceLimits:
             requested = getattr(self, attr)
             allowable = getattr(type(self), attr)
             if attr == "lustre":
-                requested = requested / nodecount
+                requested = requested // nodecount
             if allowable is not None and requested > allowable:
                 raise ValueError(
                     f"Requested a total of {requested} GiB of {attr} storage "
