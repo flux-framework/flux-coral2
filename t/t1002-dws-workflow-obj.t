@@ -36,7 +36,6 @@ test_expect_success 'job-manager: load dws-jobtap and alloc-bypass plugin' '
 test_expect_success 'exec dws service-providing script with bad arguments' '
     KUBECONFIG=/dev/null test_expect_code 3 flux python ${DWS_MODULE_PATH} \
         -e1 -v -rR.local &&
-    unset KUBECONFIG &&
     test_expect_code 3 flux python ${DWS_MODULE_PATH} -e1 -v -rR.local \
         --kubeconfig /dev/null &&
     test_expect_code 2 flux python ${DWS_MODULE_PATH} \
