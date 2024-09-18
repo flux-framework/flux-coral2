@@ -603,21 +603,31 @@ def rabbit_state_change_cb(
     """
     rabbit = event["object"]
     name = rabbit["metadata"]["name"]
-    status = rabbit["status"]["status"]
     if name not in rabbit_rpaths:
         LOGGER.error(
             "Encountered an unknown Storage object '%s' in the event stream", name
         )
         return
     if not disable_fluxion:
-        mark_rabbit(handle, status, *rabbit_rpaths[name], name)
-    drain_offline_nodes(
-        handle,
-        name,
-        rabbit["status"]["access"].get("computes", []),
-        disable_draining,
-        allowlist,
-    )
+        try:
+            status = rabbit["status"]["status"]
+        except KeyError:
+            # if rabbit doesn't have a status, consider it down
+            mark_rabbit(handle, "Down", *rabbit_rpaths[name], name)
+        else:
+            mark_rabbit(handle, status, *rabbit_rpaths[name], name)
+    try:
+        computes = rabbit["status"]["access"]["computes"]
+    except KeyError:
+        pass
+    else:
+        drain_offline_nodes(
+            handle,
+            name,
+            computes,
+            disable_draining,
+            allowlist,
+        )
     # TODO: add some check for whether rabbit capacity has changed
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
 
@@ -681,14 +691,26 @@ def init_rabbits(k8s_api, handle, watchers, args):
                 "Encountered an unknown Storage object '%s' in the event stream", name
             )
         else:
-            mark_rabbit(handle, rabbit["status"]["status"], *rabbit_rpaths[name], name)
-        drain_offline_nodes(
-            handle,
-            name,
-            rabbit["status"]["access"].get("computes", []),
-            args.disable_compute_node_draining,
-            allowlist,
-        )
+            try:
+                rabbit_status = rabbit["status"]["status"]
+            except KeyError:
+                # if rabbit doesn't have a status, consider it down
+                mark_rabbit(handle, "Down", *rabbit_rpaths[name], name)
+            else:
+                mark_rabbit(handle, rabbit_status, *rabbit_rpaths[name], name)
+        # rabbits don't have a 'status' field until they boot
+        try:
+            computes = rabbit["status"]["access"]["computes"]
+        except KeyError:
+            pass
+        else:
+            drain_offline_nodes(
+                handle,
+                name,
+                computes,
+                args.disable_compute_node_draining,
+                allowlist,
+            )
     watchers.add_watch(
         Watch(
             k8s_api,
@@ -848,7 +870,11 @@ def populate_rabbits_dict(k8s_api):
     )
     for nnf in api_response["items"]:
         hlist = Hostlist()
-        for compute in nnf["status"]["access"].get("computes", []):
+        try:
+            rabbit_computes = nnf["status"]["access"]["computes"]
+        except KeyError:
+            rabbit_computes = []
+        for compute in rabbit_computes:
             hostname = compute["name"]
             hlist.append(hostname)
             if hostname in _HOSTNAMES_TO_RABBITS:
@@ -911,7 +937,8 @@ def kubernetes_backoff(handle, orig_retry_delay):
         except urllib3.exceptions.HTTPError as k8s_err:
             LOGGER.warning(
                 "Hit an exception: '%s' while contacting kubernetes, sleeping for %s seconds",
-                k8s_err, retry_delay,
+                k8s_err,
+                retry_delay,
             )
             now = time.time()
             if now - last_error < retry_delay + 5:
