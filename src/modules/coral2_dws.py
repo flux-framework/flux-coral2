@@ -53,6 +53,8 @@ _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
 class WorkflowInfo:
     """Represents and holds information about a specific workflow object."""
 
+    save_datamovements = 0
+
     def __init__(self, jobid, name=None, resources=None):
         self.jobid = jobid
         if name is None:
@@ -69,31 +71,8 @@ class WorkflowInfo:
         """Move a workflow to the 'Teardown' desiredState."""
         if workflow is None:
             workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, self.name)
-        save_workflow_to_kvs(handle, self.jobid, workflow)
-        if LOGGER.isEnabledFor(logging.INFO):
-            try:
-                api_response = k8s_api.list_cluster_custom_object(
-                    group="nnf.cray.hpe.com",
-                    version="v1alpha1",
-                    plural="nnfdatamovements",
-                    label_selector=(
-                        f"dataworkflowservices.github.io/workflow.name={self.name},"
-                        "dataworkflowservices.github.io/workflow.namespace=default"
-                    ),
-                )
-            except Exception as exc:
-                LOGGER.info(
-                    "Failed to fetch nnfdatamovement crds for workflow '%s': %s",
-                    self.name,
-                    exc,
-                )
-            else:
-                for crd in api_response["items"]:
-                    LOGGER.info(
-                        "Found nnfdatamovement crd for workflow '%s': %s",
-                        self.name,
-                        json.dumps(crd),
-                    )
+        datamovements = get_datamovements(k8s_api, self.name, self.save_datamovements)
+        save_workflow_to_kvs(handle, self.jobid, workflow, datamovements)
         try:
             workflow["metadata"]["finalizers"].remove(_FINALIZER)
         except ValueError:
@@ -207,7 +186,56 @@ def save_elapsed_time_to_kvs(handle, jobid, workflow):
         )
 
 
-def save_workflow_to_kvs(handle, jobid, workflow):
+def get_datamovements(k8s_api, workflow_name, count):
+    """Fetch datamovement resources and optionally dump them to the logs.
+
+    Save every datamovement to the logs if loglevel is INFO or more verbose.
+
+    Return 'count' datamovements.
+    """
+    if LOGGER.isEnabledFor(logging.INFO):
+        limit = None
+    else:
+        if count <= 0:
+            return []
+        limit = count
+    try:
+        api_response = k8s_api.list_cluster_custom_object(
+            group="nnf.cray.hpe.com",
+            version="v1alpha2",
+            plural="nnfdatamovements",
+            limit=limit,
+            label_selector=(
+                f"dataworkflowservices.github.io/workflow.name={workflow_name},"
+                "dataworkflowservices.github.io/workflow.namespace=default"
+            ),
+        )
+    except Exception as exc:
+        LOGGER.warning(
+            "Failed to fetch nnfdatamovement crds for workflow '%s': %s",
+            workflow_name,
+            exc,
+        )
+        return []
+    datamovements = []
+    successful_datamovements = []
+    for crd in api_response["items"]:
+        LOGGER.info(
+            "Found nnfdatamovement crd for workflow '%s': %s",
+            workflow_name,
+            json.dumps(crd),
+        )
+        if len(datamovements) < count:
+            if crd["status"]["status"] == "Failed":
+                datamovements.append(crd)
+            else:
+                successful_datamovements.append(crd)
+    if len(datamovements) < count:
+        datamovements.extend(successful_datamovements[: count - len(datamovements)])
+    return datamovements
+
+
+def save_workflow_to_kvs(handle, jobid, workflow, datamovements=None):
     """Save a workflow to a job's KVS, ignoring errors."""
     try:
         timing = workflow["status"]["elapsedTimeLastState"]
@@ -220,6 +248,8 @@ def save_workflow_to_kvs(handle, jobid, workflow):
         kvsdir["rabbit_workflow"] = workflow
         if timing is not None and state is not None:
             kvsdir[f"rabbit_{state}_timing"] = timing
+        if datamovements is not None:
+            kvsdir["rabbit_datamovements"] = datamovements
         kvsdir.commit()
     except Exception:
         LOGGER.exception(
@@ -961,6 +991,7 @@ def main():
     args = setup_parsing().parse_args()
     _MIN_ALLOCATION_SIZE = args.min_allocation_size
     config_logging(args)
+    WorkflowInfo.save_datamovements = args.save_datamovements
     # set the maximum allowable allocation sizes on the ResourceLimits class
     for fs_type in directivebreakdown.ResourceLimits.TYPES:
         setattr(
