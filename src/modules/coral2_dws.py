@@ -65,6 +65,49 @@ class WorkflowInfo:
         self.deleted = False  # True if delete request has been sent to k8s
         self.rabbits = None
 
+    def move_to_teardown(self, handle, k8s_api, workflow=None):
+        """Move a workflow to the 'Teardown' desiredState."""
+        if workflow is None:
+            workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, self.name)
+        save_workflow_to_kvs(handle, self.jobid, workflow)
+        if LOGGER.isEnabledFor(logging.INFO):
+            try:
+                api_response = k8s_api.list_cluster_custom_object(
+                    group="nnf.cray.hpe.com",
+                    version="v1alpha1",
+                    plural="nnfdatamovements",
+                    label_selector=(
+                        f"dataworkflowservices.github.io/workflow.name={self.name},"
+                        "dataworkflowservices.github.io/workflow.namespace=default"
+                    ),
+                )
+            except Exception as exc:
+                LOGGER.info(
+                    "Failed to fetch nnfdatamovement crds for workflow '%s': %s",
+                    self.name,
+                    exc,
+                )
+            else:
+                for crd in api_response["items"]:
+                    LOGGER.info(
+                        "Found nnfdatamovement crd for workflow '%s': %s",
+                        self.name,
+                        json.dumps(crd),
+                    )
+        try:
+            workflow["metadata"]["finalizers"].remove(_FINALIZER)
+        except ValueError:
+            pass
+        k8s_api.patch_namespaced_custom_object(
+            *WORKFLOW_CRD,
+            self.name,
+            {
+                "spec": {"desiredState": "Teardown"},
+                "metadata": {"finalizers": workflow["metadata"]["finalizers"]},
+            },
+        )
+        self.toredown = True
+
 
 class TransientConditionInfo:
     """Represents and holds information about a TransientCondition for a workflow."""
@@ -182,50 +225,6 @@ def save_workflow_to_kvs(handle, jobid, workflow):
         LOGGER.exception(
             "Failed to update KVS for job %s: workflow is %s", jobid, workflow
         )
-
-
-def move_workflow_to_teardown(handle, winfo, k8s_api, workflow=None):
-    """Helper function for moving a workflow to Teardown."""
-    if workflow is None:
-        workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
-    save_workflow_to_kvs(handle, winfo.jobid, workflow)
-    if LOGGER.isEnabledFor(logging.INFO):
-        try:
-            api_response = k8s_api.list_cluster_custom_object(
-                group="nnf.cray.hpe.com",
-                version="v1alpha2",
-                plural="nnfdatamovements",
-                label_selector=(
-                    f"dataworkflowservices.github.io/workflow.name={winfo.name},"
-                    "dataworkflowservices.github.io/workflow.namespace=default"
-                ),
-            )
-        except Exception as exc:
-            LOGGER.info(
-                "Failed to fetch nnfdatamovement crds for workflow '%s': %s",
-                winfo.name,
-                exc,
-            )
-        else:
-            for crd in api_response["items"]:
-                LOGGER.info(
-                    "Found nnfdatamovement crd for workflow '%s': %s",
-                    winfo.name,
-                    json.dumps(crd),
-                )
-    try:
-        workflow["metadata"]["finalizers"].remove(_FINALIZER)
-    except ValueError:
-        pass
-    k8s_api.patch_namespaced_custom_object(
-        *WORKFLOW_CRD,
-        winfo.name,
-        {
-            "spec": {"desiredState": "Teardown"},
-            "metadata": {"finalizers": workflow["metadata"]["finalizers"]},
-        },
-    )
-    winfo.toredown = True
 
 
 def move_workflow_desiredstate(workflow_name, desiredstate, k8s_api):
@@ -365,7 +364,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
     if not run_started:
         # the job hit an exception before beginning to run; transition
         # the workflow immediately to 'teardown'
-        move_workflow_to_teardown(handle, winfo, k8s_api)
+        winfo.move_to_teardown(handle, k8s_api)
     else:
         move_workflow_desiredstate(winfo.name, "PostRun", k8s_api)
 
@@ -411,7 +410,7 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
             jobid,
         )
         try:
-            move_workflow_to_teardown(handle, winfo, k8s_api, workflow)
+            winfo.move_to_teardown(handle, k8s_api, workflow)
         except ApiException:
             LOGGER.exception(
                 "Failed to move workflow '%s' with jobid %s to 'teardown' "
@@ -516,7 +515,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "DataOut"):
         # move workflow to next stage, teardown
-        move_workflow_to_teardown(handle, winfo, k8s_api, workflow)
+        winfo.move_to_teardown(handle, k8s_api, workflow)
     if workflow["status"].get("status") == "Error":
         # a fatal error has occurred in the workflows, raise a job exception
         handle.job_raise(
@@ -531,7 +530,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         # workflow is in PostRun or DataOut, the exception won't affect the dws-epilog
         # action holding the job, so the workflow should be moved to Teardown now.
         if workflow["spec"]["desiredState"] in ("PostRun", "DataOut"):
-            move_workflow_to_teardown(handle, winfo, k8s_api, workflow)
+            winfo.move_to_teardown(handle, k8s_api, workflow)
     elif workflow["status"].get("status") == "TransientCondition":
         # a potentially fatal error has occurred, but may resolve itself
         LOGGER.info(
@@ -755,9 +754,8 @@ def kill_workflows_in_tc(_reactor, watcher, _r, arg):
                 "PostRun",
                 "DataOut",
             ):
-                move_workflow_to_teardown(
+                winfo.move_to_teardown(
                     watcher.flux_handle,
-                    winfo,
                     k8s_api,
                     winfo.transient_condition.workflow,
                 )
