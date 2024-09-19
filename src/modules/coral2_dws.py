@@ -835,6 +835,13 @@ def setup_parsing():
             "failures occur back-to-back"
         ),
     )
+    parser.add_argument(
+        "--save-datamovements",
+        metavar="N",
+        default=5,
+        type=int,
+        help="Number of nnfdatamovements to save to job KVS, defaults to 5",
+    )
     for fs_option, fs_help in (
         ("xfs", "XFS"),
         ("gfs2", "GFS2"),
