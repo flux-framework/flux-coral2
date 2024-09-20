@@ -193,7 +193,7 @@ def move_workflow_to_teardown(handle, winfo, k8s_api, workflow=None):
         try:
             api_response = k8s_api.list_cluster_custom_object(
                 group="nnf.cray.hpe.com",
-                version="v1alpha1",
+                version="v1alpha2",
                 plural="nnfdatamovements",
                 label_selector=(
                     f"dataworkflowservices.github.io/workflow.name={winfo.name},"
