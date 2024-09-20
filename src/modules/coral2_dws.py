@@ -266,12 +266,21 @@ def move_workflow_desiredstate(workflow_name, desiredstate, k8s_api):
     )
 
 
+def owner_uid(handle):
+    """Get instance owner UID"""
+    try:
+        return int(handle.attr_get("security.owner"))
+    except Exception:
+        return os.getuid()
+
+
 @message_callback_wrapper
-def create_cb(handle, _t, msg, api_instance):
+def create_cb(handle, _t, msg, arg):
     """dws.create RPC callback. Creates a k8s Workflow object for a job.
 
     Triggered when a new job with a jobdw directive is submitted.
     """
+    api_instance, unrestricted_persistent = arg
     dw_directives = msg.payload["dw_directives"]
     jobid = msg.payload["jobid"]
     userid = msg.payload["userid"]
@@ -284,6 +293,12 @@ def create_cb(handle, _t, msg, api_instance):
         raise TypeError(
             f"Malformed dw_directives, not list or string: {dw_directives!r}"
         )
+    for directive in dw_directives:
+        if not unrestricted_persistent and "create_persistent" in directive:
+            if userid != owner_uid(handle):
+                raise ValueError(
+                    "only the instance owner can create persistent file systems"
+                )
     workflow_name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
     spec = {
         "desiredState": "Proposal",
@@ -870,6 +885,14 @@ def setup_parsing():
         type=int,
         help="Number of nnfdatamovements to save to job KVS, defaults to 5",
     )
+    parser.add_argument(
+        "--unrestricted-persistent",
+        action="store_true",
+        help=(
+            "Allow any user to create persistent file systems, not just the instance "
+            "owner"
+        ),
+    )
     for fs_option, fs_help in (
         ("xfs", "XFS"),
         ("gfs2", "GFS2"),
@@ -922,11 +945,14 @@ def populate_rabbits_dict(k8s_api):
         _RABBITS_TO_HOSTLISTS[nnf["metadata"]["name"]] = hlist.encode()
 
 
-def register_services(handle, k8s_api):
+def register_services(handle, k8s_api, unrestricted_persistent):
     """register dws.create, dws.setup, and dws.post_run services."""
     serv_reg_fut = handle.service_register("dws")
     create_watcher = handle.msg_watcher_create(
-        create_cb, FLUX_MSGTYPE_REQUEST, "dws.create", args=k8s_api
+        create_cb,
+        FLUX_MSGTYPE_REQUEST,
+        "dws.create",
+        args=(k8s_api, unrestricted_persistent),
     )
     create_watcher.start()
     setup_watcher = handle.msg_watcher_create(
@@ -1031,7 +1057,7 @@ def main():
             watchers,
             args,
         )
-        services = register_services(handle, k8s_api)
+        services = register_services(handle, k8s_api, args.unrestricted_persistent)
         watchers.add_watch(
             Watch(
                 k8s_api,
