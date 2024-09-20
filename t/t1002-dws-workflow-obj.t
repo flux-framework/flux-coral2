@@ -9,6 +9,8 @@ if test_have_prereq NO_DWS_K8S; then
     test_done
 fi
 
+flux version | grep -q libflux-security && test_set_prereq FLUX_SECURITY
+
 FLUX_SIZE=2
 
 test_under_flux ${FLUX_SIZE} job
@@ -23,10 +25,15 @@ PROLOG_NAME="dws-setup"
 EPILOG_NAME="dws-epilog"
 DATADIR=${SHARNESS_TEST_SRCDIR}/data/workflow-obj
 
-# TODO: load alloc-bypass plugin once it is working again (flux-core #4900)
-# test_expect_success 'job-manager: load alloc-bypass plugin' '
-# 	flux jobtap load alloc-bypass.so
-# '
+submit_as_alternate_user()
+{
+    FAKE_USERID=42
+    flux run --dry-run "$@" | \
+      flux python ${SHARNESS_TEST_SRCDIR}/scripts/sign-as.py $FAKE_USERID \
+        >job.signed
+    FLUX_HANDLE_USERID=$FAKE_USERID \
+      flux job submit --flags=signed job.signed
+}
 
 test_expect_success 'job-manager: load dws-jobtap and alloc-bypass plugin' '
 	flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
@@ -371,6 +378,16 @@ test_expect_success 'job submission with persistent DW string works' '
 	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
 	flux job wait-event -vt 30 ${jobid} clean
+'
+
+test_expect_success FLUX_SECURITY 'job submission with persistent DW string and non-owner UID fails' '
+	jobid=$(submit_as_alternate_user \
+		--setattr=system.dw="#DW create_persistent capacity=10GiB type=lustre name=project1" \
+		-N1 -n1 -c1 --setattr=exec.test.run_duration=1s \
+		hostname) &&
+	flux job wait-event -vt 10 ${jobid} exception &&
+	flux job wait-event -vt 15 ${jobid} clean &&
+	flux job wait-event -t 1 ${jobid} exception | grep "only the instance owner"
 '
 
 test_expect_success 'job submission with standalone MGT persistent DW string works' '
