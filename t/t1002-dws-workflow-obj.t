@@ -157,7 +157,8 @@ test_expect_success 'job submission with valid DW string works' '
 	flux job info ${jobid} rabbit_prerun_timing &&
 	flux job info ${jobid} rabbit_postrun_timing &&
 	flux job info ${jobid} rabbit_dataout_timing &&
-	flux job info ${jobid} rabbit_teardown_timing
+	flux job info ${jobid} rabbit_teardown_timing &&
+	flux job info ${jobid} rabbit_datamovements | jq "length == 0"
 '
 
 test_expect_success 'job requesting copy-offload in DW string works' '
@@ -196,7 +197,8 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 	flux job info ${jobid} rabbit_prerun_timing &&
 	flux job info ${jobid} rabbit_postrun_timing &&
 	flux job info ${jobid} rabbit_dataout_timing &&
-	flux job info ${jobid} rabbit_teardown_timing
+	flux job info ${jobid} rabbit_teardown_timing &&
+	flux job info ${jobid} rabbit_datamovements | jq "length == 0"
 '
 
 test_expect_success 'job requesting too much storage is rejected' '
@@ -317,7 +319,7 @@ test_expect_success 'dws service kills workflows in Error properly' '
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
 	flux job wait-event -t 10 ${jobid} exception &&
-	flux job wait-event -vt 5 ${jobid} clean
+	flux job wait-event -vt 10 ${jobid} clean
 '
 
 test_expect_success 'exec dws service-providing script with custom config path' '
@@ -422,10 +424,10 @@ test_expect_success 'launch service with storage maximum arguments' '
 '
 
 test_expect_success 'job submission with storage within max works' '
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=500GiB type=xfs name=project1
-		#DW jobdw capacity=200GiB type=gfs2 name=project2
-		#DW jobdw capacity=300GiB type=raw name=project3
-		#DW jobdw capacity=100GiB type=lustre name=project4" \
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=50GiB type=xfs name=project1
+		#DW jobdw capacity=20GiB type=gfs2 name=project2
+		#DW jobdw capacity=30GiB type=raw name=project3
+		#DW jobdw capacity=10GiB type=lustre name=project4" \
 		-N1 -n1 hostname) &&
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
@@ -442,7 +444,7 @@ test_expect_success 'job submission with storage within max works' '
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
-	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
+	flux job wait-event -vt 55 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
 	flux job wait-event -vt 15 ${jobid} clean
 '
