@@ -18,7 +18,6 @@ from fluxion.resourcegraph.V1 import (
 
 
 class ElCapResourcePoolV1(FluxionResourcePoolV1):
-
     """
     ElCap Resource Pool Vertex Class: extend jsongraph's Node class
     """
@@ -267,6 +266,11 @@ def main():
             "e.g. by the 'flux rabbitmapping' script"
         ),
     )
+    parser.add_argument(
+        "--only-sched",
+        action="store_true",
+        help="Only output the 'scheduling' key",
+    )
     args = parser.parse_args()
     if not args.cluster_name:
         args.cluster_name = "".join(
@@ -296,12 +300,12 @@ def main():
             f"Node(s) {dws_computes - set(r_hostlist)} found in rabbit_mapping "
             "but not R from stdin"
         )
-    json.dump(
-        encode(
-            input_r, rabbit_mapping, r_hostlist, args.chunks_per_nnf, args.cluster_name
-        ),
-        sys.stdout,
+    output = encode(
+        input_r, rabbit_mapping, r_hostlist, args.chunks_per_nnf, args.cluster_name
     )
+    if args.only_sched:
+        output = output["scheduling"]
+    json.dump(output, sys.stdout)
 
 
 if __name__ == "__main__":

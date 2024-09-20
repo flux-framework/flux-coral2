@@ -418,8 +418,8 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
         workflow = event["object"]
         jobid = int(flux.job.JobID(workflow["spec"]["jobID"]))
         workflow_name = workflow["metadata"]["name"]
-    except KeyError:
-        LOGGER.exception("Invalid event %s in workflow stream: ", event)
+    except Exception:
+        LOGGER.exception("Invalid event in workflow stream: %s", event)
         return
     if not workflow_name.startswith(WORKFLOW_NAME_PREFIX):
         LOGGER.warning("unrecognized workflow '%s' in event stream", workflow_name)
