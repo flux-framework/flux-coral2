@@ -1,3 +1,26 @@
+flux-coral2 0.17.0 - 2024-09-20
+-------------------------------
+
+### New Features
+ * dws: saving nnfdatamovements (#216)
+ * Enforce size constraints (#202)
+ * dws: only allow owner to create persistent FS (#215)
+ * dws: use static rabbit layout mapping for JGF (#204)
+ * dws: increase nnfdatamovement version (#214)
+
+### Fixes
+ * dws: ignore bad jobids in workflows (#217)
+ * dws: ignore nonexistent rabbit status field (#213)
+ * dws: add error-handling cycle for kubernetes (#199)
+ * dws: event watch cancel (#196)
+ * dws: increase timeout of shell plugin (#194)
+
+### Build/Testsuite
+ * CI: update from el8 to el9 (#211)
+ * testsuite: update expected jgf (#207)
+ * testsuite: sharness sync (#206)
+
+
 flux-coral2 0.16.0 - 2024-08-05
 -------------------------------
 
