@@ -95,7 +95,7 @@ test_expect_success 'fluxion does not allocate a rack/rabbit job after adding do
 '
 
 test_expect_success 'fluxion allocates a rack/rabbit job when rabbit is up' '
-	${SHARNESS_TEST_SRCDIR}/scripts/set_status.py /ElCapitan0/rack0/ssd0 up &&
+	${SHARNESS_TEST_SRCDIR}/scripts/set_status.py /ElCapitan/rack0/ssd0 up &&
 	JOBID=$(flux job submit ${DATADIR}/rabbit-jobspec.json) &&
 	flux job wait-event -vt 2 -m status=0 ${JOBID} finish &&
 	flux job attach $JOBID &&
