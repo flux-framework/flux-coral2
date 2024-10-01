@@ -1,3 +1,13 @@
+flux-coral2 0.17.1 - 2024-10-01
+-------------------------------
+
+### New Features
+ * dws2jgf: drop defaults for JGF simplification
+
+### Fixes
+ * dws: fix datamovement `limit` argument
+
+
 flux-coral2 0.17.0 - 2024-09-20
 -------------------------------
 
