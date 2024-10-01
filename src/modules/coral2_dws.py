@@ -194,21 +194,21 @@ def get_datamovements(k8s_api, workflow_name, count):
     Return 'count' datamovements.
     """
     if LOGGER.isEnabledFor(logging.INFO):
-        limit = None
+        limit_arg = {}
     else:
         if count <= 0:
             return []
-        limit = count
+        limit_arg = {"limit": count}
     try:
         api_response = k8s_api.list_cluster_custom_object(
             group="nnf.cray.hpe.com",
             version="v1alpha2",
             plural="nnfdatamovements",
-            limit=limit,
             label_selector=(
                 f"dataworkflowservices.github.io/workflow.name={workflow_name},"
                 "dataworkflowservices.github.io/workflow.namespace=default"
             ),
+            **limit_arg,
         )
     except Exception as exc:
         LOGGER.warning(
