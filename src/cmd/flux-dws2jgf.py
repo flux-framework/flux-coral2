@@ -247,7 +247,8 @@ def main():
     else:
         proc = subprocess.run(
             f"flux R parse-config {args.from_config}".split(),
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             check=False,
         )
         if proc.returncode != 0:
@@ -255,7 +256,7 @@ def main():
                 f"Could not parse config file {args.from_config!r}, "
                 "error message was {proc.stderr}"
             )
-        input_r = json.load(proc.stdout)
+        input_r = json.loads(proc.stdout)
     with open(args.rabbitmapping, "r", encoding="utf8") as rabbitmap_fd:
         rabbit_mapping = json.load(rabbitmap_fd)
     r_hostlist = Hostlist(input_r["execution"]["nodelist"])
