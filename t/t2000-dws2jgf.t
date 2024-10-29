@@ -62,6 +62,22 @@ test_expect_success 'flux-dws2jgf.py handles properties correctly' '
 	test_cmp ${DATADIR}/expected-properties.jgf actual-properties.jgf
 '
 
+test_expect_success 'flux-dws2jgf.py can read from a config file' '
+	cat >resourceconf.toml <<-EOT &&
+	[[resource.config]]
+	hosts = "compute-01"
+	cores = "0-4"
+	EOT
+	flux python ${CMD} --no-validate --from-config resourceconf.toml rabbits.json | jq . > actual-configfile.jgf &&
+	test_cmp ${DATADIR}/expected-configfile.jgf actual-configfile.jgf
+'
+
+test_expect_success 'flux-dws2jgf.py reading from config file is same as parse-config' '
+	flux R parse-config resourceconf.toml | \
+	flux python ${CMD} --no-validate rabbits.json | jq . > actual-configfile-parseconfig.jgf &&
+	test_cmp ${DATADIR}/expected-configfile.jgf actual-configfile-parseconfig.jgf
+'
+
 test_expect_success 'fluxion rejects a rack/rabbit job when no rabbits are recognized' '
 	flux module remove -f sched-fluxion-qmanager &&
 	flux module remove -f sched-fluxion-resource &&
