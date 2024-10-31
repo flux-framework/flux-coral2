@@ -40,3 +40,10 @@ SERVER_CRD = CRD(
     namespace=DEFAULT_NAMESPACE,
     plural="servers",
 )
+
+SYSTEMCONFIGURATION_CRD = CRD(
+    group=DWS_GROUP,
+    version=DWS_API_VERSION,
+    namespace=DEFAULT_NAMESPACE,
+    plural="systemconfigurations",
+)

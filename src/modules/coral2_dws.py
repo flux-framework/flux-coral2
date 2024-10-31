@@ -920,13 +920,13 @@ def config_logging(args):
 
 def populate_rabbits_dict(k8s_api):
     """Populate the _HOSTNAMES_TO_RABBITS dictionary."""
-    api_response = k8s_api.list_cluster_custom_object(
-        RABBIT_CRD.group, RABBIT_CRD.version, RABBIT_CRD.plural
+    systemconf = k8s_api.get_namespaced_custom_object(
+        *crd.SYSTEMCONFIGURATION_CRD, "default"
     )
-    for nnf in api_response["items"]:
+    for nnf in systemconf["spec"]["storageNodes"]:
         hlist = Hostlist()
         try:
-            rabbit_computes = nnf["status"]["access"]["computes"]
+            rabbit_computes = nnf["computesAccess"]
         except KeyError:
             rabbit_computes = []
         for compute in rabbit_computes:
@@ -935,11 +935,11 @@ def populate_rabbits_dict(k8s_api):
             if hostname in _HOSTNAMES_TO_RABBITS:
                 raise KeyError(
                     f"Same hostname ({hostname}) cannot be associated with "
-                    f"both {nnf['metadata']['name']} and "
+                    f"both {nnf['name']} and "
                     f"{_HOSTNAMES_TO_RABBITS[hostname]}"
                 )
-            _HOSTNAMES_TO_RABBITS[hostname] = nnf["metadata"]["name"]
-        _RABBITS_TO_HOSTLISTS[nnf["metadata"]["name"]] = hlist.encode()
+            _HOSTNAMES_TO_RABBITS[hostname] = nnf["name"]
+        _RABBITS_TO_HOSTLISTS[nnf["name"]] = hlist.encode()
 
 
 def register_services(handle, k8s_api, unrestricted_persistent):
