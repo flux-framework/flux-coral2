@@ -28,12 +28,7 @@ from flux.hostlist import Hostlist
 from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
-from flux_k8s.crd import (
-    WORKFLOW_CRD,
-    RABBIT_CRD,
-    COMPUTE_CRD,
-    SERVER_CRD,
-)
+from flux_k8s import crd
 from flux_k8s.watch import Watchers, Watch
 from flux_k8s import directivebreakdown
 
@@ -70,7 +65,9 @@ class WorkflowInfo:
     def move_to_teardown(self, handle, k8s_api, workflow=None):
         """Move a workflow to the 'Teardown' desiredState."""
         if workflow is None:
-            workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, self.name)
+            workflow = k8s_api.get_namespaced_custom_object(
+                *crd.WORKFLOW_CRD, self.name
+            )
         datamovements = get_datamovements(k8s_api, self.name, self.save_datamovements)
         save_workflow_to_kvs(handle, self.jobid, workflow, datamovements)
         try:
@@ -78,7 +75,7 @@ class WorkflowInfo:
         except ValueError:
             pass
         k8s_api.patch_namespaced_custom_object(
-            *WORKFLOW_CRD,
+            *crd.WORKFLOW_CRD,
             self.name,
             {
                 "spec": {"desiredState": "Teardown"},
@@ -112,10 +109,10 @@ def log_rpc_response(rpc):
 def fetch_rabbits(k8s_api, workflow_computes):
     """Fetch all the rabbits associated with this workflow"""
     response = k8s_api.get_namespaced_custom_object(
-        COMPUTE_CRD.group,
-        COMPUTE_CRD.version,
+        crd.COMPUTE_CRD.group,
+        crd.COMPUTE_CRD.version,
         workflow_computes["namespace"],
-        COMPUTE_CRD.plural,
+        crd.COMPUTE_CRD.plural,
         workflow_computes["name"],
     )
     return list(set(_HOSTNAMES_TO_RABBITS[entry["name"]] for entry in response["data"]))
@@ -163,7 +160,7 @@ def remove_finalizer(workflow_name, k8s_api, workflow):
         pass
     else:
         k8s_api.patch_namespaced_custom_object(
-            *WORKFLOW_CRD,
+            *crd.WORKFLOW_CRD,
             workflow_name,
             {"metadata": {"finalizers": workflow["metadata"]["finalizers"]}},
         )
@@ -260,7 +257,7 @@ def save_workflow_to_kvs(handle, jobid, workflow, datamovements=None):
 def move_workflow_desiredstate(workflow_name, desiredstate, k8s_api):
     """Helper function for moving workflow to a desiredState."""
     k8s_api.patch_namespaced_custom_object(
-        *WORKFLOW_CRD,
+        *crd.WORKFLOW_CRD,
         workflow_name,
         {"spec": {"desiredState": desiredstate}},
     )
@@ -310,16 +307,16 @@ def create_cb(handle, _t, msg, arg):
     }
     body = {
         "kind": "Workflow",
-        "apiVersion": "/".join([WORKFLOW_CRD.group, WORKFLOW_CRD.version]),
+        "apiVersion": "/".join([crd.WORKFLOW_CRD.group, crd.WORKFLOW_CRD.version]),
         "spec": spec,
         "metadata": {
             "name": workflow_name,
-            "namespace": WORKFLOW_CRD.namespace,
+            "namespace": crd.WORKFLOW_CRD.namespace,
             "finalizers": [_FINALIZER],
         },
     }
     api_instance.create_namespaced_custom_object(
-        *WORKFLOW_CRD,
+        *crd.WORKFLOW_CRD,
         body,
     )
     # add workflow to the cache
@@ -346,7 +343,7 @@ def setup_cb(handle, _t, msg, k8s_api):
     jobid = msg.payload["jobid"]
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
     workflow_name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
-    workflow = k8s_api.get_namespaced_custom_object(*WORKFLOW_CRD, workflow_name)
+    workflow = k8s_api.get_namespaced_custom_object(*crd.WORKFLOW_CRD, workflow_name)
     compute_nodes = [{"name": hostname} for hostname in hlist]
     nodes_per_nnf = {}
     for hostname in hlist:
@@ -360,10 +357,10 @@ def setup_cb(handle, _t, msg, k8s_api):
         },
     ).then(log_rpc_response)
     k8s_api.patch_namespaced_custom_object(
-        COMPUTE_CRD.group,
-        COMPUTE_CRD.version,
+        crd.COMPUTE_CRD.group,
+        crd.COMPUTE_CRD.version,
         workflow["status"]["computes"]["namespace"],
-        COMPUTE_CRD.plural,
+        crd.COMPUTE_CRD.plural,
         workflow["status"]["computes"]["name"],
         {"data": compute_nodes},
     )
@@ -378,10 +375,10 @@ def setup_cb(handle, _t, msg, k8s_api):
                 _MIN_ALLOCATION_SIZE,
             )
             k8s_api.patch_namespaced_custom_object(
-                SERVER_CRD.group,
-                SERVER_CRD.version,
+                crd.SERVER_CRD.group,
+                crd.SERVER_CRD.version,
                 breakdown["status"]["storage"]["reference"]["namespace"],
-                SERVER_CRD.plural,
+                crd.SERVER_CRD.plural,
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
@@ -487,7 +484,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         # Attempt to remove the finalizer again in case the state transitioned
         # too quickly for it to be noticed earlier.
         remove_finalizer(winfo.name, k8s_api, workflow)
-        k8s_api.delete_namespaced_custom_object(*WORKFLOW_CRD, winfo.name)
+        k8s_api.delete_namespaced_custom_object(*crd.WORKFLOW_CRD, winfo.name)
         winfo.deleted = True
         handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
             log_rpc_response
@@ -705,7 +702,7 @@ def init_rabbits(k8s_api, handle, watchers, args):
     Also, to initialize, check the status of all rabbits and mark each one as up or
     down, because status may have changed while this service was inactive.
     """
-    api_response = k8s_api.list_namespaced_custom_object(*RABBIT_CRD)
+    api_response = k8s_api.list_namespaced_custom_object(*crd.RABBIT_CRD)
     if not args.disable_fluxion:
         rabbit_rpaths = map_rabbits_to_fluxion_paths(args.resourcegraph)
     else:
@@ -758,7 +755,7 @@ def init_rabbits(k8s_api, handle, watchers, args):
     watchers.add_watch(
         Watch(
             k8s_api,
-            RABBIT_CRD,
+            crd.RABBIT_CRD,
             resource_version,
             rabbit_state_change_cb,
             handle,
@@ -1061,7 +1058,7 @@ def main():
         watchers.add_watch(
             Watch(
                 k8s_api,
-                WORKFLOW_CRD,
+                crd.WORKFLOW_CRD,
                 0,
                 workflow_state_change_cb,
                 handle,
