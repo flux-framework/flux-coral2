@@ -592,15 +592,15 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         WORKFLOWS_IN_TC.discard(winfo)
 
 
-def drain_offline_nodes(handle, rabbit_name, nodelist, disable_draining, allowlist):
+def drain_offline_nodes(handle, rabbit_name, nodelist, allowlist):
     """Drain nodes listed as offline in a given Storage resource.
 
     Drain all the nodes in `nodelist` that are Offline, provided they are
     in `allowlist`.
 
-    If disable_draining is True, do nothing.
+    If draining is disabled in the rabbit config table, do nothing.
     """
-    if disable_draining:
+    if not handle.conf_get("rabbit.drain_compute_nodes", True):
         return
     offline_nodes = Hostlist()
     for compute_node in nodelist:
@@ -636,7 +636,7 @@ def mark_rabbit(handle, status, resource_path, ssdcount, name):
 
 
 def rabbit_state_change_cb(
-    event, handle, rabbit_rpaths, disable_draining, disable_fluxion, allowlist
+    event, handle, rabbit_rpaths, disable_fluxion, allowlist
 ):
     """Callback firing when a Storage object changes.
 
@@ -666,7 +666,6 @@ def rabbit_state_change_cb(
             handle,
             name,
             computes,
-            disable_draining,
             allowlist,
         )
     # TODO: add some check for whether rabbit capacity has changed
@@ -749,7 +748,6 @@ def init_rabbits(k8s_api, handle, watchers, args):
                 handle,
                 name,
                 computes,
-                args.disable_compute_node_draining,
                 allowlist,
             )
     watchers.add_watch(
@@ -760,7 +758,6 @@ def init_rabbits(k8s_api, handle, watchers, args):
             rabbit_state_change_cb,
             handle,
             rabbit_rpaths,
-            args.disable_compute_node_draining,
             args.disable_fluxion,
             allowlist,
         )
@@ -849,11 +846,6 @@ def setup_parsing():
         default=_MIN_ALLOCATION_SIZE,
         metavar="N",
         help="Minimum allocation size of rabbit allocations, in bytes",
-    )
-    parser.add_argument(
-        "--disable-compute-node-draining",
-        action="store_true",
-        help="Disable the draining of compute nodes based on k8s status",
     )
     parser.add_argument(
         "--drain-queues",
