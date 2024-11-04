@@ -636,9 +636,7 @@ def mark_rabbit(handle, status, resource_path, ssdcount, name):
         handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
 
 
-def rabbit_state_change_cb(
-    event, handle, rabbit_rpaths, disable_fluxion, allowlist
-):
+def rabbit_state_change_cb(event, handle, rabbit_rpaths, disable_fluxion, allowlist):
     """Callback firing when a Storage object changes.
 
     Marks a rabbit as up or down.
@@ -692,7 +690,7 @@ def map_rabbits_to_fluxion_paths(handle):
     return rabbit_rpaths
 
 
-def init_rabbits(k8s_api, handle, watchers, args):
+def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
     """Watch every rabbit ('Storage' resources in k8s) known to k8s.
 
     Whenever a Storage resource changes, mark it as 'up' or 'down' in Fluxion.
@@ -701,19 +699,17 @@ def init_rabbits(k8s_api, handle, watchers, args):
     down, because status may have changed while this service was inactive.
     """
     api_response = k8s_api.list_namespaced_custom_object(*crd.RABBIT_CRD)
-    if not args.disable_fluxion:
+    if not disable_fluxion:
         rabbit_rpaths = map_rabbits_to_fluxion_paths(handle)
     else:
         rabbit_rpaths = {}
     resource_version = 0
-    if args.drain_queues is not None:
+    if drain_queues is not None:
         rset = flux.resource.resource_list(handle).get().all
-        allowlist = set(
-            rset.copy_constraint({"properties": args.drain_queues}).nodelist
-        )
+        allowlist = set(rset.copy_constraint({"properties": drain_queues}).nodelist)
         if not allowlist:
             raise ValueError(
-                f"No resources found associated with queues {args.drain_queues}"
+                f"No resources found associated with queues {drain_queues}"
             )
     else:
         allowlist = None
@@ -722,7 +718,7 @@ def init_rabbits(k8s_api, handle, watchers, args):
         resource_version = max(
             resource_version, int(rabbit["metadata"]["resourceVersion"])
         )
-        if args.disable_fluxion:
+        if disable_fluxion:
             # don't mark the rabbit up or down but add the rabbit to the mapping
             rabbit_rpaths[name] = None
         elif name not in rabbit_rpaths:
@@ -757,7 +753,7 @@ def init_rabbits(k8s_api, handle, watchers, args):
             rabbit_state_change_cb,
             handle,
             rabbit_rpaths,
-            args.disable_fluxion,
+            disable_fluxion,
             allowlist,
         )
     )
@@ -1011,7 +1007,8 @@ def main():
             k8s_api,
             handle,
             watchers,
-            args,
+            args.disable_fluxion,
+            args.drain_queues,
         )
         services = register_services(
             handle, k8s_api, handle.conf_get("rabbit.restrict_persistent", True)
