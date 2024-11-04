@@ -814,14 +814,6 @@ def setup_parsing():
         help="Increase verbosity of output",
     )
     parser.add_argument(
-        "--transient-condition-timeout",
-        "-e",
-        type=float,
-        default=10,
-        metavar="N",
-        help="Kill workflows in TransientCondition state for more than 'N' seconds",
-    )
-    parser.add_argument(
         "--kubeconfig",
         "-k",
         default=None,
@@ -994,11 +986,12 @@ def main():
     populate_rabbits_dict(k8s_api)
     # create a timer watcher for killing workflows that have been stuck in
     # the "Error" state for too long
+    tc_timeout = handle.conf_get("rabbit.tc_timeout", 10)
     handle.timer_watcher_create(
-        args.transient_condition_timeout / 2,
+        tc_timeout / 2,
         kill_workflows_in_tc,
-        repeat=args.transient_condition_timeout / 2,
-        args=(args.transient_condition_timeout, k8s_api),
+        repeat=tc_timeout / 2,
+        args=(tc_timeout, k8s_api),
     ).start()
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
