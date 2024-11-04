@@ -890,18 +890,6 @@ def setup_parsing():
             "owner"
         ),
     )
-    for fs_option, fs_help in (
-        ("xfs", "XFS"),
-        ("gfs2", "GFS2"),
-        ("lustre", "Lustre"),
-        ("raw", "raw"),
-    ):
-        parser.add_argument(
-            f"--max-{fs_option}",
-            metavar="N",
-            help=f"Maximum {fs_help} capacity per node, in GiB",
-            type=int,
-        )
     return parser
 
 
@@ -1014,11 +1002,14 @@ def main():
     args = setup_parsing().parse_args()
     _MIN_ALLOCATION_SIZE = args.min_allocation_size
     config_logging(args)
+    handle = flux.Flux()
     WorkflowInfo.save_datamovements = args.save_datamovements
     # set the maximum allowable allocation sizes on the ResourceLimits class
     for fs_type in directivebreakdown.ResourceLimits.TYPES:
         setattr(
-            directivebreakdown.ResourceLimits, fs_type, getattr(args, f"max_{fs_type}")
+            directivebreakdown.ResourceLimits,
+            fs_type,
+            handle.conf_get(f"rabbit.policy.maximums.{fs_type}"),
         )
     try:
         k8s_client = k8s.config.new_client_from_config(config_file=args.kubeconfig)
@@ -1036,7 +1027,6 @@ def main():
         LOGGER.exception("Cannot access kubernetes, service will shut down")
         sys.exit(_EXITCODE_NORESTART)
     populate_rabbits_dict(k8s_api)
-    handle = flux.Flux()
     # create a timer watcher for killing workflows that have been stuck in
     # the "Error" state for too long
     handle.timer_watcher_create(

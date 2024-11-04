@@ -1,0 +1,7 @@
+# maximum filesystem capacity per node, in GiB
+[rabbit.policy.maximums]
+xfs = 500
+gfs2 = 200
+raw = 300
+lustre = 100
+

@@ -474,11 +474,11 @@ test_expect_success 'back-to-back job submissions with 10TiB file systems works'
 
 test_expect_success 'launch service with storage maximum arguments' '
 	flux cancel $DWS_JOBID &&
+	flux config load ${DATADIR}/maximums &&
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws4.out --error=dws4.err \
-		python ${DWS_MODULE_PATH} -e1 --kubeconfig $PWD/kubeconfig -vvv -rR.local \
-		--max-xfs 500 --max-lustre 100 --max-gfs2 200 --max-raw 300) &&
+		python ${DWS_MODULE_PATH} -e1 --kubeconfig $PWD/kubeconfig -vvv -rR.local) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
 	${RPC} "dws.create"
 '
