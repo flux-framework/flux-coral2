@@ -277,7 +277,7 @@ def create_cb(handle, _t, msg, arg):
 
     Triggered when a new job with a jobdw directive is submitted.
     """
-    api_instance, unrestricted_persistent = arg
+    api_instance, restrict_persistent = arg
     dw_directives = msg.payload["dw_directives"]
     jobid = msg.payload["jobid"]
     userid = msg.payload["userid"]
@@ -291,7 +291,7 @@ def create_cb(handle, _t, msg, arg):
             f"Malformed dw_directives, not list or string: {dw_directives!r}"
         )
     for directive in dw_directives:
-        if not unrestricted_persistent and "create_persistent" in directive:
+        if restrict_persistent and "create_persistent" in directive:
             if userid != owner_uid(handle):
                 raise ValueError(
                     "only the instance owner can create persistent file systems"
@@ -875,21 +875,6 @@ def setup_parsing():
             "failures occur back-to-back"
         ),
     )
-    parser.add_argument(
-        "--save-datamovements",
-        metavar="N",
-        default=5,
-        type=int,
-        help="Number of nnfdatamovements to save to job KVS, defaults to 5",
-    )
-    parser.add_argument(
-        "--unrestricted-persistent",
-        action="store_true",
-        help=(
-            "Allow any user to create persistent file systems, not just the instance "
-            "owner"
-        ),
-    )
     return parser
 
 
@@ -930,14 +915,14 @@ def populate_rabbits_dict(k8s_api):
         _RABBITS_TO_HOSTLISTS[nnf["name"]] = hlist.encode()
 
 
-def register_services(handle, k8s_api, unrestricted_persistent):
+def register_services(handle, k8s_api, restrict_persistent):
     """register dws.create, dws.setup, and dws.post_run services."""
     serv_reg_fut = handle.service_register("dws")
     create_watcher = handle.msg_watcher_create(
         create_cb,
         FLUX_MSGTYPE_REQUEST,
         "dws.create",
-        args=(k8s_api, unrestricted_persistent),
+        args=(k8s_api, restrict_persistent),
     )
     create_watcher.start()
     setup_watcher = handle.msg_watcher_create(
@@ -1003,7 +988,7 @@ def main():
     _MIN_ALLOCATION_SIZE = args.min_allocation_size
     config_logging(args)
     handle = flux.Flux()
-    WorkflowInfo.save_datamovements = args.save_datamovements
+    WorkflowInfo.save_datamovements = handle.conf_get("rabbit.save_datamovements", 0)
     # set the maximum allowable allocation sizes on the ResourceLimits class
     for fs_type in directivebreakdown.ResourceLimits.TYPES:
         setattr(
@@ -1044,7 +1029,9 @@ def main():
             watchers,
             args,
         )
-        services = register_services(handle, k8s_api, args.unrestricted_persistent)
+        services = register_services(
+            handle, k8s_api, handle.conf_get("rabbit.restrict_persistent", True)
+        )
         watchers.add_watch(
             Watch(
                 k8s_api,
