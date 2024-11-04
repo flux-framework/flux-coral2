@@ -24,6 +24,7 @@ from kubernetes.config.config_exception import ConfigException
 import urllib3
 
 import flux
+import flux.kvs
 from flux.hostlist import Hostlist
 from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
@@ -672,16 +673,14 @@ def rabbit_state_change_cb(
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
 
 
-def map_rabbits_to_fluxion_paths(graph_path):
+def map_rabbits_to_fluxion_paths(handle):
     """Read the fluxion resource graph and map rabbit hostnames to resource paths."""
     rabbit_rpaths = {}
     try:
-        with open(graph_path, encoding="utf8") as graph_fd:
-            nodes = json.load(graph_fd)["scheduling"]["graph"]["nodes"]
+        nodes = flux.kvs.get(handle, "resource.R")["scheduling"]["graph"]["nodes"]
     except Exception as exc:
         raise ValueError(
-            f"Could not load rabbit resource graph data from {graph_path} "
-            "expected a Flux R file augmented with JGF from 'flux-dws2jgf'"
+            f"Could not load rabbit resource graph data from KVS's resource.R"
         ) from exc
     for vertex in nodes:
         metadata = vertex["metadata"]
@@ -703,7 +702,7 @@ def init_rabbits(k8s_api, handle, watchers, args):
     """
     api_response = k8s_api.list_namespaced_custom_object(*crd.RABBIT_CRD)
     if not args.disable_fluxion:
-        rabbit_rpaths = map_rabbits_to_fluxion_paths(args.resourcegraph)
+        rabbit_rpaths = map_rabbits_to_fluxion_paths(handle)
     else:
         rabbit_rpaths = {}
     resource_version = 0
@@ -834,13 +833,6 @@ def setup_parsing():
         help="Path to kubeconfig file to use",
     )
     parser.add_argument(
-        "--resourcegraph",
-        "-r",
-        default=str(pathlib.Path("/etc/flux/system/R").absolute()),
-        metavar="FILE",
-        help="Path to file containing Fluxion JGF resource graph",
-    )
-    parser.add_argument(
         "--min-allocation-size",
         "-m",
         default=_MIN_ALLOCATION_SIZE,
@@ -937,16 +929,11 @@ def raise_self_exception(handle):
     testing purposes.
     Once https://github.com/flux-framework/flux-core/issues/3821 is
     implemented/closed, this can be replaced with that solution.
-
-    Also, remove FLUX_KVS_NAMESPACE from the environment, because otherwise
-    KVS lookups will look relative to that namespace, changing the behavior
-    relative to when the script runs as a service.
     """
     try:
         jobid = id_parse(os.environ["FLUX_JOB_ID"])
     except KeyError:
         return
-    del os.environ["FLUX_KVS_NAMESPACE"]
     Future(handle.job_raise(jobid, "exception", 7, "dws watchers setup")).get()
 
 
@@ -979,6 +966,11 @@ def main():
     args = setup_parsing().parse_args()
     _MIN_ALLOCATION_SIZE = args.min_allocation_size
     config_logging(args)
+    # Remove FLUX_KVS_NAMESPACE from the environment if set, because otherwise
+    # KVS lookups will look relative to that namespace, but this service
+    # must operate on the default namespace.
+    if "FLUX_KVS_NAMESPACE" in os.environ:
+        del os.environ["FLUX_KVS_NAMESPACE"]
     handle = flux.Flux()
     WorkflowInfo.save_datamovements = handle.conf_get("rabbit.save_datamovements", 0)
     # set the maximum allowable allocation sizes on the ResourceLimits class
