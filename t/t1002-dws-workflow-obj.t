@@ -429,8 +429,51 @@ test_expect_success 'dws service script handles restarts while a job is running'
 	flux job wait-event -vt 25 ${jobid} clean
 '
 
+test_expect_success 'back-to-back job submissions with 10TiB file systems works' '
+	jobid1=$(flux submit --setattr=system.dw="#DW jobdw capacity=10TiB type=xfs name=project1" \
+		-N1 -n1 hostname) &&
+	jobid2=$(flux submit --setattr=system.dw="#DW jobdw capacity=10TiB type=lustre name=project2" \
+		-N1 -n1 hostname) &&
+	jobid3=$(flux submit --setattr=system.dw="#DW jobdw capacity=10TiB type=xfs name=project3" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
+		${jobid1} dependency-add &&
+	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
+		${jobid2} dependency-add &&
+	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
+		${jobid3} dependency-add &&
+	flux job wait-event -t 35 -m description=${CREATE_DEP_NAME} \
+		${jobid1} dependency-remove &&
+	flux job wait-event -t 35 -m description=${CREATE_DEP_NAME} \
+		${jobid2} dependency-remove &&
+	flux job wait-event -t 35 -m description=${CREATE_DEP_NAME} \
+		${jobid3} dependency-remove &&
+	flux job wait-event -vt 35 -m description=${PROLOG_NAME} \
+		${jobid1} prolog-start &&
+	flux job wait-event -vt 35 -m description=${PROLOG_NAME} \
+		${jobid1} prolog-finish &&
+	flux job wait-event -vt 35 -m description=${PROLOG_NAME} \
+		${jobid2} prolog-start &&
+	flux job wait-event -vt 35 -m description=${PROLOG_NAME} \
+		${jobid2} prolog-finish &&
+	flux job wait-event -vt 35 -m description=${PROLOG_NAME} \
+		${jobid3} prolog-finish &&
+	flux job wait-event -vt 15 -m status=0 ${jobid1} finish &&
+	flux job wait-event -vt 15 -m status=0 ${jobid2} finish &&
+	flux job wait-event -vt 15 -m status=0 ${jobid3} finish &&
+	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
+		${jobid1} epilog-finish &&
+	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
+		${jobid2} epilog-finish &&
+	flux job wait-event -vt 15 ${jobid1} clean &&
+	flux job wait-event -vt 15 ${jobid2} clean &&
+	flux job wait-event -vt 15 ${jobid3} clean
+'
+
 test_expect_success 'launch service with storage maximum arguments' '
-	flux job cancel $DWS_JOBID &&
+	flux cancel $DWS_JOBID &&
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws4.out --error=dws4.err \
