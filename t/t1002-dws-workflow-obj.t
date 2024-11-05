@@ -52,6 +52,19 @@ kubeconfig = \"/dev/null\"
         -v --foobar
 '
 
+test_expect_success 'exec dws service-providing script with bad config' '
+    echo "
+[rabbit]
+foobar = false
+    " | flux config load &&
+    test_must_fail flux python ${DWS_MODULE_PATH} -v &&
+    echo "
+[rabbit.policy.maximums]
+fake = 1
+    " | flux config load &&
+    test_must_fail flux python ${DWS_MODULE_PATH} -v
+'
+
 test_expect_success 'exec dws service-providing script with fluxion scheduling disabled' '
     flux config reload &&
     R=$(flux R encode -r 0) &&

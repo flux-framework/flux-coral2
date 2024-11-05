@@ -942,6 +942,38 @@ def kubernetes_backoff(handle, orig_retry_delay):
             time.sleep(retry_delay)
 
 
+def validate_config(config):
+    """Validate the `rabbit` config table."""
+    accepted_keys = {
+        "save_datamovements",
+        "kubeconfig",
+        "tc_timeout",
+        "drain_compute_nodes",
+        "restrict_persistent_creation",
+        "policy",
+    }
+    keys = set(config.keys())
+    if not keys <= accepted_keys:
+        raise RuntimeError(
+            f"misconfiguration: unrecognized "
+            f"`rabbit.{(keys - accepted_keys).pop()}` key in Flux config, accepted "
+            f"keys are {accepted_keys}"
+        )
+    if "policy" in config:
+        if len(config["policy"]) != 1 or "maximums" not in config["policy"]:
+            raise RuntimeError(
+                "`rabbit.policy` config table muxt have a `maximums` table"
+            )
+        keys = set(config["policy"]["maximums"].keys())
+        accepted_keys = set(directivebreakdown.ResourceLimits.TYPES)
+        if not keys <= accepted_keys:
+            raise RuntimeError(
+                f"misconfiguration: unrecognized "
+                f"`rabbit.policy.maximums.{(keys - accepted_keys).pop()}` key in Flux "
+                f"config, accepted keys are {accepted_keys}"
+            )
+
+
 def main():
     """Init script, begin processing of services."""
     args = setup_parsing().parse_args()
@@ -953,6 +985,7 @@ def main():
     if "FLUX_KVS_NAMESPACE" in os.environ:
         del os.environ["FLUX_KVS_NAMESPACE"]
     handle = flux.Flux()
+    validate_config(handle.conf_get("rabbit", {}))
     WorkflowInfo.save_datamovements = handle.conf_get("rabbit.save_datamovements", 0)
     # set the maximum allowable allocation sizes on the ResourceLimits class
     for fs_type in directivebreakdown.ResourceLimits.TYPES:
