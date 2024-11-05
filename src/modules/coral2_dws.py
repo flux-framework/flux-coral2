@@ -282,16 +282,23 @@ def create_cb(handle, _t, msg, arg):
     dw_directives = msg.payload["dw_directives"]
     jobid = msg.payload["jobid"]
     userid = msg.payload["userid"]
+    presets = handle.conf_get("rabbit.presets", {})
     if isinstance(dw_directives, str):
-        # the string may contain multiple #DW directives
-        dw_directives = dw_directives.split("#DW ")
-        # remove any blank entries that resulted and add back "#DW "
-        dw_directives = ["#DW " + dw.strip() for dw in dw_directives if dw.strip()]
+        # check if the string is one of the presets, and if so replace it
+        if dw_directives.strip() in presets:
+            dw_directives = [presets[dw_directives.strip()]]
+        else:
+            # the string may contain multiple #DW directives
+            dw_directives = dw_directives.split("#DW ")
+            # remove any blank entries that resulted and add back "#DW "
+            dw_directives = ["#DW " + dw.strip() for dw in dw_directives if dw.strip()]
     if not isinstance(dw_directives, list):
         raise TypeError(
             f"Malformed dw_directives, not list or string: {dw_directives!r}"
         )
-    for directive in dw_directives:
+    for i, directive in enumerate(dw_directives):
+        if directive.strip() in presets:
+            dw_directives[i] = presets[directive.strip()]
         if restrict_persistent and "create_persistent" in directive:
             if userid != owner_uid(handle):
                 raise ValueError(
@@ -951,6 +958,7 @@ def validate_config(config):
         "drain_compute_nodes",
         "restrict_persistent_creation",
         "policy",
+        "presets",
     }
     keys = set(config.keys())
     if not keys <= accepted_keys:

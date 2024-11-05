@@ -5,3 +5,7 @@ gfs2 = 200
 raw = 300
 lustre = 100
 
+[rabbit.presets]
+lustre_toobig = "#DW jobdw type=lustre capacity=200GiB name=toobig"
+gfs2_toobig = "#DW jobdw type=gfs2 capacity=250GiB name=toobig"
+xfs_justright = "#DW jobdw type=xfs capacity=100GiB name=justright"
