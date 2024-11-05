@@ -814,13 +814,6 @@ def setup_parsing():
         help="Increase verbosity of output",
     )
     parser.add_argument(
-        "--kubeconfig",
-        "-k",
-        default=None,
-        metavar="FILE",
-        help="Path to kubeconfig file to use",
-    )
-    parser.add_argument(
         "--min-allocation-size",
         "-m",
         default=_MIN_ALLOCATION_SIZE,
@@ -969,7 +962,9 @@ def main():
             handle.conf_get(f"rabbit.policy.maximums.{fs_type}"),
         )
     try:
-        k8s_client = k8s.config.new_client_from_config(config_file=args.kubeconfig)
+        k8s_client = k8s.config.new_client_from_config(
+            handle.conf_get("rabbit.kubeconfig")
+        )
     except ConfigException:
         LOGGER.exception("Kubernetes misconfigured, service will shut down")
         sys.exit(_EXITCODE_NORESTART)

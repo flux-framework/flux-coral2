@@ -43,13 +43,17 @@ test_expect_success 'job-manager: load dws-jobtap and alloc-bypass plugin' '
 test_expect_success 'exec dws service-providing script with bad arguments' '
     KUBECONFIG=/dev/null test_expect_code 3 flux python ${DWS_MODULE_PATH} \
         -v &&
-    test_expect_code 3 flux python ${DWS_MODULE_PATH} -v \
-        --kubeconfig /dev/null &&
+    echo "
+[rabbit]
+kubeconfig = \"/dev/null\"
+    " | flux config load &&
+    test_expect_code 3 flux python ${DWS_MODULE_PATH} -v &&
     test_expect_code 2 flux python ${DWS_MODULE_PATH} \
         -v --foobar
 '
 
 test_expect_success 'exec dws service-providing script with fluxion scheduling disabled' '
+    flux config reload &&
     R=$(flux R encode -r 0) &&
     DWS_JOBID=$(flux submit \
             --setattr=system.alloc-bypass.R="$R" \
@@ -333,10 +337,14 @@ test_expect_success 'exec dws service-providing script with custom config path' 
 	flux cancel ${DWS_JOBID} &&
 	cp $REAL_HOME/.kube/config ./kubeconfig
 	R=$(flux R encode -r 0) &&
+    echo "
+[rabbit]
+kubeconfig = \"$PWD/kubeconfig\"
+    " | flux config load &&
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws2.out --error=dws2.err \
-		python ${DWS_MODULE_PATH} --kubeconfig $PWD/kubeconfig -vvv) &&
+		python ${DWS_MODULE_PATH} -vvv) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
 	${RPC} "dws.create"
 '
@@ -420,7 +428,7 @@ test_expect_success 'dws service script handles restarts while a job is running'
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws3.out --error=dws3.err \
-		python ${DWS_MODULE_PATH} --kubeconfig $PWD/kubeconfig -vvv) &&
+		python ${DWS_MODULE_PATH} -vvv) &&
 	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -478,7 +486,7 @@ test_expect_success 'launch service with storage maximum arguments' '
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws4.out --error=dws4.err \
-		python ${DWS_MODULE_PATH} --kubeconfig $PWD/kubeconfig -vvv) &&
+		python ${DWS_MODULE_PATH} -vvv) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
 	${RPC} "dws.create"
 '
