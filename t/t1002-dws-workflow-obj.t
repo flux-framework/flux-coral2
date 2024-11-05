@@ -493,7 +493,7 @@ test_expect_success 'back-to-back job submissions with 10TiB file systems works'
 	flux job wait-event -vt 15 ${jobid3} clean
 '
 
-test_expect_success 'launch service with storage maximum arguments' '
+test_expect_success 'launch service with storage maximums and presets' '
 	flux cancel $DWS_JOBID &&
 	flux config load ${DATADIR}/maximums &&
 	DWS_JOBID=$(flux submit \
@@ -530,6 +530,29 @@ test_expect_success 'job submission with storage within max works' '
 	flux job wait-event -vt 15 ${jobid} clean
 '
 
+test_expect_success 'job submission with presets works' '
+	jobid=$(flux submit -S dw=xfs_justright -N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-remove &&
+	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
+		${jobid} memo &&
+	flux job wait-event -vt 15 ${jobid} depend &&
+	flux job wait-event -vt 15 ${jobid} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 55 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 15 ${jobid} clean
+'
+
+
 test_expect_success 'job submission with xfs storage beyond max fails' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=600GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
@@ -550,12 +573,30 @@ test_expect_success 'job submission with combined gfs2 storage beyond max fails'
 	flux job wait-event -t 1 ${jobid} exception | grep "max is 200 GiB per node"
 '
 
+test_expect_success 'job submission with preset gfs2 storage beyond max fails' '
+	jobid=$(flux submit -S dw=gfs2_toobig -N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 10 ${jobid} exception &&
+	flux job wait-event -vt 15 ${jobid} clean &&
+	flux job wait-event -t 1 ${jobid} exception | grep "max is 200 GiB per node"
+'
+
 test_expect_success 'job submission with lustre storage beyond max fails' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=120GiB type=lustre name=project1" \
 		-N1 -n1 hostname) &&
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
 	flux job wait-event -vt 20 ${jobid} exception &&
+	flux job wait-event -vt 15 ${jobid} clean &&
+	flux job wait-event -t 1 ${jobid} exception | grep "max is 100 GiB per node"
+'
+
+test_expect_success 'job submission with preset lustre storage beyond max fails' '
+	jobid=$(flux submit -S dw=lustre_toobig -N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 10 ${jobid} exception &&
 	flux job wait-event -vt 15 ${jobid} clean &&
 	flux job wait-event -t 1 ${jobid} exception | grep "max is 100 GiB per node"
 '
