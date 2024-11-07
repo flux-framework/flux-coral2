@@ -989,21 +989,11 @@ def main():
             handle.conf_get(f"rabbit.policy.maximums.{fs_type}"),
         )
     try:
-        k8s_client = k8s.config.new_client_from_config(
-            handle.conf_get("rabbit.kubeconfig")
+        k8s_api = cleanup.get_k8s_api(handle.conf_get("rabbit.kubeconfig"))
+    except Exception:
+        LOGGER.critical(
+            "Service cannot run without access to kubernetes, shutting down"
         )
-    except ConfigException:
-        LOGGER.exception("Kubernetes misconfigured, service will shut down")
-        sys.exit(_EXITCODE_NORESTART)
-    try:
-        k8s_api = k8s.client.CustomObjectsApi(k8s_client)
-    except ApiException as rest_exception:
-        if rest_exception.status == 403:
-            LOGGER.exception(
-                "You must be logged in to the K8s or OpenShift cluster to continue"
-            )
-            sys.exit(_EXITCODE_NORESTART)
-        LOGGER.exception("Cannot access kubernetes, service will shut down")
         sys.exit(_EXITCODE_NORESTART)
     populate_rabbits_dict(k8s_api)
     # create a timer watcher for killing workflows that have been stuck in
