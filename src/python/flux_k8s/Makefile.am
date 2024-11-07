@@ -2,7 +2,8 @@ nobase_fluxk8spy_PYTHON = \
 	__init__.py \
 	crd.py \
 	directivebreakdown.py \
-	watch.py
+	watch.py \
+	cleanup.py
 
 
 clean-local:
