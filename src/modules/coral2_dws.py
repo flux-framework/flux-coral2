@@ -72,18 +72,7 @@ class WorkflowInfo:
             )
         datamovements = get_datamovements(k8s_api, self.name, self.save_datamovements)
         save_workflow_to_kvs(handle, self.jobid, workflow, datamovements)
-        try:
-            workflow["metadata"]["finalizers"].remove(cleanup.FINALIZER)
-        except ValueError:
-            pass
-        k8s_api.patch_namespaced_custom_object(
-            *crd.WORKFLOW_CRD,
-            self.name,
-            {
-                "spec": {"desiredState": "Teardown"},
-                "metadata": {"finalizers": workflow["metadata"]["finalizers"]},
-            },
-        )
+        cleanup.teardown_workflow(workflow)
         self.toredown = True
 
 

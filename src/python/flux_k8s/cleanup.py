@@ -89,6 +89,49 @@ def delete_workflow(workflow):
     ).add_done_callback(log_error)
 
 
+async def teardown_workflow_coro(workflow):
+    """Teardown a workflow, retrying indefinitely (with backoff) upon error."""
+    k8s_api = threading.current_thread().k8s_api
+    attempts = 0
+    name = workflow["metadata"]["name"]
+    try:
+        workflow["metadata"]["finalizers"].remove(FINALIZER)
+    except ValueError:
+        pass
+    # attempt to teardown the workflow in a loop
+    while True:
+        try:
+            k8s_api.patch_namespaced_custom_object(
+                *crd.WORKFLOW_CRD,
+                name,
+                {
+                    "spec": {"desiredState": "Teardown"},
+                    "metadata": {"finalizers": workflow["metadata"]["finalizers"]},
+                },
+            )
+        except Exception as gen_exc:
+            if isinstance(gen_exc, ApiException) and gen_exc.status == 404:
+                # workflow was not found, presume it was torn down already
+                return
+            attempts += 1
+            if attempts >= 0:
+                LOGGER.warning(
+                    "Failed to teardown workflow %s after %i attempts. " "Error is %s",
+                    name,
+                    attempts,
+                    gen_exc,
+                )
+            await asyncio.sleep(5 * 2 ** (attempts - 1))
+        else:
+            return
+
+
+def teardown_workflow(workflow):
+    asyncio.run_coroutine_threadsafe(
+        teardown_workflow_coro(workflow), CLEANUP_LOOP
+    ).add_done_callback(log_error)
+
+
 def cleanup_target(kubeconfig):
     """Run the asyncio event loop indefinitely."""
     curr_thread = threading.current_thread()
