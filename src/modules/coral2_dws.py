@@ -32,6 +32,7 @@ from flux.future import Future
 from flux_k8s import crd
 from flux_k8s.watch import Watchers, Watch
 from flux_k8s import directivebreakdown
+from flux_k8s import cleanup
 
 
 _WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
@@ -42,7 +43,7 @@ WORKFLOWS_IN_TC = set()  # tc for TransientCondition
 WORKFLOW_NAME_PREFIX = "fluxjob-"
 WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
-_FINALIZER = "flux-framework.readthedocs.io/workflow"
+
 _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
 
 
@@ -71,18 +72,7 @@ class WorkflowInfo:
             )
         datamovements = get_datamovements(k8s_api, self.name, self.save_datamovements)
         save_workflow_to_kvs(handle, self.jobid, workflow, datamovements)
-        try:
-            workflow["metadata"]["finalizers"].remove(_FINALIZER)
-        except ValueError:
-            pass
-        k8s_api.patch_namespaced_custom_object(
-            *crd.WORKFLOW_CRD,
-            self.name,
-            {
-                "spec": {"desiredState": "Teardown"},
-                "metadata": {"finalizers": workflow["metadata"]["finalizers"]},
-            },
-        )
+        cleanup.teardown_workflow(workflow)
         self.toredown = True
 
 
@@ -150,21 +140,6 @@ def message_callback_wrapper(func):
             handle.respond(msg, {"success": True})
 
     return wrapper
-
-
-def remove_finalizer(workflow_name, k8s_api, workflow):
-    """Remove the finalizer from the workflow so it can be deleted."""
-    try:
-        workflow["metadata"]["finalizers"].remove(_FINALIZER)
-    except ValueError:
-        # finalizer is not present, nothing to do
-        pass
-    else:
-        k8s_api.patch_namespaced_custom_object(
-            *crd.WORKFLOW_CRD,
-            workflow_name,
-            {"metadata": {"finalizers": workflow["metadata"]["finalizers"]}},
-        )
 
 
 def save_elapsed_time_to_kvs(handle, jobid, workflow):
@@ -320,7 +295,7 @@ def create_cb(handle, _t, msg, arg):
         "metadata": {
             "name": workflow_name,
             "namespace": crd.WORKFLOW_CRD.namespace,
-            "finalizers": [_FINALIZER],
+            "finalizers": [cleanup.FINALIZER],
         },
     }
     api_instance.create_namespaced_custom_object(
@@ -486,18 +461,17 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
     if state_active(workflow, "Teardown") and not state_complete(workflow, "Teardown"):
         # Remove the finalizer as soon as the workflow begins working on its
         # teardown state.
-        remove_finalizer(winfo.name, k8s_api, workflow)
+        cleanup.remove_finalizer(winfo.name, k8s_api, workflow)
     elif state_complete(workflow, "Teardown"):
         # Delete workflow object and tell DWS jobtap plugin that the job is done.
         # Attempt to remove the finalizer again in case the state transitioned
         # too quickly for it to be noticed earlier.
-        remove_finalizer(winfo.name, k8s_api, workflow)
-        k8s_api.delete_namespaced_custom_object(*crd.WORKFLOW_CRD, winfo.name)
-        winfo.deleted = True
         handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
             log_rpc_response
         )
         save_elapsed_time_to_kvs(handle, jobid, workflow)
+        cleanup.delete_workflow(workflow)
+        winfo.deleted = True
     elif winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
         # Without this early 'return', this function may try to
@@ -1003,22 +977,13 @@ def main():
             handle.conf_get(f"rabbit.policy.maximums.{fs_type}"),
         )
     try:
-        k8s_client = k8s.config.new_client_from_config(
-            handle.conf_get("rabbit.kubeconfig")
+        k8s_api = cleanup.get_k8s_api(handle.conf_get("rabbit.kubeconfig"))
+    except Exception:
+        LOGGER.critical(
+            "Service cannot run without access to kubernetes, shutting down"
         )
-    except ConfigException:
-        LOGGER.exception("Kubernetes misconfigured, service will shut down")
         sys.exit(_EXITCODE_NORESTART)
-    try:
-        k8s_api = k8s.client.CustomObjectsApi(k8s_client)
-    except ApiException as rest_exception:
-        if rest_exception.status == 403:
-            LOGGER.exception(
-                "You must be logged in to the K8s or OpenShift cluster to continue"
-            )
-            sys.exit(_EXITCODE_NORESTART)
-        LOGGER.exception("Cannot access kubernetes, service will shut down")
-        sys.exit(_EXITCODE_NORESTART)
+    cleanup.setup_cleanup_thread(handle.conf_get("rabbit.kubeconfig"))
     populate_rabbits_dict(k8s_api)
     # create a timer watcher for killing workflows that have been stuck in
     # the "Error" state for too long

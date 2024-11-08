@@ -7,22 +7,10 @@ import subprocess
 
 import flux
 from flux.hostlist import Hostlist
-from flux_k8s import crd
+from flux_k8s import crd, cleanup
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
-
-
-def get_k8s_api(config_file):
-    k8s_client = k8s.config.new_client_from_config(config_file=config_file)
-    try:
-        return k8s.client.CustomObjectsApi(k8s_client)
-    except ApiException as rest_exception:
-        if rest_exception.status == 403:
-            raise Exception(
-                "You must be logged in to the K8s or OpenShift cluster to continue"
-            )
-        raise
 
 
 def main():
@@ -52,7 +40,7 @@ def main():
     )
     args = parser.parse_args()
     rabbit_mapping = {"computes": {}, "rabbits": {}}
-    k8s_api = get_k8s_api(args.kubeconfig)
+    k8s_api = cleanup.get_k8s_api(args.kubeconfig)
     # populate as much data as possible using the SystemConfiguration, since
     # it is complete and static, while the Storage resources can come and go
     sysconfig = k8s_api.get_namespaced_custom_object(
