@@ -481,8 +481,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
             log_rpc_response
         )
         save_elapsed_time_to_kvs(handle, jobid, workflow)
-        cleanup.remove_finalizer(winfo.name, k8s_api, workflow)
-        k8s_api.delete_namespaced_custom_object(*crd.WORKFLOW_CRD, winfo.name)
+        cleanup.delete_workflow(workflow)
         winfo.deleted = True
     elif winfo.toredown:
         # in the event of an exception, the workflow will skip to 'teardown'.
@@ -995,6 +994,7 @@ def main():
             "Service cannot run without access to kubernetes, shutting down"
         )
         sys.exit(_EXITCODE_NORESTART)
+    cleanup.setup_cleanup_thread(handle.conf_get("rabbit.kubeconfig"))
     populate_rabbits_dict(k8s_api)
     # create a timer watcher for killing workflows that have been stuck in
     # the "Error" state for too long
