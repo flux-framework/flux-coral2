@@ -1,3 +1,19 @@
+flux-coral2 0.18.0 - 2024-11-08
+-------------------------------
+
+### New Features
+ * dws: rabbit preset dw strings (#235)
+ * dws: rabbit config file support (#234)
+ * dws: use systemconfiguration for rabbit mapping (#233)
+ * dws: retry k8s failures while cleaning up workflows (#237)
+
+### Fixes
+ * dws2jgf: remove python 3.7+ feature (#232)
+
+### Build/Testsuite
+ * testsuite: add a test for big rabbit jobs (#208)
+
+
 flux-coral2 0.17.1 - 2024-10-01
 -------------------------------
 
