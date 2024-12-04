@@ -254,7 +254,7 @@ def main():
         if proc.returncode != 0:
             raise ValueError(
                 f"Could not parse config file {args.from_config!r}, "
-                "error message was {proc.stderr}"
+                f"error message was {proc.stderr}"
             )
         input_r = json.loads(proc.stdout)
     with open(args.rabbitmapping, "r", encoding="utf8") as rabbitmap_fd:
