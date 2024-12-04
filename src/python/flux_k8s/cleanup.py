@@ -6,6 +6,7 @@ import threading
 
 import kubernetes as k8s
 from kubernetes.client.rest import ApiException
+from kubernetes.config.config_exception import ConfigException
 
 from flux_k8s import crd
 
@@ -50,9 +51,10 @@ def get_k8s_api(kubeconfig):
 
 
 def log_error(fut):
+    """Log an error if the future hit one."""
     try:
         fut.result()
-    except Exception as exc:
+    except Exception:
         LOGGER.exception("Exception in cleanup routine")
 
 
@@ -84,6 +86,7 @@ async def delete_workflow_coro(workflow):
 
 
 def delete_workflow(workflow):
+    """Submit a deletion request to the cleanup loop."""
     asyncio.run_coroutine_threadsafe(
         delete_workflow_coro(workflow), CLEANUP_LOOP
     ).add_done_callback(log_error)
@@ -116,7 +119,7 @@ async def teardown_workflow_coro(workflow):
             attempts += 1
             if attempts >= 0:
                 LOGGER.warning(
-                    "Failed to teardown workflow %s after %i attempts. " "Error is %s",
+                    "Failed to teardown workflow %s after %i attempts. Error is %s",
                     name,
                     attempts,
                     gen_exc,
@@ -127,6 +130,7 @@ async def teardown_workflow_coro(workflow):
 
 
 def teardown_workflow(workflow):
+    """Submit a teardown request to the cleanup loop."""
     asyncio.run_coroutine_threadsafe(
         teardown_workflow_coro(workflow), CLEANUP_LOOP
     ).add_done_callback(log_error)
