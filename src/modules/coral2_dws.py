@@ -16,11 +16,8 @@ import argparse
 import logging
 import pwd
 import time
-import pathlib
 
-import kubernetes as k8s
 from kubernetes.client.rest import ApiException
-from kubernetes.config.config_exception import ConfigException
 import urllib3
 
 import flux
@@ -192,17 +189,17 @@ def get_datamovements(k8s_api, workflow_name, count):
         return []
     datamovements = []
     successful_datamovements = []
-    for crd in api_response["items"]:
+    for dm_crd in api_response["items"]:
         LOGGER.info(
             "Found nnfdatamovement crd for workflow '%s': %s",
             workflow_name,
-            json.dumps(crd),
+            json.dumps(dm_crd),
         )
         if len(datamovements) < count:
-            if crd["status"]["status"] == "Failed":
-                datamovements.append(crd)
+            if dm_crd["status"]["status"] == "Failed":
+                datamovements.append(dm_crd)
             else:
-                successful_datamovements.append(crd)
+                successful_datamovements.append(dm_crd)
     if len(datamovements) < count:
         datamovements.extend(successful_datamovements[: count - len(datamovements)])
     return datamovements
@@ -659,7 +656,7 @@ def map_rabbits_to_fluxion_paths(handle):
         nodes = flux.kvs.get(handle, "resource.R")["scheduling"]["graph"]["nodes"]
     except Exception as exc:
         raise ValueError(
-            f"Could not load rabbit resource graph data from KVS's resource.R"
+            "Could not load rabbit resource graph data from KVS's resource.R"
         ) from exc
     for vertex in nodes:
         metadata = vertex["metadata"]
