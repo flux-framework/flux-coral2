@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 
+"""Script to create a JSON file mapping compute nodes <-> rabbits."""
+
 import argparse
 import sys
 import json
-import subprocess
 
 import flux
 from flux.hostlist import Hostlist
 from flux_k8s import crd, cleanup
 
-import kubernetes as k8s
-from kubernetes.client.rest import ApiException
-
 
 def main():
+    """Create a JSON file mapping compute nodes <-> rabbits.
+
+    Fetch the SystemConfiguration from kubernetes and use that for the mapping.
+    Also fetch Storage resources from kubernetes to populate the JSON file with
+    capacity data.
+    """
     parser = argparse.ArgumentParser(
         formatter_class=flux.util.help_formatter(),
         description=("Create a mapping between compute nodes and rabbit nodes"),
