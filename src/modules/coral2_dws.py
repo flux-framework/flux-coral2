@@ -172,7 +172,7 @@ def get_datamovements(k8s_api, workflow_name, count):
     try:
         api_response = k8s_api.list_cluster_custom_object(
             group="nnf.cray.hpe.com",
-            version="v1alpha2",
+            version="v1alpha4",
             plural="nnfdatamovements",
             label_selector=(
                 f"dataworkflowservices.github.io/workflow.name={workflow_name},"
