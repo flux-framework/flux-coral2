@@ -53,8 +53,7 @@ class Watch:
                 )
                 self.resource_version = 0
                 return
-            event_version = int(event["object"]["metadata"]["resourceVersion"])
-            self.resource_version = max(event_version, self.resource_version)
+            self.resource_version = event["object"]["metadata"]["resourceVersion"]
             self.cb(event, *self.cb_args, **self.cb_kwargs)
 
 
