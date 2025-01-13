@@ -40,6 +40,7 @@ WORKFLOWS_IN_TC = set()  # tc for TransientCondition
 WORKFLOW_NAME_PREFIX = "fluxjob-"
 WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
+_EXCLUDE_HOSTS = Hostlist()
 
 _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
 
@@ -500,6 +501,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
                 "resources": resources,
                 "copy-offload": copy_offload,
                 "errmsg": errmsg,
+                "exclude": _EXCLUDE_HOSTS.encode(),
             },
         ).then(log_rpc_response)
         save_workflow_to_kvs(handle, jobid, workflow)
@@ -597,14 +599,21 @@ def drain_offline_nodes(handle, rabbit_name, nodelist, allowlist):
         ).then(log_rpc_response)
 
 
-def mark_rabbit(handle, status, resource_path, ssdcount, name):
+def mark_rabbit(handle, status, resource_path, ssdcount, name, disable_fluxion):
     """Send an RPC to mark a rabbit as up or down."""
     if status == "Ready":
         LOGGER.debug("Marking rabbit %s as up", name)
         status = "up"
+        if disable_fluxion:
+            _EXCLUDE_HOSTS.delete(_RABBITS_TO_HOSTLISTS[name])
+            return
     else:
         LOGGER.debug("Marking rabbit %s as down, status is %s", name, status)
         status = "down"
+        if disable_fluxion:
+            _EXCLUDE_HOSTS.append(_RABBITS_TO_HOSTLISTS[name])
+            _EXCLUDE_HOSTS.uniq()
+            return
     for ssdnum in range(ssdcount):
         payload = {"resource_path": resource_path + f"/ssd{ssdnum}", "status": status}
         handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
@@ -622,14 +631,13 @@ def rabbit_state_change_cb(event, handle, rabbit_rpaths, disable_fluxion, allowl
             "Encountered an unknown Storage object '%s' in the event stream", name
         )
         return
-    if not disable_fluxion:
-        try:
-            status = rabbit["status"]["status"]
-        except KeyError:
-            # if rabbit doesn't have a status, consider it down
-            mark_rabbit(handle, "Down", *rabbit_rpaths[name], name)
-        else:
-            mark_rabbit(handle, status, *rabbit_rpaths[name], name)
+    try:
+        status = rabbit["status"]["status"]
+    except KeyError:
+        # if rabbit doesn't have a status, consider it down
+        mark_rabbit(handle, "Down", *rabbit_rpaths[name], name, disable_fluxion)
+    else:
+        mark_rabbit(handle, status, *rabbit_rpaths[name], name, disable_fluxion)
     try:
         computes = rabbit["status"]["access"]["computes"]
     except KeyError:
@@ -694,8 +702,8 @@ def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
         )
         if disable_fluxion:
             # don't mark the rabbit up or down but add the rabbit to the mapping
-            rabbit_rpaths[name] = None
-        elif name not in rabbit_rpaths:
+            rabbit_rpaths[name] = (None, None)
+        if name not in rabbit_rpaths:
             LOGGER.error(
                 "Encountered an unknown Storage object '%s' in the event stream", name
             )
@@ -704,9 +712,11 @@ def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
                 rabbit_status = rabbit["status"]["status"]
             except KeyError:
                 # if rabbit doesn't have a status, consider it down
-                mark_rabbit(handle, "Down", *rabbit_rpaths[name], name)
+                mark_rabbit(handle, "Down", *rabbit_rpaths[name], name, disable_fluxion)
             else:
-                mark_rabbit(handle, rabbit_status, *rabbit_rpaths[name], name)
+                mark_rabbit(
+                    handle, rabbit_status, *rabbit_rpaths[name], name, disable_fluxion
+                )
         # rabbits don't have a 'status' field until they boot
         try:
             computes = rabbit["status"]["access"]["computes"]
