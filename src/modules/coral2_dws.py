@@ -560,9 +560,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         )
         if winfo.transient_condition is None:
             winfo.transient_condition = TransientConditionInfo(workflow)
-        winfo.transient_condition.last_tc_message = workflow["status"].get(
-            "message", ""
-        )
+        winfo.transient_condition.last_message = workflow["status"].get("message", "")
         WORKFLOWS_IN_TC.add(winfo)
     else:
         winfo.transient_condition = None
