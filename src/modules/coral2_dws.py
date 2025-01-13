@@ -88,7 +88,7 @@ def log_rpc_response(rpc):
     try:
         msg = rpc.get()
     except Exception as exc:
-        LOGGER.warning("RPC error %s", str(exc))
+        LOGGER.warning("RPC error %s", repr(exc))
     else:
         if msg is not None:
             LOGGER.debug("RPC response was %s", msg)
@@ -127,12 +127,10 @@ def message_callback_wrapper(func):
                 # but try to extract it out of every exception for simplicity
                 errstr = json.loads(exc.body)["message"]
             except (AttributeError, TypeError, KeyError):
-                errstr = str(exc)
+                errstr = repr(exc)
             handle.log(syslog.LOG_ERR, f"{os.path.basename(__file__)}: {errstr}")
             handle.respond(msg, {"success": False, "errstr": errstr})
-            LOGGER.error(
-                "Error in responding to %s RPC for %s: %s", topic, jobid, errstr
-            )
+            LOGGER.exception("Error in responding to %s RPC for %s:", topic, jobid)
         else:
             handle.respond(msg, {"success": True})
 
@@ -492,7 +490,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
                     k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
                 )
         except ValueError as exc:
-            errmsg = str(exc.args[0])
+            errmsg = repr(exc.args[0])
         else:
             errmsg = None
         handle.rpc(
