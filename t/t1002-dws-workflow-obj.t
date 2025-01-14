@@ -94,6 +94,7 @@ test_expect_success 'job submission with valid DW string works with fluxion-rabb
         ${jobid} dependency-remove &&
     flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
         ${jobid} memo &&
+	flux job wait-event -t 5 ${jobid} jobspec-update &&
     flux job wait-event -vt 15 ${jobid} depend &&
     flux job wait-event -vt 15 ${jobid} priority &&
     flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
@@ -154,6 +155,7 @@ test_expect_success 'job submission with valid DW string works' '
 		${jobid} dependency-remove &&
 	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
 		${jobid} memo &&
+	flux job wait-event -t 5 ${jobid} jobspec-update &&
 	flux job wait-event -vt 15 ${jobid} depend &&
 	flux job wait-event -vt 15 ${jobid} priority &&
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
@@ -195,6 +197,7 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 		${jobid} dependency-remove &&
 	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
 		${jobid} memo &&
+	flux job wait-event -t 5 ${jobid} jobspec-update &&
 	flux job wait-event -vt 15 ${jobid} depend &&
 	flux job wait-event -vt 15 ${jobid} priority &&
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
@@ -249,6 +252,7 @@ test_expect_success 'job submission with multiple valid DW strings on different 
 		${jobid} dependency-remove &&
 	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
 		${jobid} memo &&
+	flux job wait-event -t 5 ${jobid} jobspec-update &&
 	flux job wait-event -vt 15 ${jobid} depend &&
 	flux job wait-event -vt 15 ${jobid} priority &&
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
@@ -272,6 +276,7 @@ test_expect_success 'job submission with multiple valid DW strings on the same l
 		${jobid} dependency-add &&
 	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
+	flux job wait-event -t 5 ${jobid} jobspec-update &&
 	flux job wait-event -vt 15 ${jobid} depend &&
 	flux job wait-event -vt 15 ${jobid} priority &&
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
@@ -516,6 +521,7 @@ test_expect_success 'job submission with storage within max works' '
 		${jobid} dependency-remove &&
 	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
 		${jobid} memo &&
+	flux job wait-event -t 5 ${jobid} jobspec-update &&
 	flux job wait-event -vt 15 ${jobid} depend &&
 	flux job wait-event -vt 15 ${jobid} priority &&
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
