@@ -1,4 +1,4 @@
-FROM fluxrm/flux-sched:focal
+FROM fluxrm/flux-sched:noble
 
 ARG USER=fluxuser
 ARG UID=1000
@@ -13,8 +13,7 @@ RUN \
  fi
 
 RUN sudo apt-get update \
-    && sudo apt-get install -y python3-pip curl \
-    && sudo pip install kubernetes
+    && sudo apt install -y python3-pip curl python3-kubernetes
 
 COPY ./kubectl.sh ./sync-kube-config.sh /usr/local/share/
 RUN sudo chmod 755 /usr/local/share/kubectl.sh \
