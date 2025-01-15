@@ -13,6 +13,7 @@ flux setattr log-stderr-level 1
 DATA_DIR=${SHARNESS_TEST_SRCDIR}/data/nnf-watch/
 DWS_MODULE_PATH=${FLUX_SOURCE_DIR}/src/modules/coral2_dws.py
 RPC=${FLUX_BUILD_DIR}/t/util/rpc
+PLUGINPATH=${FLUX_BUILD_DIR}/src/job-manager/plugins/.libs
 
 if test_have_prereq NO_DWS_K8S; then
     skip_all='skipping DWS workflow tests due to no DWS K8s'
@@ -209,8 +210,88 @@ test_expect_success 'return the storage resource to Live mode' '
     kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[0].status == \"Ready\""
 '
 
+test_expect_success 'exec Storage watching script with --disable-fluxion' '
+    flux cancel ${jobid} &&
+    flux resource undrain compute-01 &&
+    echo "
+[rabbit]
+drain_compute_nodes = false
+    " | flux config load &&
+    flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
+    jobid=$(flux submit \
+            --setattr=system.alloc-bypass.R="$(flux R encode -r0)" --output=dws5.out \
+            --error=dws5.err -o per-resource.type=node flux python ${DWS_MODULE_PATH} \
+            -vvv --disable-fluxion) &&
+    flux job wait-event -vt 15 -p guest.exec.eventlog ${jobid} shell.start &&
+    flux job wait-event -vt 15 -m "note=dws watchers setup" ${jobid} exception &&
+    ${RPC} "dws.watch_test"
+'
+
+test_expect_success 'Storages are up and rabbit jobs can run' '
+    kubectl get storages kind-worker2 -ojson | jq -e ".spec.state == \"Enabled\"" &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.status == \"Ready\"" &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[0].status == \"Ready\"" &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".spec.state == \"Enabled\"" &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".status.status == \"Ready\"" &&
+    JOBID=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+        name=project1" -N1 -n1 hostname) &&
+    flux job wait-event -vt 10 ${JOBID} jobspec-update &&
+    flux job wait-event -vt 10 ${JOBID} alloc &&
+    flux job wait-event -vt 10 -m status=0 ${JOBID} finish &&
+    flux job wait-event -vt 20 ${JOBID} clean &&
+    flux job attach $JOBID
+'
+
+test_expect_success 'update to the Storage status is caught by the watch' '
+    kubectl patch storages kind-worker2 \
+        --type merge --patch-file ${DATA_DIR}/down.yaml &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".spec.state == \"Disabled\"" &&
+    sleep 0.2 &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.status == \"Disabled\"" &&
+    kubectl patch storages kind-worker3 \
+        --type merge --patch-file ${DATA_DIR}/down.yaml &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".spec.state == \"Disabled\"" &&
+    sleep 0.2 &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".status.status == \"Disabled\"" &&
+    sleep 3
+'
+
+test_expect_success 'rabbits now marked as down are not allocated' '
+    JOBID=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+        name=project1" -N1 -n1 hostname) &&
+    flux job wait-event -vt 10 ${JOBID} jobspec-update &&
+    test_must_fail flux job wait-event -vt 3 ${JOBID} alloc &&
+    flux job wait-event -vt 1 ${JOBID} exception &&
+    flux job wait-event -vt 2 ${JOBID} clean
+'
+
+test_expect_success 'revert the changes to the Storage' '
+    kubectl patch storages kind-worker2 \
+        --type merge --patch-file ${DATA_DIR}/up.yaml &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".spec.state == \"Enabled\"" &&
+    sleep 0.2 &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.status == \"Ready\"" &&
+    kubectl patch storages kind-worker3 \
+        --type merge --patch-file ${DATA_DIR}/up.yaml &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".spec.state == \"Enabled\"" &&
+    sleep 0.2 &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".status.status == \"Ready\"" &&
+    sleep 1
+'
+
+test_expect_success 'rabbits now marked as up and can be allocated' '
+    JOBID=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+        name=project1" -N1 -n1 hostname) &&
+    flux jobs && flux resource list &&
+    flux job wait-event -vt 10 ${JOBID} jobspec-update &&
+    flux job wait-event -vt 5 ${JOBID} alloc &&
+    flux job wait-event -vt 25 -m status=0 ${JOBID} finish
+    flux job wait-event -vt 20 ${JOBID} clean
+'
+
 test_expect_success 'unload fluxion' '
-    flux cancel ${jobid}; flux module remove sched-fluxion-qmanager &&
+    flux cancel ${jobid}; flux job wait-event -vt 1 ${jobid} clean &&
+    flux module remove sched-fluxion-qmanager &&
     flux module remove sched-fluxion-resource
 '
 
