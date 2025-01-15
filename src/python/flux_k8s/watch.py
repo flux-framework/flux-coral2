@@ -44,18 +44,23 @@ class Watch:
             stream = k8s.watch.Watch().stream(
                 self.api.list_namespaced_custom_object, *self.crd, **kwargs
             )
-        for event in stream:
-            if event["type"] == "ERROR" and event["object"]["code"] == 410:
-                LOGGER.debug(
-                    "Resource version too old in watch, restarting "
-                    "from resourceVersion = 0: %s",
-                    event["object"]["message"],
-                )
-                self.resource_version = 0
-                return
-            event_version = int(event["object"]["metadata"]["resourceVersion"])
-            self.resource_version = max(event_version, self.resource_version)
-            self.cb(event, *self.cb_args, **self.cb_kwargs)
+        try:
+            for event in stream:
+                if event["type"] == "ERROR" and event["object"]["code"] == 410:
+                    LOGGER.debug(
+                        "Resource version too old in watch, restarting "
+                        "from resourceVersion = 0: %s",
+                        event["object"]["message"],
+                    )
+                    self.resource_version = 0
+                    return self.watch()
+                self.resource_version = event["object"]["metadata"]["resourceVersion"]
+                self.cb(event, *self.cb_args, **self.cb_kwargs)
+        except ApiException as apiexc:
+            if apiexc.status != 410:
+                raise
+            self.resource_version = 0
+            self.watch()
 
 
 def watch_cb(reactor, watcher, _r, watchers):
