@@ -1,3 +1,21 @@
+flux-coral2 0.19.0 - 2025-01-15
+-------------------------------
+
+### New Features
+ * dws: increase nnfdatamovement version to v1alpha4 (#240)
+ * dws: rabbit resources jobspec update (#250)
+
+### Fixes
+ * dws2jgf: fix broken error message (#242)
+ * dws: fix NameError in cleanup.py (#241)
+ * Watch resourceversion fix (#248)
+ * dws: fix error messages (#249)
+
+### Build/Testsuite
+ * ci(mergify): upgrade configuration to current format (#239)
+ * test: container image updates (#251)
+
+
 flux-coral2 0.18.0 - 2024-11-08
 -------------------------------
 
