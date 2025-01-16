@@ -233,17 +233,6 @@ static int depend_cb (flux_plugin_t *p,
             flux_future_destroy (create_fut);
             return -1;
         }
-        if (flux_jobtap_job_aux_set (p,
-                                     FLUX_JOBTAP_CURRENT_JOB,
-                                     "dws_jobspec",
-                                     jobspec,
-                                     (flux_free_f) json_decref)
-            < 0) {
-            return -1;
-        }
-        else {
-            json_incref (jobspec);
-        }
     }
     return 0;
 }
@@ -574,7 +563,7 @@ static void resource_update_msg_cb (flux_t *h,
 {
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
-    json_t *resources = NULL, *errmsg, *jobspec;
+    json_t *resources = NULL, *errmsg;
     int copy_offload;
     const char *errmsg_str;
 
@@ -596,8 +585,10 @@ static void resource_update_msg_cb (flux_t *h,
         raise_job_exception (p, jobid, "dws", errmsg_str);
         return;
     }
-    else if (!(jobspec = flux_jobtap_job_aux_get (p, jobid, "dws_jobspec"))
-        || json_object_set (jobspec, "resources", resources) < 0
+    else if (flux_jobtap_jobspec_update_id_pack (p,
+                                                 (flux_jobid_t) jobid,
+                                                 "{s: O}", "resources",
+                                                 resources) < 0
         || flux_jobtap_job_aux_set (p, jobid, "flux::dws-copy-offload", copy_offload ? (void*) 1 : (void*) 0, NULL) < 0 ) {
         raise_job_exception (p,
                              jobid,
