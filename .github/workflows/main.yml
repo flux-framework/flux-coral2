@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        image: ["el9", "focal"]
+        image: ["el9", "noble"]
         arguments: ["--distcheck", ""]
       fail-fast: false
     name: ${{ matrix.image }} ${{ matrix.arguments }}

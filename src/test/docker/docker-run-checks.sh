@@ -10,7 +10,7 @@
 PROJECT=flux-coral2
 BASE_DOCKER_REPO=fluxrm/flux-sched
 
-IMAGE=focal
+IMAGE=noble
 JOBS=2
 MOUNT_HOME_ARGS="--volume=$HOME:/home/$USER -e HOME"
 MOUNT_KUBE_ARGS="--volume=$HOME/.kube:/usr/local/share/kube-localhost"
