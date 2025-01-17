@@ -556,6 +556,61 @@ static int exception_cb (flux_plugin_t *p,
     return 0;
 }
 
+/*
+ * Generate a new jobspec constraints object for a job so that it can avoid
+ * attempting to run on nodes attached to down rabbits.
+ */
+static json_t *generate_constraints(flux_t *h, flux_plugin_t *p, flux_jobid_t jobid, const char *exclude_str){
+    flux_plugin_arg_t *args = flux_jobtap_job_lookup (p, jobid);
+    json_t *constraints = NULL;
+    json_t *not;
+    if (!args
+        || flux_plugin_arg_unpack (args,
+                                   FLUX_PLUGIN_ARG_IN,
+                                   "{s:{s:{s:{s?o}}}}",
+                                   "jobspec",
+                                   "attributes",
+                                   "system",
+                                   "constraints",
+                                   &constraints)
+        < 0) {
+        flux_log_error (h, "Failed to unpack args");
+        flux_plugin_arg_destroy (args);
+        return NULL;
+    }
+    if (!constraints) {
+        if (!(constraints = json_pack ("{s:[{s:[s]}]}", "not", "hostlist", exclude_str))){
+            flux_log_error (h, "Failed to create new constraints object");
+            flux_plugin_arg_destroy (args);
+            return NULL;
+        }
+        flux_plugin_arg_destroy (args);
+        return constraints;
+    }
+    else {  // deep copy the constraints because we don't want to modify it in-place
+        if (!(constraints = json_deep_copy (constraints))) {
+            flux_log_error (h, "Failed to deep copy constraints object");
+            flux_plugin_arg_destroy (args);
+            return NULL;
+        }
+    }
+    flux_plugin_arg_destroy (args);
+    if (!(not = json_object_get (constraints, "not"))) {
+        if (json_object_set_new (constraints, "not", json_pack ("[{s:[s]}]", "hostlist", exclude_str)) < 0) {
+            flux_log_error (h, "Failed to create new NOT constraints object");
+            json_decref (constraints);
+            return NULL;
+        }
+        return constraints;
+    }
+    if (json_array_append_new (not, json_pack ("{s:[s]}", "hostlist", exclude_str)) < 0) {
+        flux_log_error (h, "Failed to create new NOT constraints object");
+        json_decref (constraints);
+        return NULL;
+    }
+    return constraints;
+}
+
 static void resource_update_msg_cb (flux_t *h,
                                     flux_msg_handler_t *mh,
                                     const flux_msg_t *msg,
@@ -563,19 +618,27 @@ static void resource_update_msg_cb (flux_t *h,
 {
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
-    json_t *resources = NULL, *errmsg;
+    json_t *resources = NULL, *errmsg, *constraints = NULL;
     int copy_offload;
-    const char *errmsg_str;
+    const char *errmsg_str, *exclude_str;
 
     if (flux_msg_unpack (msg,
-                         "{s:I, s:o, s:b, s:o}",
+                         "{s:I, s:o, s:b, s:o, s:s}",
                          "id", &jobid,
                          "resources", &resources,
                          "copy-offload", &copy_offload,
-                         "errmsg", &errmsg)
+                         "errmsg", &errmsg,
+                         "exclude", &exclude_str)
         < 0) {
         flux_log_error (h, "received malformed dws.resource-update RPC");
         return;
+    }
+    if (strlen(exclude_str) > 0) {
+        if (!(constraints = generate_constraints (h, p, jobid, exclude_str))) {
+            flux_log_error (h, "Could not generate exclusion hostlist");
+            raise_job_exception (p, jobid, "dws", "Could not generate exclusion hostlist");
+            return;
+        }
     }
     if (!json_is_null (errmsg)) {
         if (!(errmsg_str = json_string_value (errmsg))){
@@ -583,17 +646,25 @@ static void resource_update_msg_cb (flux_t *h,
             errmsg_str = "<could not fetch error message>";
         }
         raise_job_exception (p, jobid, "dws", errmsg_str);
+        json_decref (constraints);
         return;
     }
-    else if (flux_jobtap_jobspec_update_id_pack (p,
+    else if (flux_jobtap_job_aux_set (p,
+                                      jobid,
+                                      "flux::dws-copy-offload",
+                                      copy_offload ? (void*) 1 : (void*) 0,
+                                      NULL) < 0
+             || flux_jobtap_jobspec_update_id_pack (p,
                                                  (flux_jobid_t) jobid,
-                                                 "{s: O}", "resources",
-                                                 resources) < 0
-        || flux_jobtap_job_aux_set (p, jobid, "flux::dws-copy-offload", copy_offload ? (void*) 1 : (void*) 0, NULL) < 0 ) {
+                                                 "{s:O, s:o*}",
+                                                 "resources", resources,
+                                                 "attributes.system.constraints", constraints) < 0) {
+        flux_log_error (h, "could not update jobspec with new constraints and resources");
         raise_job_exception (p,
                              jobid,
                              "dws",
                              "Internal error: failed to update jobspec");
+        json_decref (constraints);
         return;
     }
     if (flux_jobtap_dependency_remove (p, jobid, CREATE_DEP_NAME) < 0) {

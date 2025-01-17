@@ -32,6 +32,7 @@ def create_cb(fh, t, msg, arg):
             "resources": msg.payload["resources"],
             "copy-offload": False,
             "errmsg": None,
+            "exclude": "",
         },
     )
 
