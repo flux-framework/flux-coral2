@@ -687,11 +687,11 @@ static void prolog_remove_msg_cb (flux_t *h,
 {
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
-    json_t *env = NULL, *rabbit_mapping = NULL;
+    json_t *env = NULL;
     int *prolog_active, junk_prolog_active = 1;
     int copy_offload = 0;
 
-    if (flux_msg_unpack (msg, "{s:I, s:o, s:o}", "id", &jobid, "variables", &env, "rabbits", &rabbit_mapping) < 0) {
+    if (flux_msg_unpack (msg, "{s:I, s:o}", "id", &jobid, "variables", &env) < 0) {
         flux_log_error (h, "received malformed dws.prolog-remove RPC");
         return;
     }
@@ -712,11 +712,9 @@ static void prolog_remove_msg_cb (flux_t *h,
     if (flux_jobtap_event_post_pack (p,
                                      jobid,
                                      "dws_environment",
-                                     "{s:O, s:O, s:b}",
+                                     "{s:O, s:b}",
                                      "variables",
                                      env,
-                                     "rabbits",
-                                     rabbit_mapping,
                                      "copy_offload",
                                      copy_offload)
             < 0
