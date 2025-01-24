@@ -28,6 +28,7 @@ TESTSCRIPTS = \
 	t1003-dws-nnf-watch.t \
 	t1004-dws-environment.t \
 	t2000-dws2jgf.t \
+	t2001-getrabbit.t \
 	python/t0001-directive-breakdown.py
 
 # make check runs these TAP tests directly (both scripts and programs)
@@ -60,4 +61,3 @@ util_rpc_LDADD = $(FLUX_CORE_LIBS)
 check-prep:
 	$(MAKE) $(check_PROGRAMS)
 
-	
