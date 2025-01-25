@@ -226,6 +226,7 @@ def main():
     parser.add_argument(
         "rabbitmapping",
         metavar="FILE",
+        nargs="?",
         help=(
             "Path to JSON object giving rabbit layout and capacity, as generated "
             "e.g. by the 'flux rabbitmapping' script"
@@ -257,6 +258,12 @@ def main():
                 f"error message was {proc.stderr}"
             )
         input_r = json.loads(proc.stdout)
+    if args.rabbitmapping is None:
+        args.rabbitmapping = flux.Flux().conf_get("rabbit.mapping")
+    if args.rabbitmapping is None:
+        sys.exit(
+            "Could not fetch rabbit.mapping from config, Flux may be misconfigured"
+        )
     with open(args.rabbitmapping, "r", encoding="utf8") as rabbitmap_fd:
         rabbit_mapping = json.load(rabbitmap_fd)
     r_hostlist = Hostlist(input_r["execution"]["nodelist"])

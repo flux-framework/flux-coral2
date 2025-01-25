@@ -524,9 +524,6 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
             payload={
                 "id": jobid,
                 "variables": workflow["status"].get("env", {}),
-                "rabbits": {
-                    rabbit: _RABBITS_TO_HOSTLISTS[rabbit] for rabbit in rabbits
-                },
             },
         ).then(log_rpc_response)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
