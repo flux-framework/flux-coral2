@@ -496,7 +496,7 @@ static int read_future (flux_future_t *fut,
     json_t *o = NULL;
     json_t *context = NULL;
     json_t *array;
-    const char *name, *event = NULL;
+    const char *name = "<no events received>", *event = NULL;
     size_t index = 0;
     json_t *value;
     json_int_t portnum;
@@ -566,7 +566,8 @@ static int read_future (flux_future_t *fut,
             json_decref (o);
         }
     }
-    shell_log_error ("Timed out waiting for start event");
+    shell_log_error ("Timed out waiting for start event, last event received was %s",
+                     name);
     return -1;
 }
 
