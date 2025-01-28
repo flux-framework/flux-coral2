@@ -490,18 +490,19 @@ error:
 static int read_future (flux_future_t *fut,
                         char *buf,
                         size_t bufsize,
-                        json_int_t *random)
+                        json_int_t *random,
+                        double timeout)
 {
     json_t *o = NULL;
     json_t *context = NULL;
     json_t *array;
-    const char *name, *event = NULL;
+    const char *name = "<no events received>", *event = NULL;
     size_t index = 0;
     json_t *value;
     json_int_t portnum;
     int bytes_written;
 
-    while (flux_future_wait_for (fut, 10.0) == 0
+    while (flux_future_wait_for (fut, timeout) == 0
            && flux_job_event_watch_get (fut, &event) == 0) {
         if (!(o = eventlog_entry_decode (event))) {
             shell_log_errno ("Error decoding eventlog entry");
@@ -565,7 +566,8 @@ static int read_future (flux_future_t *fut,
             json_decref (o);
         }
     }
-    shell_log_error ("Timed out waiting for start event");
+    shell_log_error ("Timed out waiting for start event, last event received was %s",
+                     name);
     return -1;
 }
 
@@ -576,13 +578,19 @@ static int get_pals_ports (flux_shell_t *shell, json_int_t jobid)
     flux_future_t *fut = NULL;
     int rc;
     json_int_t random;
+    double timeout = 10.0;
 
     if (!(h = flux_shell_get_flux (shell))
         || !(fut = flux_job_event_watch (h, (flux_jobid_t)jobid, "eventlog", 0))) {
         shell_log_error ("Error creating event_watch future");
         return -1;
     }
-    if ((rc = read_future (fut, buf, sizeof (buf), &random)) < 0)
+    if (flux_shell_getopt_unpack (shell,
+                                  "cray-pals",
+                                  "{s?F}",
+                                  "timeout",
+                                  &timeout) < 0
+        || (rc = read_future (fut, buf, sizeof (buf), &random, timeout)) < 0)
         shell_log_error ("Error reading ports from eventlog");
     flux_future_destroy (fut);
 
@@ -802,7 +810,7 @@ int flux_plugin_init (flux_plugin_t *p)
 
     shell_debug ("enabled");
 
-    // If -o cray-pals.no-edit-env is was speciifed set a flag for later
+    // If -o cray-pals.no-edit-env is was specified set a flag for later
     no_edit_env = 0;
     (void)flux_shell_getopt_unpack (shell,
                                     "cray-pals",
