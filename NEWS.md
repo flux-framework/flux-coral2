@@ -1,3 +1,12 @@
+flux-coral2 0.19.1 - 2025-01-28
+-------------------------------
+
+### New Features
+ * pals: make eventlog timeout configurable (#254)
+ * dws: drop rabbits from dws_environment eventlog entry context (#253)
+ * dws: add negative requires hostlist for down rabbits (#252)
+
+
 flux-coral2 0.19.0 - 2025-01-15
 -------------------------------
 
