@@ -933,6 +933,7 @@ def validate_config(config):
         "restrict_persistent_creation",
         "policy",
         "presets",
+        "mapping",
     }
     keys = set(config.keys())
     if not keys <= accepted_keys:
