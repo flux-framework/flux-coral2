@@ -937,20 +937,20 @@ def validate_config(config):
     }
     keys = set(config.keys())
     if not keys <= accepted_keys:
-        raise RuntimeError(
+        LOGGER.warning(
             f"misconfiguration: unrecognized "
             f"`rabbit.{(keys - accepted_keys).pop()}` key in Flux config, accepted "
             f"keys are {accepted_keys}"
         )
     if "policy" in config:
         if len(config["policy"]) != 1 or "maximums" not in config["policy"]:
-            raise RuntimeError(
+            LOGGER.warning(
                 "`rabbit.policy` config table muxt have a `maximums` table"
             )
         keys = set(config["policy"]["maximums"].keys())
         accepted_keys = set(directivebreakdown.ResourceLimits.TYPES)
         if not keys <= accepted_keys:
-            raise RuntimeError(
+            LOGGER.warning(
                 f"misconfiguration: unrecognized "
                 f"`rabbit.policy.maximums.{(keys - accepted_keys).pop()}` key in Flux "
                 f"config, accepted keys are {accepted_keys}"
