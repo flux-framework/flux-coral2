@@ -390,6 +390,20 @@ def post_run_cb(handle, _t, msg, k8s_api):
         move_workflow_desiredstate(winfo.name, "PostRun", k8s_api)
 
 
+@message_callback_wrapper
+def teardown_cb(handle, _t, msg, k8s_api):
+    """dws.teardown RPC callback.
+
+    The dws.teardown RPC is sent if a job hits an exception during the dws-epilog
+    action.
+
+    Move the workflow directly to Teardown.
+    """
+    winfo = _WORKFLOWINFO_CACHE.setdefault(msg.payload["jobid"], WorkflowInfo(jobid))
+    if not winfo.toredown:
+        winfo.move_to_teardown(handle, k8s_api)
+
+
 def state_complete(workflow, state):
     """Helper function for checking whether a workflow has completed a given state."""
     return (
@@ -879,6 +893,10 @@ def register_services(handle, k8s_api, restrict_persistent):
         post_run_cb, FLUX_MSGTYPE_REQUEST, "dws.post_run", args=k8s_api
     )
     post_run_watcher.start()
+    teardown_watcher = handle.msg_watcher_create(
+        teardown_cb, FLUX_MSGTYPE_REQUEST, "dws.teardown", args=k8s_api
+    )
+    teardown_watcher.start()
     serv_reg_fut.get()
     return (create_watcher, setup_watcher, post_run_watcher)
 

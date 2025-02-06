@@ -106,4 +106,20 @@ test_expect_success 'job-manager: dws jobtap plugin works when job hits exceptio
 	flux job wait-event -vt 5 ${create_jobid} clean
 '
 
+test_expect_success 'job-manager: dws jobtap plugin works when job hits exception during epilog' '
+	create_jobid=$(flux submit -t 8 --output=dws5.out --error=dws5.out \
+		flux python ${DWS_SCRIPT} --teardown-hang) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux cancel $jobid &&
+	flux job wait-event -vt 1 ${jobid} exception &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} -m status=0 \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 5 ${create_jobid} clean &&
+	test_must_fail flux job attach ${jobid}
+'
+
 test_done
