@@ -11,6 +11,7 @@ parser.add_argument("--create-fail", action="store_true")
 parser.add_argument("--setup-fail", action="store_true")
 parser.add_argument("--setup-hang", action="store_true")
 parser.add_argument("--post-run-fail", action="store_true")
+parser.add_argument("--teardown-hang", action="store_true")
 
 args = parser.parse_args()
 
@@ -51,6 +52,9 @@ def setup_cb(fh, t, msg, arg):
 
 
 def post_run_cb(fh, t, msg, arg):
+    if args.teardown_hang:
+        # a separate teardown rpc is coming; do nothing
+        return
     payload = {"success": not args.post_run_fail}
     if args.post_run_fail:
         payload["errstr"] = "post_run RPC failed for test purposes"
@@ -63,21 +67,38 @@ def post_run_cb(fh, t, msg, arg):
     fh.reactor_stop()
 
 
-fh = flux.Flux()
-service_reg_fut = Future(fh.service_register("dws"))
-create_watcher = fh.msg_watcher_create(create_cb, FLUX_MSGTYPE_REQUEST, "dws.create")
-create_watcher.start()
-setup_watcher = fh.msg_watcher_create(setup_cb, FLUX_MSGTYPE_REQUEST, "dws.setup")
-setup_watcher.start()
-post_run_watcher = fh.msg_watcher_create(
-    post_run_cb, FLUX_MSGTYPE_REQUEST, "dws.post_run"
-)
-post_run_watcher.start()
-service_reg_fut.get()
-print("DWS service registered")
+def teardown_cb(fh, t, msg, arg):
+    fh.rpc(
+        "job-manager.dws.epilog-remove",
+        payload={"id": msg.payload["jobid"]},
+    )
+    fh.reactor_stop()
 
-fh.reactor_run()
 
-for watcher in (create_watcher, setup_watcher, post_run_watcher):
-    watcher.stop()
-    watcher.destroy()
+def main():
+    fh = flux.Flux()
+    service_reg_fut = Future(fh.service_register("dws"))
+    create_watcher = fh.msg_watcher_create(create_cb, FLUX_MSGTYPE_REQUEST, "dws.create")
+    create_watcher.start()
+    setup_watcher = fh.msg_watcher_create(setup_cb, FLUX_MSGTYPE_REQUEST, "dws.setup")
+    setup_watcher.start()
+    post_run_watcher = fh.msg_watcher_create(
+        post_run_cb, FLUX_MSGTYPE_REQUEST, "dws.post_run"
+    )
+    post_run_watcher.start()
+    teardown_watcher = fh.msg_watcher_create(
+        teardown_cb, FLUX_MSGTYPE_REQUEST, "dws.teardown"
+    )
+    teardown_watcher.start()
+    service_reg_fut.get()
+    print("DWS service registered")
+
+    fh.reactor_run()
+
+    for watcher in (create_watcher, setup_watcher, post_run_watcher):
+        watcher.stop()
+        watcher.destroy()
+
+
+if __name__ == "__main__":
+    main()
