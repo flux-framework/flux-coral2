@@ -477,7 +477,12 @@ static int cleanup_cb (flux_plugin_t *p,
                                      "flux::dws_run_started")) {
             dws_run_started = 1;
         }
-        if (flux_jobtap_epilog_start (p, DWS_EPILOG_NAME) < 0) {
+        if (flux_jobtap_job_aux_set (p,
+                                     id,
+                                     "dws_epilog_active",
+                                     (void*) 1,
+                                     NULL) < 0
+            || flux_jobtap_epilog_start (p, DWS_EPILOG_NAME) < 0) {
             flux_log_error (h, "Failed to start jobtap epilog");
             return -1;
         }
@@ -523,6 +528,7 @@ static int exception_cb (flux_plugin_t *p,
     flux_jobid_t id;
     flux_t *h = flux_jobtap_get_flux (p);
     int *prolog_active, severity;
+    flux_future_t *teardown_fut;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -553,6 +559,19 @@ static int exception_cb (flux_plugin_t *p,
         }
         *prolog_active = 0;
     }
+    else if (flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_epilog_active") > 0) {
+        if (!(teardown_fut = flux_rpc_pack (h,
+                                             "dws.teardown",
+                                             FLUX_NODEID_ANY,
+                                             0,
+                                             "{s:I}",
+                                             "jobid",
+                                             id))) {
+            flux_log_error (h, "Failed to send dws.teardown RPC for job %" PRIu64, id);
+            return -1;
+        }
+        flux_future_destroy (teardown_fut);
+    }
     return 0;
 }
 
@@ -560,7 +579,7 @@ static int exception_cb (flux_plugin_t *p,
  * Generate a new jobspec constraints object for a job so that it can avoid
  * attempting to run on nodes attached to down rabbits.
  */
-static json_t *generate_constraints(flux_t *h, flux_plugin_t *p, flux_jobid_t jobid, const char *exclude_str){
+static json_t *generate_constraints(flux_t *h, flux_plugin_t *p, flux_jobid_t jobid, const char *exclude_str) {
     flux_plugin_arg_t *args = flux_jobtap_job_lookup (p, jobid);
     json_t *constraints = NULL;
     json_t *not;
@@ -695,7 +714,7 @@ static void prolog_remove_msg_cb (flux_t *h,
         flux_log_error (h, "received malformed dws.prolog-remove RPC");
         return;
     }
-    if (flux_jobtap_job_aux_get (p, (flux_jobid_t)jobid, "flux::dws-copy-offload")){
+    if (flux_jobtap_job_aux_get (p, (flux_jobid_t)jobid, "flux::dws-copy-offload")) {
         copy_offload = 1;
     }
     if (!(prolog_active =
