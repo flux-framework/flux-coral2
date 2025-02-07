@@ -43,8 +43,6 @@ def main():
             "Both rabbits and computes (with '--computes') cannot be "
             "looked up at the same time"
         )
-    if not args.computes and not args.rabbits:
-        sys.exit("At least one rabbit or compute node must be specified")
     # load the mapping file
     handle = flux.Flux()
     path = handle.conf_get("rabbit.mapping")
@@ -62,6 +60,11 @@ def main():
         sys.exit(f"File {path!r} could not be parsed as JSON: {jexc}")
     # construct and print the hostlist of rabbits
     hlist = Hostlist()
+    if not args.computes and not args.rabbits:
+        # print out all rabbits
+        hlist.append(mapping["rabbits"].keys())
+        print(hlist.uniq().encode())
+        return
     if args.computes:
         aggregated_computes = Hostlist()
         for computes in args.computes:

@@ -40,7 +40,6 @@ test_expect_success 'flux rabbitmapping works on computes' '
 '
 
 test_expect_success 'flux rabbitmapping parses arguments correctly' '
-	test_must_fail $CMD &&
 	test_must_fail $CMD --computes &&
 	test_must_fail $CMD rzadams201 -c rzadams1001
 '
@@ -57,6 +56,10 @@ mapping = \"$DATADIR/tuolumne_rabbitmapping\"
 
 test_expect_success 'flux rabbitmapping works on computes with second mapping' '
     test $($CMD -c tuolumne[1385-1416]) = tuolumne[225-226]
+'
+
+test_expect_success 'flux rabbitmapping works with no arguments' '
+    test $($CMD) = tuolumne[201-272]
 '
 
 test_done
