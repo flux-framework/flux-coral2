@@ -40,7 +40,7 @@ WORKFLOWS_IN_TC = set()  # tc for TransientCondition
 WORKFLOW_NAME_PREFIX = "fluxjob-"
 WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
-_EXCLUDE_HOSTS = Hostlist()
+EXCLUDE_PROPERTY = "badrabbit"
 
 _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
 
@@ -515,7 +515,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
                 "resources": resources,
                 "copy-offload": copy_offload,
                 "errmsg": errmsg,
-                "exclude": _EXCLUDE_HOSTS.encode(),
+                "exclude": EXCLUDE_PROPERTY if disable_fluxion else "",
             },
         ).then(log_rpc_response)
         save_workflow_to_kvs(handle, jobid, workflow)
@@ -616,15 +616,38 @@ def mark_rabbit(handle, status, resource_path, ssdcount, name, disable_fluxion):
         LOGGER.debug("Marking rabbit %s as up", name)
         status = "up"
         if disable_fluxion:
-            _EXCLUDE_HOSTS.delete(_RABBITS_TO_HOSTLISTS[name])
-            return
+            LOGGER.debug(
+                "Removing property %s from nodes %s",
+                EXCLUDE_PROPERTY,
+                _RABBITS_TO_HOSTLISTS[name],
+            )
+            for hostname in _RABBITS_TO_HOSTLISTS[name]:
+                payload = {
+                    "resource_path": f"/cluster0/{hostname}",
+                    "key": EXCLUDE_PROPERTY,
+                }
+                handle.rpc("sched-fluxion-resource.remove_property", payload).then(
+                    log_rpc_response
+                )
+                return
     else:
         LOGGER.debug("Marking rabbit %s as down, status is %s", name, status)
         status = "down"
         if disable_fluxion:
-            _EXCLUDE_HOSTS.append(_RABBITS_TO_HOSTLISTS[name])
-            _EXCLUDE_HOSTS.uniq()
-            return
+            LOGGER.debug(
+                "Adding property %s to nodes %s",
+                EXCLUDE_PROPERTY,
+                _RABBITS_TO_HOSTLISTS[name],
+            )
+            for hostname in _RABBITS_TO_HOSTLISTS[name]:
+                payload = {
+                    "sp_resource_path": f"/cluster0/{hostname}",
+                    "sp_keyval": f"{EXCLUDE_PROPERTY}=bad",
+                }
+                handle.rpc("sched-fluxion-resource.set_property", payload).then(
+                    log_rpc_response
+                )
+                return
     for ssdnum in range(ssdcount):
         payload = {"resource_path": resource_path + f"/ssd{ssdnum}", "status": status}
         handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
@@ -872,7 +895,7 @@ def populate_rabbits_dict(k8s_api):
                     f"{_HOSTNAMES_TO_RABBITS[hostname]}"
                 )
             _HOSTNAMES_TO_RABBITS[hostname] = nnf["name"]
-        _RABBITS_TO_HOSTLISTS[nnf["name"]] = hlist.encode()
+        _RABBITS_TO_HOSTLISTS[nnf["name"]] = hlist.uniq()
 
 
 def register_services(handle, k8s_api, restrict_persistent):
@@ -962,9 +985,7 @@ def validate_config(config):
         )
     if "policy" in config:
         if len(config["policy"]) != 1 or "maximums" not in config["policy"]:
-            LOGGER.warning(
-                "`rabbit.policy` config table muxt have a `maximums` table"
-            )
+            LOGGER.warning("`rabbit.policy` config table muxt have a `maximums` table")
         keys = set(config["policy"]["maximums"].keys())
         accepted_keys = set(directivebreakdown.ResourceLimits.TYPES)
         if not keys <= accepted_keys:
