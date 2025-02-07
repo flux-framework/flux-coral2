@@ -47,7 +47,9 @@ test_expect_success 'load Fluxion with rabbit resource graph' '
 test_expect_success 'rabbits default to down and are not allocated' '
     JOBID=$(flux job submit ${DATA_DIR}/rabbit-jobspec.json) &&
     test_must_fail flux job wait-event -vt 3 ${JOBID} alloc &&
-    flux cancel $JOBID
+    flux cancel $JOBID &&
+    flux ion-resource find status=down --format=jgf | grep \"ssd\" &&
+    flux ion-resource find status=up --format=jgf | test_must_fail grep \"ssd\"
 '
 
 test_expect_success 'exec Storage watching script' '
@@ -76,7 +78,9 @@ test_expect_success 'Storage watching script marks rabbits as up' '
     JOBID=$(flux job submit ${DATA_DIR}/rabbit-jobspec.json) &&
     flux job wait-event -vt 3 ${JOBID} alloc &&
     flux job wait-event -vt 3 -m status=0 ${JOBID} finish &&
-    flux job attach $JOBID
+    flux job attach $JOBID &&
+    flux ion-resource find status=up --format=jgf | grep \"ssd\" &&
+    flux ion-resource find status=down --format=jgf | test_must_fail grep \"ssd\"
 '
 
 test_expect_success 'update to the Storage status is caught by the watch' '
@@ -96,7 +100,9 @@ test_expect_success 'update to the Storage status is caught by the watch' '
 test_expect_success 'rabbits now marked as down are not allocated' '
     JOBID=$(flux job submit ${DATA_DIR}/rabbit-jobspec.json) &&
     test_must_fail flux job wait-event -vt 3 ${JOBID} alloc &&
-    flux cancel $JOBID
+    flux cancel $JOBID &&
+    flux ion-resource find status=down --format=jgf | grep \"ssd\" &&
+    flux ion-resource find status=up --format=jgf | test_must_fail grep \"ssd\"
 '
 
 test_expect_success 'revert the changes to the Storage' '
@@ -117,7 +123,9 @@ test_expect_success 'rabbits now marked as up and can be allocated' '
     JOBID=$(flux job submit ${DATA_DIR}/rabbit-jobspec.json) &&
     flux job wait-event -vt 3 ${JOBID} alloc &&
     flux job wait-event -vt 3 -m status=0 ${JOBID} finish &&
-    flux job attach $JOBID
+    flux job attach $JOBID &&
+    flux ion-resource find status=up --format=jgf | grep \"ssd\" &&
+    flux ion-resource find status=down --format=jgf | test_must_fail grep \"ssd\"
 '
 
 test_expect_success 'test that flux drains Offline compute nodes' '
