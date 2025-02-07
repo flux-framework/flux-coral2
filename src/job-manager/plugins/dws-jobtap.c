@@ -598,7 +598,7 @@ static json_t *generate_constraints(flux_t *h, flux_plugin_t *p, flux_jobid_t jo
         return NULL;
     }
     if (!constraints) {
-        if (!(constraints = json_pack ("{s:[{s:[s]}]}", "not", "hostlist", exclude_str))){
+        if (!(constraints = json_pack ("{s:[{s:[s]}]}", "not", "properties", exclude_str))){
             flux_log_error (h, "Failed to create new constraints object");
             flux_plugin_arg_destroy (args);
             return NULL;
@@ -615,14 +615,14 @@ static json_t *generate_constraints(flux_t *h, flux_plugin_t *p, flux_jobid_t jo
     }
     flux_plugin_arg_destroy (args);
     if (!(not = json_object_get (constraints, "not"))) {
-        if (json_object_set_new (constraints, "not", json_pack ("[{s:[s]}]", "hostlist", exclude_str)) < 0) {
+        if (json_object_set_new (constraints, "not", json_pack ("[{s:[s]}]", "properties", exclude_str)) < 0) {
             flux_log_error (h, "Failed to create new NOT constraints object");
             json_decref (constraints);
             return NULL;
         }
         return constraints;
     }
-    if (json_array_append_new (not, json_pack ("{s:[s]}", "hostlist", exclude_str)) < 0) {
+    if (json_array_append_new (not, json_pack ("{s:[s]}", "properties", exclude_str)) < 0) {
         flux_log_error (h, "Failed to create new NOT constraints object");
         json_decref (constraints);
         return NULL;
@@ -654,8 +654,8 @@ static void resource_update_msg_cb (flux_t *h,
     }
     if (strlen(exclude_str) > 0) {
         if (!(constraints = generate_constraints (h, p, jobid, exclude_str))) {
-            flux_log_error (h, "Could not generate exclusion hostlist");
-            raise_job_exception (p, jobid, "dws", "Could not generate exclusion hostlist");
+            flux_log_error (h, "Could not generate exclusion constraint");
+            raise_job_exception (p, jobid, "dws", "Could not generate exclusion constraint");
             return;
         }
     }
