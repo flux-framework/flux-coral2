@@ -217,6 +217,12 @@ test_expect_success 'exec Storage watching script with --disable-fluxion' '
 [rabbit]
 drain_compute_nodes = false
     " | flux config load &&
+    flux kvs put resource.R="$(flux R encode --local)" &&
+    flux module remove -f sched-fluxion-qmanager &&
+    flux module remove -f sched-fluxion-resource &&
+    flux module reload resource &&
+    flux module load sched-fluxion-resource &&
+    flux module load sched-fluxion-qmanager &&
     flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
     jobid=$(flux submit \
             --setattr=system.alloc-bypass.R="$(flux R encode -r0)" --output=dws5.out \
@@ -239,7 +245,8 @@ test_expect_success 'Storages are up and rabbit jobs can run' '
     flux job wait-event -vt 10 ${JOBID} alloc &&
     flux job wait-event -vt 10 -m status=0 ${JOBID} finish &&
     flux job wait-event -vt 20 ${JOBID} clean &&
-    flux job attach $JOBID
+    flux job attach $JOBID &&
+    test_must_fail flux ion-resource get-property /cluster0/compute-01 badrabbit
 '
 
 test_expect_success 'update to the Storage status is caught by the watch' '
@@ -262,7 +269,8 @@ test_expect_success 'rabbits now marked as down are not allocated' '
     flux job wait-event -vt 10 ${JOBID} jobspec-update &&
     test_must_fail flux job wait-event -vt 3 ${JOBID} alloc &&
     flux job wait-event -vt 1 ${JOBID} exception &&
-    flux job wait-event -vt 2 ${JOBID} clean
+    flux job wait-event -vt 2 ${JOBID} clean &&
+    flux ion-resource get-property /cluster0/compute-01 badrabbit
 '
 
 test_expect_success 'revert the changes to the Storage' '
@@ -286,7 +294,8 @@ test_expect_success 'rabbits now marked as up and can be allocated' '
     flux job wait-event -vt 10 ${JOBID} jobspec-update &&
     flux job wait-event -vt 5 ${JOBID} alloc &&
     flux job wait-event -vt 25 -m status=0 ${JOBID} finish
-    flux job wait-event -vt 20 ${JOBID} clean
+    flux job wait-event -vt 20 ${JOBID} clean &&
+    test_must_fail flux ion-resource get-property /cluster0/compute-01 badrabbit
 '
 
 test_expect_success 'unload fluxion' '
