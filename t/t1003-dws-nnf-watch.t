@@ -145,6 +145,7 @@ test_expect_success 'exec Storage watching script with draining disabled' '
     echo "
 [rabbit]
 drain_compute_nodes = false
+soft_drain = false
     " | flux config load &&
     jobid=$(flux submit \
             --setattr=system.alloc-bypass.R="$(flux R encode -r0)" --output=dws2.out --error=dws2.err \
@@ -164,6 +165,34 @@ test_expect_success 'test that flux does not drain Offline compute nodes with dr
     sleep 5 &&
     test_must_fail bash -c "flux resource drain | grep compute-01" &&
     test_must_fail flux job wait-event -vt 1 ${jobid} finish
+'
+
+test_expect_success 'exec Storage watching script with only soft draining enabled' '
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[0].status == \"Disabled\"" &&
+    flux cancel ${jobid} &&
+    echo "
+[rabbit]
+drain_compute_nodes = false
+soft_drain = true
+    " | flux config load &&
+    jobid=$(flux submit \
+            --setattr=system.alloc-bypass.R="$(flux R encode -r0)" --output=dws6.out --error=dws6.err \
+            -o per-resource.type=node flux python ${DWS_MODULE_PATH} -vvv) &&
+    flux job wait-event -vt 15 -p guest.exec.eventlog ${jobid} shell.start
+'
+
+test_expect_success 'flux sets badrabbit property on compute node, job is not scheduled' '
+    sleep 3 &&
+    test_must_fail flux job wait-event -vt 1 ${jobid} finish &&
+    flux resource drain | test_must_fail grep compute-01 &&
+    flux ion-resource get-property /compute/rack0/compute-01 badrabbit &&
+    flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
+    JOBID=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+        name=project1" -N1 -n1 hostname) &&
+    flux job wait-event -vt 10 ${JOBID} jobspec-update &&
+    test_must_fail flux job wait-event -vt 3 ${JOBID} alloc &&
+    flux job wait-event -vt 1 ${JOBID} exception &&
+    flux job wait-event -vt 2 ${JOBID} clean
 '
 
 test_expect_success 'return the storage resource to Live mode' '
@@ -231,7 +260,6 @@ drain_compute_nodes = false
     flux module reload resource &&
     flux module load sched-fluxion-resource &&
     flux module load sched-fluxion-qmanager &&
-    flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
     jobid=$(flux submit \
             --setattr=system.alloc-bypass.R="$(flux R encode -r0)" --output=dws5.out \
             --error=dws5.err -o per-resource.type=node flux python ${DWS_MODULE_PATH} \

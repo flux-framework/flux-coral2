@@ -515,7 +515,12 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
                 "resources": resources,
                 "copy-offload": copy_offload,
                 "errmsg": errmsg,
-                "exclude": EXCLUDE_PROPERTY if disable_fluxion else "",
+                "exclude": (
+                    EXCLUDE_PROPERTY
+                    if disable_fluxion
+                    or not handle.conf_get("rabbit.drain_compute_nodes", True)
+                    else ""
+                ),
             },
         ).then(log_rpc_response)
         save_workflow_to_kvs(handle, jobid, workflow)
@@ -580,7 +585,9 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         WORKFLOWS_IN_TC.discard(winfo)
 
 
-def drain_offline_nodes(handle, rabbit_name, nodelist, allowlist):
+def drain_offline_nodes(
+    handle, rabbit_name, nodelist, allowlist, disable_fluxion, compute_rpaths
+):
     """Drain nodes listed as offline in a given Storage resource.
 
     Drain all the nodes in `nodelist` that are Offline, provided they are
@@ -588,15 +595,38 @@ def drain_offline_nodes(handle, rabbit_name, nodelist, allowlist):
 
     If draining is disabled in the rabbit config table, do nothing.
     """
+    drain = True
     if not handle.conf_get("rabbit.drain_compute_nodes", True):
-        return
+        # if we aren't draining nodes, we can at least set the badrabbit property
+        drain = False
+        # if we aren't even setting the badrabbit property, return
+        if not handle.conf_get("rabbit.soft_drain", True):
+            return
     offline_nodes = Hostlist()
     for compute_node in nodelist:
-        if compute_node["status"] != "Ready" and (
-            allowlist is None or compute_node["name"] in allowlist
-        ):
-            offline_nodes.append(compute_node["name"])
-    if offline_nodes:
+        rpath = compute_rpaths.get(compute_node["name"])
+        if compute_node["status"] != "Ready":
+            if allowlist is None or compute_node["name"] in allowlist:
+                offline_nodes.append(compute_node["name"])
+            if not drain and rpath:
+                handle.rpc(
+                    "sched-fluxion-resource.set_property",
+                    {
+                        "sp_resource_path": rpath,
+                        "sp_keyval": f"{EXCLUDE_PROPERTY}=bad",
+                    },
+                ).then(log_rpc_response)
+        else:
+            # node is Ready, remove the badrabbit property
+            if not drain and rpath:
+                handle.rpc(
+                    "sched-fluxion-resource.remove_property",
+                    {
+                        "path": rpath,
+                        "key": EXCLUDE_PROPERTY,
+                    },
+                ).then(log_rpc_response)
+    if offline_nodes and drain:
         encoded_hostlist = offline_nodes.encode()
         LOGGER.debug("Draining nodes %s", encoded_hostlist)
         handle.rpc(
@@ -653,7 +683,9 @@ def mark_rabbit(handle, status, resource_path, ssdcount, name, disable_fluxion):
         handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
 
 
-def rabbit_state_change_cb(event, handle, rabbit_rpaths, disable_fluxion, allowlist):
+def rabbit_state_change_cb(
+    event, handle, rabbit_rpaths, disable_fluxion, allowlist, compute_rpaths
+):
     """Callback firing when a Storage object changes.
 
     Marks a rabbit as up or down.
@@ -678,10 +710,7 @@ def rabbit_state_change_cb(event, handle, rabbit_rpaths, disable_fluxion, allowl
         pass
     else:
         drain_offline_nodes(
-            handle,
-            name,
-            computes,
-            allowlist,
+            handle, name, computes, allowlist, disable_fluxion, compute_rpaths
         )
     # TODO: add some check for whether rabbit capacity has changed
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
@@ -690,6 +719,7 @@ def rabbit_state_change_cb(event, handle, rabbit_rpaths, disable_fluxion, allowl
 def map_rabbits_to_fluxion_paths(handle):
     """Read the fluxion resource graph and map rabbit hostnames to resource paths."""
     rabbit_rpaths = {}
+    compute_rpaths = {}
     try:
         nodes = flux.kvs.get(handle, "resource.R")["scheduling"]["graph"]["nodes"]
     except Exception as exc:
@@ -703,7 +733,9 @@ def map_rabbits_to_fluxion_paths(handle):
                 metadata["paths"]["containment"],
                 int(metadata["properties"].get("ssdcount", 36)),
             )
-    return rabbit_rpaths
+        if metadata["type"] == "node":
+            compute_rpaths[metadata["name"]] = metadata["paths"]["containment"]
+    return rabbit_rpaths, compute_rpaths
 
 
 def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
@@ -716,9 +748,12 @@ def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
     """
     api_response = k8s_api.list_namespaced_custom_object(*crd.RABBIT_CRD)
     if not disable_fluxion:
-        rabbit_rpaths = map_rabbits_to_fluxion_paths(handle)
+        rabbit_rpaths, compute_rpaths = map_rabbits_to_fluxion_paths(handle)
     else:
         rabbit_rpaths = {}
+        compute_rpaths = {
+            hostname: f"/cluster0/{hostname}" for hostname in _HOSTNAMES_TO_RABBITS
+        }
     resource_version = 0
     if drain_queues is not None:
         rset = flux.resource.resource_list(handle).get().all
@@ -762,6 +797,8 @@ def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
                 name,
                 computes,
                 allowlist,
+                disable_fluxion,
+                compute_rpaths,
             )
     watchers.add_watch(
         Watch(
@@ -773,6 +810,7 @@ def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
             rabbit_rpaths,
             disable_fluxion,
             allowlist,
+            compute_rpaths,
         )
     )
 
@@ -975,6 +1013,7 @@ def validate_config(config):
         "policy",
         "presets",
         "mapping",
+        "soft_drain",
     }
     keys = set(config.keys())
     if not keys <= accepted_keys:
