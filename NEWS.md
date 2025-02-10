@@ -1,3 +1,17 @@
+flux-coral2 0.20.0 - 2025-02-10
+-------------------------------
+
+### New Features
+ * dws: make `exception` event interrupt data movement (#263)
+ * dws: add option to tag compute nodes instead of draining (#266)
+ * dws: change exclusion constraint to a property (#265)
+ * `getrabbit`: list all rabbits (#264)
+
+### Fixes
+ * dws: make config error a warning (#260)
+ * dws: add 'mapping' to accepted config keys (#259)
+
+
 flux-coral2 0.19.1 - 2025-01-28
 -------------------------------
 
