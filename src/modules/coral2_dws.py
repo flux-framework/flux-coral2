@@ -622,7 +622,7 @@ def drain_offline_nodes(
                 handle.rpc(
                     "sched-fluxion-resource.remove_property",
                     {
-                        "path": rpath,
+                        "resource_path": rpath,
                         "key": EXCLUDE_PROPERTY,
                     },
                 ).then(log_rpc_response)
