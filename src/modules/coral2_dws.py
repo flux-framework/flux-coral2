@@ -60,7 +60,6 @@ class WorkflowInfo:
         self.transient_condition = None  # may be a TransientConditionInfo
         self.toredown = False  # True if workflows has been moved to teardown
         self.deleted = False  # True if delete request has been sent to k8s
-        self.rabbits = None
 
     def move_to_teardown(self, handle, k8s_api, workflow=None):
         """Move a workflow to the 'Teardown' desiredState."""
@@ -93,18 +92,6 @@ def log_rpc_response(rpc):
     else:
         if msg is not None:
             LOGGER.debug("RPC response was %s", msg)
-
-
-def fetch_rabbits(k8s_api, workflow_computes):
-    """Fetch all the rabbits associated with this workflow"""
-    response = k8s_api.get_namespaced_custom_object(
-        crd.COMPUTE_CRD.group,
-        crd.COMPUTE_CRD.version,
-        workflow_computes["namespace"],
-        crd.COMPUTE_CRD.plural,
-        workflow_computes["name"],
-    )
-    return list(set(_HOSTNAMES_TO_RABBITS[entry["name"]] for entry in response["data"]))
 
 
 def message_callback_wrapper(func):
@@ -361,8 +348,7 @@ def setup_cb(handle, _t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
-    winfo.rabbits = list(nodes_per_nnf.keys())
+    _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
     move_workflow_desiredstate(workflow_name, "Setup", k8s_api)
 
 
@@ -399,7 +385,8 @@ def teardown_cb(handle, _t, msg, k8s_api):
 
     Move the workflow directly to Teardown.
     """
-    winfo = _WORKFLOWINFO_CACHE.setdefault(msg.payload["jobid"], WorkflowInfo(jobid))
+    jobid = msg.payload["jobid"]
+    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
     if not winfo.toredown:
         winfo.move_to_teardown(handle, k8s_api)
 
@@ -534,10 +521,6 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "PreRun"):
         # tell DWS jobtap plugin that the job can start
-        if winfo.rabbits is not None:
-            rabbits = winfo.rabbits
-        else:
-            rabbits = fetch_rabbits(k8s_api, workflow["status"]["computes"])
         handle.rpc(
             "job-manager.dws.prolog-remove",
             payload={
@@ -585,7 +568,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         WORKFLOWS_IN_TC.discard(winfo)
 
 
-def drain_offline_nodes(handle, rabbit, allowlist, disable_fluxion, compute_rpaths):
+def drain_offline_nodes(handle, rabbit, allowlist, compute_rpaths):
     """Drain nodes listed as offline in a given Storage resource.
 
     Drain all the nodes in `nodelist` that are Offline, provided they are
@@ -709,7 +692,7 @@ def rabbit_state_change_cb(
         mark_rabbit(handle, "Down", *rabbit_rpaths[name], name, disable_fluxion)
     else:
         mark_rabbit(handle, status, *rabbit_rpaths[name], name, disable_fluxion)
-    drain_offline_nodes(handle, rabbit, allowlist, disable_fluxion, compute_rpaths)
+    drain_offline_nodes(handle, rabbit, allowlist, compute_rpaths)
     # TODO: add some check for whether rabbit capacity has changed
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
 
@@ -788,7 +771,6 @@ def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
             handle,
             rabbit,
             allowlist,
-            disable_fluxion,
             compute_rpaths,
         )
     watchers.add_watch(
@@ -1009,9 +991,10 @@ def validate_config(config):
     keys = set(config.keys())
     if not keys <= accepted_keys:
         LOGGER.warning(
-            f"misconfiguration: unrecognized "
-            f"`rabbit.{(keys - accepted_keys).pop()}` key in Flux config, accepted "
-            f"keys are {accepted_keys}"
+            "misconfiguration: unrecognized `rabbit.%s` key in Flux config, "
+            "accepted keys are %s",
+            (keys - accepted_keys).pop(),
+            accepted_keys,
         )
     if "policy" in config:
         if len(config["policy"]) != 1 or "maximums" not in config["policy"]:
@@ -1020,9 +1003,10 @@ def validate_config(config):
         accepted_keys = set(directivebreakdown.ResourceLimits.TYPES)
         if not keys <= accepted_keys:
             LOGGER.warning(
-                f"misconfiguration: unrecognized "
-                f"`rabbit.policy.maximums.{(keys - accepted_keys).pop()}` key in Flux "
-                f"config, accepted keys are {accepted_keys}"
+                "misconfiguration: unrecognized `rabbit.policy.maximums.%s` key in "
+                "Flux config, accepted keys are %s",
+                (keys - accepted_keys).pop(),
+                accepted_keys,
             )
 
 
