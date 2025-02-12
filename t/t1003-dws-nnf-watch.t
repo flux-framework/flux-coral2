@@ -202,6 +202,17 @@ test_expect_success 'return the storage resource to Live mode' '
     kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[0].status == \"Ready\""
 '
 
+test_expect_success 'flux removes badrabbit property from compute node, job is scheduled' '
+    sleep 5 &&
+    test_must_fail flux ion-resource get-property /compute/rack0/compute-01 badrabbit &&
+    JOBID=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+        name=project1" -N1 -n1 hostname) &&
+    flux job wait-event -vt 10 ${JOBID} jobspec-update &&
+    flux job wait-event -vt 10 ${JOBID} alloc &&
+    flux job wait-event -vt 10 ${JOBID} finish &&
+    flux job wait-event -vt 10 ${JOBID} clean
+'
+
 test_expect_success 'exec Storage watching script with invalid --drain-queues arg' '
     flux cancel ${jobid} &&
     jobid=$(flux submit \

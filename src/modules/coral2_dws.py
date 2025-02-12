@@ -585,9 +585,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         WORKFLOWS_IN_TC.discard(winfo)
 
 
-def drain_offline_nodes(
-    handle, rabbit_name, nodelist, allowlist, disable_fluxion, compute_rpaths
-):
+def drain_offline_nodes(handle, rabbit, allowlist, disable_fluxion, compute_rpaths):
     """Drain nodes listed as offline in a given Storage resource.
 
     Drain all the nodes in `nodelist` that are Offline, provided they are
@@ -595,6 +593,12 @@ def drain_offline_nodes(
 
     If draining is disabled in the rabbit config table, do nothing.
     """
+    # rabbits don't have a 'status' field until they boot, in which case
+    # there is nothing to do
+    try:
+        nodelist = rabbit["status"]["access"]["computes"]
+    except KeyError:
+        return
     drain = True
     if not handle.conf_get("rabbit.drain_compute_nodes", True):
         # if we aren't draining nodes, we can at least set the badrabbit property
@@ -617,12 +621,13 @@ def drain_offline_nodes(
                     },
                 ).then(log_rpc_response)
         else:
-            # node is Ready, remove the badrabbit property
-            if not drain and rpath:
+            # compute node is Ready. If the rabbit node is also Ready,
+            # remove the badrabbit property
+            if not drain and rpath and rabbit["status"]["status"] == "Ready":
                 handle.rpc(
                     "sched-fluxion-resource.remove_property",
                     {
-                        "path": rpath,
+                        "resource_path": rpath,
                         "key": EXCLUDE_PROPERTY,
                     },
                 ).then(log_rpc_response)
@@ -634,7 +639,7 @@ def drain_offline_nodes(
             payload={
                 "targets": encoded_hostlist,
                 "mode": "update",
-                "reason": f"rabbit {rabbit_name} lost connection",
+                "reason": f"rabbit {rabbit['metadata']['name']} lost connection",
             },
             nodeid=0,
         ).then(log_rpc_response)
@@ -704,14 +709,7 @@ def rabbit_state_change_cb(
         mark_rabbit(handle, "Down", *rabbit_rpaths[name], name, disable_fluxion)
     else:
         mark_rabbit(handle, status, *rabbit_rpaths[name], name, disable_fluxion)
-    try:
-        computes = rabbit["status"]["access"]["computes"]
-    except KeyError:
-        pass
-    else:
-        drain_offline_nodes(
-            handle, name, computes, allowlist, disable_fluxion, compute_rpaths
-        )
+    drain_offline_nodes(handle, rabbit, allowlist, disable_fluxion, compute_rpaths)
     # TODO: add some check for whether rabbit capacity has changed
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
 
@@ -786,20 +784,13 @@ def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
                 mark_rabbit(
                     handle, rabbit_status, *rabbit_rpaths[name], name, disable_fluxion
                 )
-        # rabbits don't have a 'status' field until they boot
-        try:
-            computes = rabbit["status"]["access"]["computes"]
-        except KeyError:
-            pass
-        else:
-            drain_offline_nodes(
-                handle,
-                name,
-                computes,
-                allowlist,
-                disable_fluxion,
-                compute_rpaths,
-            )
+        drain_offline_nodes(
+            handle,
+            rabbit,
+            allowlist,
+            disable_fluxion,
+            compute_rpaths,
+        )
     watchers.add_watch(
         Watch(
             k8s_api,
