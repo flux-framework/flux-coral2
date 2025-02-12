@@ -399,7 +399,8 @@ def teardown_cb(handle, _t, msg, k8s_api):
 
     Move the workflow directly to Teardown.
     """
-    winfo = _WORKFLOWINFO_CACHE.setdefault(msg.payload["jobid"], WorkflowInfo(jobid))
+    jobid = msg.payload["jobid"]
+    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
     if not winfo.toredown:
         winfo.move_to_teardown(handle, k8s_api)
 
