@@ -585,7 +585,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         WORKFLOWS_IN_TC.discard(winfo)
 
 
-def drain_offline_nodes(handle, rabbit, allowlist, disable_fluxion, compute_rpaths):
+def drain_offline_nodes(handle, rabbit, allowlist, compute_rpaths):
     """Drain nodes listed as offline in a given Storage resource.
 
     Drain all the nodes in `nodelist` that are Offline, provided they are
@@ -709,7 +709,7 @@ def rabbit_state_change_cb(
         mark_rabbit(handle, "Down", *rabbit_rpaths[name], name, disable_fluxion)
     else:
         mark_rabbit(handle, status, *rabbit_rpaths[name], name, disable_fluxion)
-    drain_offline_nodes(handle, rabbit, allowlist, disable_fluxion, compute_rpaths)
+    drain_offline_nodes(handle, rabbit, allowlist, compute_rpaths)
     # TODO: add some check for whether rabbit capacity has changed
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
 
@@ -788,7 +788,6 @@ def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
             handle,
             rabbit,
             allowlist,
-            disable_fluxion,
             compute_rpaths,
         )
     watchers.add_watch(
@@ -1009,9 +1008,10 @@ def validate_config(config):
     keys = set(config.keys())
     if not keys <= accepted_keys:
         LOGGER.warning(
-            f"misconfiguration: unrecognized "
-            f"`rabbit.{(keys - accepted_keys).pop()}` key in Flux config, accepted "
-            f"keys are {accepted_keys}"
+            "misconfiguration: unrecognized `rabbit.%s` key in Flux config, "
+            "accepted keys are %s",
+            (keys - accepted_keys).pop(),
+            accepted_keys,
         )
     if "policy" in config:
         if len(config["policy"]) != 1 or "maximums" not in config["policy"]:
@@ -1020,9 +1020,10 @@ def validate_config(config):
         accepted_keys = set(directivebreakdown.ResourceLimits.TYPES)
         if not keys <= accepted_keys:
             LOGGER.warning(
-                f"misconfiguration: unrecognized "
-                f"`rabbit.policy.maximums.{(keys - accepted_keys).pop()}` key in Flux "
-                f"config, accepted keys are {accepted_keys}"
+                "misconfiguration: unrecognized `rabbit.policy.maximums.%s` key in "
+                "Flux config, accepted keys are %s",
+                (keys - accepted_keys).pop(),
+                accepted_keys,
             )
 
 
