@@ -7,6 +7,7 @@ import sys
 import json
 
 import flux
+from flux.job import JobID
 from flux.hostlist import Hostlist
 
 
@@ -30,18 +31,23 @@ def main():
         help="One or more hostlists of compute nodes",
     )
     parser.add_argument(
+        "--jobids",
+        "-j",
+        nargs="+",
+        metavar="JOBID",
+        help="One or more jobids",
+    )
+    parser.add_argument(
         "rabbits",
         nargs="*",
         metavar="RABBITS",
         type=Hostlist,
         help="One or more hostlists of rabbit nodes",
     )
-    # validate args
     args = parser.parse_args()
-    if args.computes and args.rabbits:
+    if args.rabbits and (args.computes or args.jobids):
         sys.exit(
-            "Both rabbits and computes (with '--computes') cannot be "
-            "looked up at the same time"
+            "Both rabbits and computes or jobids cannot be looked up at the same time"
         )
     # load the mapping file
     handle = flux.Flux()
@@ -60,11 +66,22 @@ def main():
         sys.exit(f"File {path!r} could not be parsed as JSON: {jexc}")
     # construct and print the hostlist of rabbits
     hlist = Hostlist()
-    if not args.computes and not args.rabbits:
+    if not args.computes and not args.rabbits and not args.jobids:
         # print out all rabbits
         hlist.append(mapping["rabbits"].keys())
         print(hlist.uniq().encode())
         return
+    if args.jobids:
+        for jobid in args.jobids:
+            try:
+                JobID(jobid)
+            except Exception as exc:
+                sys.exit(f"Could not interpret {jobid} as a flux Jobid: {exc}")
+            try:
+                nodelist = flux.job.job_list_id(handle, jobid, ["nodelist"]).nodelist
+            except FileNotFoundError:
+                sys.exit(f"Could not find job {jobid}")
+            args.computes.append(nodelist)
     if args.computes:
         aggregated_computes = Hostlist()
         for computes in args.computes:
