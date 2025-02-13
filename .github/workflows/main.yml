@@ -6,13 +6,16 @@ on:
     branches:
       - master
 name: ci
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   check-pr:
     name: validate commits
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0
