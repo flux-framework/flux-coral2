@@ -65,6 +65,11 @@ test_expect_success 'flux rabbitmapping works with no arguments' '
     test $($CMD) = tuolumne[201-272]
 '
 
+test_expect_success 'flux rabbitmapping works in nested instances' '
+    test $(flux alloc -n1 $CMD -c tuolumne[1385-1416]) = tuolumne[225-226] &&
+    test $(flux alloc -n1 $CMD) = tuolumne[201-272]
+'
+
 test_expect_success 'flux rabbitmapping works on jobids' '
     echo "{\"computes\": {\"$(hostname)\": \"rabbit101\"}}" > local_rabbitmapping &&
     echo "
