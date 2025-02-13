@@ -78,7 +78,9 @@ def teardown_cb(fh, t, msg, arg):
 def main():
     fh = flux.Flux()
     service_reg_fut = Future(fh.service_register("dws"))
-    create_watcher = fh.msg_watcher_create(create_cb, FLUX_MSGTYPE_REQUEST, "dws.create")
+    create_watcher = fh.msg_watcher_create(
+        create_cb, FLUX_MSGTYPE_REQUEST, "dws.create"
+    )
     create_watcher.start()
     setup_watcher = fh.msg_watcher_create(setup_cb, FLUX_MSGTYPE_REQUEST, "dws.setup")
     setup_watcher.start()

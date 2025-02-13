@@ -72,8 +72,7 @@ static struct hostlist *hostlist_from_array (json_t *nodelist_array)
         return NULL;
     }
     json_array_foreach (nodelist_array, index, value) {
-        if (!(entry = json_string_value (value))
-            || hostlist_append (hlist, entry) < 0) {
+        if (!(entry = json_string_value (value)) || hostlist_append (hlist, entry) < 0) {
             hostlist_destroy (hlist);
             return NULL;
         }
@@ -100,12 +99,7 @@ static void count_job_shells (flux_future_t *fut, void *arg)
         prolog_status = 1;
         goto cleanup;
     }
-    if (flux_kvs_lookup_get_unpack (fut,
-                                    "{s:{s:o}}",
-                                    "execution",
-                                    "nodelist",
-                                    &nodelist)
-            < 0
+    if (flux_kvs_lookup_get_unpack (fut, "{s:{s:o}}", "execution", "nodelist", &nodelist) < 0
         || !(hlist = hostlist_from_array (nodelist))) {
         flux_log_error (h,
                         PLUGIN_NAME
@@ -163,10 +157,7 @@ cleanup:
 /* Create a future to get a job's R. Callback to the future will grab
  * free ports and write them into the job's event log.
  */
-static int run_cb (flux_plugin_t *p,
-                   const char *topic,
-                   flux_plugin_arg_t *args,
-                   void *arg)
+static int run_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
 {
     flux_t *h;
     flux_jobid_t jobid;
@@ -207,10 +198,7 @@ error:
 /* On a job's cleanup event, get the ports and return them
  * to the pool.
  */
-static int cleanup_cb (flux_plugin_t *p,
-                       const char *topic,
-                       flux_plugin_arg_t *args,
-                       void *arg)
+static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
 {
     struct port_range *range = arg;
     flux_t *h;
@@ -220,8 +208,7 @@ static int cleanup_cb (flux_plugin_t *p,
 
     if (!(h = flux_jobtap_get_flux (p)))
         return -1;
-    if (!(array =
-              flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, CRAY_PALS_AUX_NAME)))
+    if (!(array = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, CRAY_PALS_AUX_NAME)))
         return 0;
     if (!json_is_array (array)) {
         flux_log_error (h, PLUGIN_NAME ": " CRAY_PALS_AUX_NAME " aux is not array");
@@ -262,20 +249,14 @@ int flux_plugin_init (flux_plugin_t *p)
 
     if (!(h = flux_jobtap_get_flux (p)) || flux_plugin_set_name (p, "cray-pals") < 0)
         return -1;
-    if (flux_plugin_conf_unpack (p,
-                                 "{s:I, s:I}",
-                                 "port-min",
-                                 &port_min,
-                                 "port-max",
-                                 &port_max)
+    if (flux_plugin_conf_unpack (p, "{s:I, s:I}", "port-min", &port_min, "port-max", &port_max)
         < 0) {
         port_min = 11000;
         port_max = 12000;
         flux_log (h,
                   LOG_NOTICE,
                   "Port range not specified in config with port-min and port-max. "
-                  "Using defaults of %" JSON_INTEGER_FORMAT " and %" JSON_INTEGER_FORMAT
-                  ".",
+                  "Using defaults of %" JSON_INTEGER_FORMAT " and %" JSON_INTEGER_FORMAT ".",
                   port_min,
                   port_max);
     }

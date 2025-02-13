@@ -33,16 +33,14 @@
 /*
  * Apply a JSON object defining environment variables to the job's environment
  */
-static int set_environment (flux_shell_t *shell,
-                            json_t *env_object)
+static int set_environment (flux_shell_t *shell, json_t *env_object)
 {
     const char *key, *value_string;
     json_t *value;
 
     json_object_foreach (env_object, key, value) {
         if (!(value_string = json_string_value (value))) {
-            shell_log_error (
-                "variables in dws_environment event must have string values");
+            shell_log_error ("variables in dws_environment event must have string values");
             return -1;
         }
         if (flux_shell_setenvf (shell, 1, key, "%s", value_string) < 0) {
@@ -63,8 +61,7 @@ static int read_future (flux_shell_t *shell, flux_future_t *fut)
     json_t *env;
     const char *name, *event = NULL;
 
-    while (flux_future_wait_for (fut, 30.0) == 0
-           && flux_job_event_watch_get (fut, &event) == 0) {
+    while (flux_future_wait_for (fut, 30.0) == 0 && flux_job_event_watch_get (fut, &event) == 0) {
         if (!(o = eventlog_entry_decode (event))) {
             shell_log_errno ("Error decoding eventlog entry");
             return -1;
@@ -79,15 +76,9 @@ static int read_future (flux_shell_t *shell, flux_future_t *fut)
             shell_log_error ("'start' event found before 'dws_environment'");
             json_decref (o);
             return -1;
-        }
-        else if (!strcmp (name, "dws_environment")) {
-            if (json_unpack (context,
-                             "{s:o}",
-                             "variables",
-                             &env)
-                < 0) {
-                shell_log_error (
-                    "No 'variables' context in dws_environment event");
+        } else if (!strcmp (name, "dws_environment")) {
+            if (json_unpack (context, "{s:o}", "variables", &env) < 0) {
+                shell_log_error ("No 'variables' context in dws_environment event");
                 json_decref (o);
                 return -1;
             }
@@ -97,8 +88,7 @@ static int read_future (flux_shell_t *shell, flux_future_t *fut)
             }
             json_decref (o);
             return 0;
-        }
-        else {
+        } else {
             flux_future_reset (fut);
             json_decref (o);
         }
