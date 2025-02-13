@@ -30,13 +30,14 @@ def read_yaml_breakdown(*paths):
 
 
 class TestDirectiveBreakdowns(unittest.TestCase):
-
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_lustre10tb(self, patched_fetch):
         patched_fetch.return_value = read_yaml_breakdown(YAMLDIR / "lustre10tb.yaml")
         for nodecount in (4, 6, 8):
             resources = [{"type": "node", "count": nodecount}]
-            new_resources, copy_offload = directivebreakdown.apply_breakdowns(None, None, resources, 1)
+            new_resources, copy_offload = directivebreakdown.apply_breakdowns(
+                None, None, resources, 1
+            )
             self.assertFalse(copy_offload)
             patched_fetch.assert_called_with(None, None)
             self.assertEqual(len(new_resources), 1)
@@ -52,10 +53,14 @@ class TestDirectiveBreakdowns(unittest.TestCase):
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_lustre10tb_daemon(self, patched_fetch):
-        patched_fetch.return_value = read_yaml_breakdown(YAMLDIR / "lustre10tb_daemon.yaml")
+        patched_fetch.return_value = read_yaml_breakdown(
+            YAMLDIR / "lustre10tb_daemon.yaml"
+        )
         for nodecount in (4, 6, 8):
             resources = [{"type": "node", "count": nodecount}]
-            new_resources, copy_offload = directivebreakdown.apply_breakdowns(None, None, resources, 1)
+            new_resources, copy_offload = directivebreakdown.apply_breakdowns(
+                None, None, resources, 1
+            )
             self.assertTrue(copy_offload)
             patched_fetch.assert_called_with(None, None)
             self.assertEqual(len(new_resources), 1)
@@ -74,7 +79,9 @@ class TestDirectiveBreakdowns(unittest.TestCase):
         patched_fetch.return_value = read_yaml_breakdown(YAMLDIR / "xfs10gb.yaml")
         for nodecount in (4, 6, 8):
             resources = [{"type": "node", "count": nodecount}]
-            new_resources, copy_offload = directivebreakdown.apply_breakdowns(None, None, resources, 1)
+            new_resources, copy_offload = directivebreakdown.apply_breakdowns(
+                None, None, resources, 1
+            )
             patched_fetch.assert_called_with(None, None)
             self.assertFalse(copy_offload)
             self.assertEqual(len(new_resources), 1)
@@ -95,7 +102,9 @@ class TestDirectiveBreakdowns(unittest.TestCase):
         )
         for nodecount in (4, 6, 8):
             resources = [{"type": "node", "count": nodecount}]
-            new_resources, copy_offload = directivebreakdown.apply_breakdowns(None, None, resources, 1)
+            new_resources, copy_offload = directivebreakdown.apply_breakdowns(
+                None, None, resources, 1
+            )
             patched_fetch.assert_called_with(None, None)
             self.assertEqual(len(new_resources), 1)
             self.assertFalse(copy_offload)
@@ -115,7 +124,9 @@ class TestDirectiveBreakdowns(unittest.TestCase):
             YAMLDIR / "xfs10gb.yaml", YAMLDIR / "lustre10tb.yaml"
         )
         resources = [{"type": "node", "count": 1, "with": [{"type": "slot"}]}]
-        new_resources, copy_offload = directivebreakdown.apply_breakdowns(None, None, resources, 1)
+        new_resources, copy_offload = directivebreakdown.apply_breakdowns(
+            None, None, resources, 1
+        )
         self.assertFalse(copy_offload)
         patched_fetch.assert_called_with(None, None)
         self.assertEqual(len(new_resources), 1)
@@ -135,7 +146,9 @@ class TestDirectiveBreakdowns(unittest.TestCase):
             YAMLDIR / "xfs10gb.yaml", YAMLDIR / "lustre10tb_daemon.yaml"
         )
         resources = [{"type": "node", "count": 1, "with": [{"type": "slot"}]}]
-        new_resources, copy_offload = directivebreakdown.apply_breakdowns(None, None, resources, 1)
+        new_resources, copy_offload = directivebreakdown.apply_breakdowns(
+            None, None, resources, 1
+        )
         self.assertTrue(copy_offload)
         patched_fetch.assert_called_with(None, None)
         self.assertEqual(len(new_resources), 1)
@@ -170,7 +183,9 @@ class TestDirectiveBreakdowns(unittest.TestCase):
     def test_allocation_bad_kind(self, patched_fetch):
         patched_fetch.return_value = read_yaml_breakdown(YAMLDIR / "bad_kind.yaml")
         with self.assertRaisesRegex(ValueError, "unsupported breakdown kind"):
-            directivebreakdown.apply_breakdowns(None, None, [{"type": "node", "count": 1}], 1)
+            directivebreakdown.apply_breakdowns(
+                None, None, [{"type": "node", "count": 1}], 1
+            )
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_allocation_minimum_size(self, patched_fetch):
@@ -178,7 +193,9 @@ class TestDirectiveBreakdowns(unittest.TestCase):
         for nodecount in (4, 6, 8):
             for min_size in (11, 15, 170):
                 resources = [{"type": "node", "count": nodecount}]
-                new_resources, copy_offload = directivebreakdown.apply_breakdowns(None, None, resources, min_size)
+                new_resources, copy_offload = directivebreakdown.apply_breakdowns(
+                    None, None, resources, min_size
+                )
                 self.assertFalse(copy_offload)
                 patched_fetch.assert_called_with(None, None)
                 self.assertEqual(len(new_resources), 1)

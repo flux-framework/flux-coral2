@@ -163,8 +163,7 @@ static struct hostlist *hostlist_from_array (json_t *nodelist_array)
         return NULL;
     }
     json_array_foreach (nodelist_array, index, value) {
-        if (!(entry = json_string_value (value))
-            || hostlist_append (hlist, entry) < 0) {
+        if (!(entry = json_string_value (value)) || hostlist_append (hlist, entry) < 0) {
             hostlist_destroy (hlist);
             return NULL;
         }
@@ -182,8 +181,7 @@ static int safe_write (int fd, const void *buf, size_t size)
             if ((errno == EAGAIN) || (errno == EINTR))
                 continue;
             return -1;
-        }
-        else {
+        } else {
             buf += rc;
             size -= rc;
         }
@@ -206,17 +204,13 @@ static pals_pe_t *setup_pals_pes (int ntasks, int nnodes, int *task_counts, int 
     if (!(pes = calloc (ntasks, sizeof (pals_pe_t)))) {
         return NULL;
     }
-    for (nodeidx = 0; nodeidx < nnodes;
-         nodeidx++) {  // for each node identifier nodeidx ...
+    for (nodeidx = 0; nodeidx < nnodes; nodeidx++) {  // for each node identifier nodeidx ...
         for (localidx = 0; localidx < task_counts[nodeidx];
              localidx++) {  // for each task within that node
             // get the global task ID of that task
             taskid = tids[nodeidx][localidx];
             if (taskid >= ntasks) {
-                shell_log_error ("taskid %d (on node %d) >= ntasks %d",
-                                 taskid,
-                                 nodeidx,
-                                 ntasks);
+                shell_log_error ("taskid %d (on node %d) >= ntasks %d", taskid, nodeidx, ntasks);
                 free (pes);
                 return NULL;
             }
@@ -300,8 +294,7 @@ static int write_pals_nodes (int fd, struct hostlist *hlist)
     }
     while (entry) {
         node.nid = node_index++;
-        if (snprintf (node.hostname, sizeof (node.hostname), "%s", entry)
-                >= sizeof (node.hostname)
+        if (snprintf (node.hostname, sizeof (node.hostname), "%s", entry) >= sizeof (node.hostname)
             || safe_write (fd, &node, sizeof (pals_node_t)) < 0) {
             return -1;
         }
@@ -341,7 +334,7 @@ static struct task_placement *task_placement_create (int nnodes)
  */
 static void task_placement_destroy (struct task_placement *t, int nnodes)
 {
-    if (!t){
+    if (!t) {
         return;
     }
     free (t->task_counts);
@@ -351,7 +344,6 @@ static void task_placement_destroy (struct task_placement *t, int nnodes)
     free (t->task_ids);
     free (t);
 }
-
 
 /*
  * Return a mapping from nodes to the task IDs they are associated with.
@@ -364,24 +356,22 @@ static struct task_placement *get_task_placement (flux_shell_t *shell)
     int nnodes;
     unsigned int curr_task_id = 0;
 
-    if (!(map = flux_shell_get_taskmap (shell))
-        || (nnodes = taskmap_nnodes (map)) < 1
+    if (!(map = flux_shell_get_taskmap (shell)) || (nnodes = taskmap_nnodes (map)) < 1
         || !(ret = task_placement_create (nnodes))) {
         return NULL;
     }
 
     for (int nodeid = 0; nodeid < nnodes; ++nodeid) {
         if ((ret->task_counts[nodeid] = taskmap_ntasks (map, nodeid)) < 0
-            || !(ret->task_ids[nodeid] = malloc (sizeof (*(ret->task_ids[nodeid]))
-                                                 * ret->task_counts[nodeid]))
+            || !(ret->task_ids[nodeid] =
+                     malloc (sizeof (*(ret->task_ids[nodeid])) * ret->task_counts[nodeid]))
             || !(idset = taskmap_taskids (map, nodeid))) {
             shell_log_error ("Error fetching task idset for nodeid %i", nodeid);
             task_placement_destroy (ret, nnodes);
             return NULL;
         }
         curr_task_id = idset_first (idset);
-        for (int localtasknum = 0; localtasknum < ret->task_counts[nodeid];
-             ++localtasknum) {
+        for (int localtasknum = 0; localtasknum < ret->task_counts[nodeid]; ++localtasknum) {
             if (curr_task_id == IDSET_INVALID_ID) {
                 shell_log_error ("Fetched an invalid ID for nodeid %i", nodeid);
                 task_placement_destroy (ret, nnodes);
@@ -455,10 +445,7 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
     // Gather the header, pes, and cmds structs
     build_header (&hdr, 1, ntasks, nnodes);
     setup_pals_cmd (&cmd, ntasks, nnodes, cores_per_task, placement->task_counts);
-    if (!(pes = setup_pals_pes (ntasks,
-                                nnodes,
-                                placement->task_counts,
-                                placement->task_ids))) {
+    if (!(pes = setup_pals_pes (ntasks, nnodes, placement->task_counts, placement->task_ids))) {
         shell_log_error ("Error initializing pals_pe_t structs");
         goto error;
     }
@@ -523,12 +510,7 @@ static int read_future (flux_future_t *fut,
             return 0;
         }
         if (!strcmp (name, "cray_port_distribution")) {
-            if (json_unpack (context,
-                             "{s:o, s:I}",
-                             "ports",
-                             &array,
-                             "random_integer",
-                             random)
+            if (json_unpack (context, "{s:o, s:I}", "ports", &array, "random_integer", random)
                 < 0) {
                 shell_log_error ("Error unpacking 'cray_port_distribution' event");
                 json_decref (o);
@@ -541,12 +523,9 @@ static int read_future (flux_future_t *fut,
                     return -1;
                 }
                 if (index == 0) {
-                    bytes_written =
-                        snprintf (buf, bufsize, "%" JSON_INTEGER_FORMAT, portnum);
-                }
-                else {
-                    bytes_written =
-                        snprintf (buf, bufsize, ",%" JSON_INTEGER_FORMAT, portnum);
+                    bytes_written = snprintf (buf, bufsize, "%" JSON_INTEGER_FORMAT, portnum);
+                } else {
+                    bytes_written = snprintf (buf, bufsize, ",%" JSON_INTEGER_FORMAT, portnum);
                 }
                 buf += bytes_written;
                 bufsize -= bytes_written;
@@ -560,14 +539,12 @@ static int read_future (flux_future_t *fut,
             /*  Return 1 on success
              */
             return 1;
-        }
-        else {
+        } else {
             flux_future_reset (fut);
             json_decref (o);
         }
     }
-    shell_log_error ("Timed out waiting for start event, last event received was %s",
-                     name);
+    shell_log_error ("Timed out waiting for start event, last event received was %s", name);
     return -1;
 }
 
@@ -585,11 +562,7 @@ static int get_pals_ports (flux_shell_t *shell, json_int_t jobid)
         shell_log_error ("Error creating event_watch future");
         return -1;
     }
-    if (flux_shell_getopt_unpack (shell,
-                                  "cray-pals",
-                                  "{s?F}",
-                                  "timeout",
-                                  &timeout) < 0
+    if (flux_shell_getopt_unpack (shell, "cray-pals", "{s?F}", "timeout", &timeout) < 0
         || (rc = read_future (fut, buf, sizeof (buf), &random, timeout)) < 0)
         shell_log_error ("Error reading ports from eventlog");
     flux_future_destroy (fut);
@@ -598,12 +571,7 @@ static int get_pals_ports (flux_shell_t *shell, json_int_t jobid)
      */
     if (rc == 1) {
         if (flux_shell_setenvf (shell, 1, "PMI_CONTROL_PORT", "%s", buf) < 0
-            || flux_shell_setenvf (shell,
-                                   1,
-                                   "PMI_SHARED_SECRET",
-                                   "%ju",
-                                   (uintmax_t)random)
-                   < 0) {
+            || flux_shell_setenvf (shell, 1, "PMI_SHARED_SECRET", "%ju", (uintmax_t)random) < 0) {
             return -1;
         }
         shell_trace ("set PMI_CONTROL_PORT to %s", buf);
@@ -617,9 +585,7 @@ static int get_pals_ports (flux_shell_t *shell, json_int_t jobid)
  * 'name', which is assumed to be a colon-separated list.
  * Return -1 on error, 0 if found and removed.
  */
-static int remove_path_from_cmd_env (flux_cmd_t *cmd,
-                                     const char *name,
-                                     const char *path)
+static int remove_path_from_cmd_env (flux_cmd_t *cmd, const char *name, const char *path)
 {
     const char *searchpath;
     char *argz;
@@ -632,14 +598,13 @@ static int remove_path_from_cmd_env (flux_cmd_t *cmd,
 
     char *entry = NULL;
     while ((entry = argz_next (argz, argz_len, entry))) {
-        if (!strcmp (entry, path)) { // match!
+        if (!strcmp (entry, path)) {  // match!
             argz_delete (&argz, &argz_len, entry);
             if (argz && strlen (argz) > 0) {
                 argz_stringify (argz, argz_len, ':');
                 if (flux_cmd_setenvf (cmd, 1, name, "%s", argz) < 0)
                     goto out;
-            }
-            else
+            } else
                 flux_cmd_unsetenv (cmd, name);
             rc = 0;
             break;
@@ -653,9 +618,7 @@ out:
 /*
  * Set job-wide environment variables for LibPALS
  */
-static int set_environment (flux_shell_t *shell,
-                            const char *apinfo_path,
-                            int shell_size)
+static int set_environment (flux_shell_t *shell, const char *apinfo_path, int shell_size)
 {
     int rank = -1;
     json_int_t jobid;
@@ -665,8 +628,7 @@ static int set_environment (flux_shell_t *shell,
     flux_shell_unsetenv (shell, "PMI_CONTROL_PORT");
     if (flux_shell_info_unpack (shell, "{s:i, s:I}", "rank", &rank, "jobid", &jobid) < 0
         || flux_shell_setenvf (shell, 1, "PALS_NODEID", "%i", rank) < 0
-        || flux_shell_setenvf (shell, 1, "PALS_APID", "%" JSON_INTEGER_FORMAT, jobid)
-               < 0
+        || flux_shell_setenvf (shell, 1, "PALS_APID", "%" JSON_INTEGER_FORMAT, jobid) < 0
         || !(tmpdir = flux_shell_getenv (shell, "FLUX_JOB_TMPDIR"))
         || flux_shell_setenvf (shell, 1, "PALS_SPOOL_DIR", "%s", tmpdir) < 0
         || flux_shell_setenvf (shell, 1, "PALS_APINFO", "%s", apinfo_path) < 0
@@ -686,10 +648,7 @@ static int set_environment (flux_shell_t *shell,
  * Create the LibPALS apinfo file in the job's tempdir and set
  * the LibPALS environment.
  */
-static int libpals_init (flux_plugin_t *p,
-                         const char *topic,
-                         flux_plugin_arg_t *args,
-                         void *data)
+static int libpals_init (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *data)
 {
     const char *tmpdir;
     char apinfo_path[1024];
@@ -697,11 +656,7 @@ static int libpals_init (flux_plugin_t *p,
     int shell_size;
 
     if (!(tmpdir = flux_shell_getenv (shell, "FLUX_JOB_TMPDIR"))
-        || snprintf (apinfo_path,
-                     sizeof (apinfo_path),
-                     "%s/%s",
-                     tmpdir,
-                     "libpals_apinfo")
+        || snprintf (apinfo_path, sizeof (apinfo_path), "%s/%s", tmpdir, "libpals_apinfo")
                >= sizeof (apinfo_path)
         || (shell_size = create_apinfo (apinfo_path, shell)) < 1
         || set_environment (shell, apinfo_path, shell_size) < 0) {
@@ -723,8 +678,7 @@ static int libpals_task_init (flux_plugin_t *p,
     flux_cmd_t *cmd;
     int task_rank;
 
-    if (!shell || !(task = flux_shell_current_task (shell))
-        || !(cmd = flux_shell_task_cmd (task))
+    if (!shell || !(task = flux_shell_current_task (shell)) || !(cmd = flux_shell_task_cmd (task))
         || flux_shell_task_info_unpack (task, "{s:i}", "rank", &task_rank) < 0
         || flux_cmd_setenvf (cmd, 1, "PALS_RANKID", "%d", task_rank) < 0) {
         return -1;
@@ -732,8 +686,7 @@ static int libpals_task_init (flux_plugin_t *p,
     shell_trace ("set PALS_RANKID to %d", task_rank);
 
     if (!no_edit_env) {
-        const char *pmipath = flux_conf_builtin_get ("pmi_library_path",
-                                                     FLUX_CONF_AUTO);
+        const char *pmipath = flux_conf_builtin_get ("pmi_library_path", FLUX_CONF_AUTO);
         char *cpy = NULL;
         char *dir;
         if (pmipath && (cpy = strdup (pmipath)) && (dir = dirname (cpy))) {
@@ -812,10 +765,7 @@ int flux_plugin_init (flux_plugin_t *p)
 
     // If -o cray-pals.no-edit-env is was specified set a flag for later
     no_edit_env = 0;
-    (void)flux_shell_getopt_unpack (shell,
-                                    "cray-pals",
-                                    "{s?i}",
-                                    "no-edit-env", &no_edit_env);
+    (void)flux_shell_getopt_unpack (shell, "cray-pals", "{s?i}", "no-edit-env", &no_edit_env);
 
     if (flux_plugin_add_handler (p, "shell.init", libpals_init, NULL) < 0
         || flux_plugin_add_handler (p, "task.init", libpals_task_init, NULL) < 0)

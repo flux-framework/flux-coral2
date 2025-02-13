@@ -19,9 +19,6 @@ bool eventlog_entry_validate (json_t *entry);
 
 json_t *eventlog_entry_decode (const char *entry);
 
-int eventlog_entry_parse (json_t *entry,
-                          double *timestamp,
-                          const char **name,
-                          json_t **context);
+int eventlog_entry_parse (json_t *entry, double *timestamp, const char **name, json_t **context);
 
 #endif /* !_EVENTLOG_HELPERS_H */

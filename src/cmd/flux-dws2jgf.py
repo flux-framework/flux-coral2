@@ -28,9 +28,7 @@ class ElCapResourcePoolV1(FluxionResourcePoolV1):
             "rack",
             "rabbit",
             "ssd",
-        ] or super(
-            ElCapResourcePoolV1, ElCapResourcePoolV1
-        ).constraints(resource_type)
+        ] or super(ElCapResourcePoolV1, ElCapResourcePoolV1).constraints(resource_type)
 
     @property
     def path(self):

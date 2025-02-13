@@ -16,11 +16,10 @@
 #include <stdio.h>
 #include <flux/core.h>
 
-
 #define OPTIONS "r"
 static const struct option longopts[] = {
-    {"raw", no_argument,  0, 'r'},
-    { 0, 0, 0, 0 },
+    {"raw", no_argument, 0, 'r'},
+    {0, 0, 0, 0},
 };
 
 void usage (void)
@@ -59,26 +58,29 @@ int main (int argc, char *argv[])
     }
     if (!(f = flux_rpc (h, topic, NULL, FLUX_NODEID_ANY, 0))) {
         fprintf (stderr, "flux_rpc %s\n", topic);
-        exit(1);
+        exit (1);
     }
     if (flux_rpc_get (f, NULL) < 0) {
         if (expected_errno > 0) {
             if (errno != expected_errno) {
-                fprintf (stderr, "%s: failed with errno=%d != expected %d\n",
-                              topic, errno, expected_errno);
-                exit(1);
+                fprintf (stderr,
+                         "%s: failed with errno=%d != expected %d\n",
+                         topic,
+                         errno,
+                         expected_errno);
+                exit (1);
             }
-        }
-        else {
+        } else {
             fprintf (stderr, "%s: %s\n", topic, future_strerror (f, errno));
-            exit(1);
+            exit (1);
         }
-    }
-    else {
+    } else {
         if (expected_errno > 0) {
-            fprintf (stderr, "%s: succeeded but expected failure errno=%d\n",
-                          topic, expected_errno);
-            exit(1);
+            fprintf (stderr,
+                     "%s: succeeded but expected failure errno=%d\n",
+                     topic,
+                     expected_errno);
+            exit (1);
         }
     }
     flux_future_destroy (f);

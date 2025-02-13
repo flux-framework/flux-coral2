@@ -73,10 +73,7 @@ einval:
     return NULL;
 }
 
-int eventlog_entry_parse (json_t *entry,
-                          double *timestamp,
-                          const char **name,
-                          json_t **context)
+int eventlog_entry_parse (json_t *entry, double *timestamp, const char **name, json_t **context)
 {
     double t;
     const char *n;
@@ -97,8 +94,7 @@ int eventlog_entry_parse (json_t *entry,
             errno = EINVAL;
             return -1;
         }
-    }
-    else
+    } else
         c = NULL;
 
     if (timestamp)
