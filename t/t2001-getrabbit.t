@@ -40,8 +40,11 @@ test_expect_success 'flux rabbitmapping works on computes' '
 '
 
 test_expect_success 'flux rabbitmapping parses arguments correctly' '
-	test_must_fail $CMD --computes &&
-	test_must_fail $CMD rzadams201 -c rzadams1001
+    test_must_fail $CMD --computes &&
+    test_must_fail $CMD rzadams201 -c rzadams1001 &&
+    test_must_fail $CMD rzadams201 -j foobar &&
+    test_must_fail $CMD -j foobar &&
+    test_must_fail $CMD -j 124.469
 '
 
 test_expect_success 'flux rabbitmapping works with second mapping' '
@@ -60,6 +63,18 @@ test_expect_success 'flux rabbitmapping works on computes with second mapping' '
 
 test_expect_success 'flux rabbitmapping works with no arguments' '
     test $($CMD) = tuolumne[201-272]
+'
+
+test_expect_success 'flux rabbitmapping works on jobids' '
+    echo "{\"computes\": {\"$(hostname)\": \"rabbit101\"}}" > local_rabbitmapping &&
+    echo "
+[rabbit]
+mapping = \"$(pwd)/local_rabbitmapping\"
+    " | flux config load &&
+    jobid=$(flux submit -n1 hostname) &&
+    $CMD -j ${jobid} &&
+    test $($CMD -j ${jobid}) = rabbit101 &&
+    test $($CMD -j ${jobid} -c $(hostname)) = rabbit101
 '
 
 test_done
