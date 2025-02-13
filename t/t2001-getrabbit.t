@@ -16,6 +16,12 @@ DATADIR=${SHARNESS_TEST_SRCDIR}/data/getrabbit
 export FLUX_PYCLI_LOGLEVEL=10
 
 
+test_expect_success 'flux rabbitmapping fails when rabbit.mapping not set' '
+    test_must_fail $CMD -c $(hostname) &&
+    test_must_fail $CMD rzadams201 &&
+    test_must_fail flux config get rabbit.mapping
+'
+
 test_expect_success 'flux rabbitmapping works on rabbits' '
     echo "
 [rabbit]
@@ -63,6 +69,11 @@ test_expect_success 'flux rabbitmapping works on computes with second mapping' '
 
 test_expect_success 'flux rabbitmapping works with no arguments' '
     test $($CMD) = tuolumne[201-272]
+'
+
+test_expect_success 'flux rabbitmapping works in nested instances' '
+    test $(flux alloc -n1 $CMD -c tuolumne[1385-1416]) = tuolumne[225-226] &&
+    test $(flux alloc -n1 $CMD) = tuolumne[201-272]
 '
 
 test_expect_success 'flux rabbitmapping works on jobids' '
