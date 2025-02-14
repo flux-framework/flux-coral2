@@ -88,7 +88,15 @@ def main():
     handle = flux.Flux()
     path = handle.conf_get("rabbit.mapping")
     if path is None:
-        sys.exit("Flux is misconfigured, 'rabbit.mapping' key not set")
+        try:
+            path = flux.Flux("/").conf_get("rabbit.mapping")
+        except Exception:
+            pass
+        if path is None:
+            sys.exit(
+                "Flux is misconfigured, 'rabbit.mapping' key not set in"
+                "current instance or root/system instance"
+            )
     try:
         with open(path, "r", encoding="utf8") as json_fd:
             mapping = json.load(json_fd)
