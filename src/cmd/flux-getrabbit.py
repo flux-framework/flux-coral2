@@ -55,15 +55,19 @@ def map_to_rabbits(args, handle, mapping):
         for jobid in args.jobids:
             try:
                 nodelist = (
-                    flux.job.job_list_id(handle, JobID(jobid), ["nodelist"])
+                    flux.job.job_list_id(handle, JobID(jobid), ["annotations"])
                     .get_jobinfo()
-                    .nodelist
+                    .user.rabbits
                 )
             except FileNotFoundError:
                 sys.exit(f"Could not find job {jobid}")
             except Exception as exc:
                 sys.exit(f"Lookup of job {jobid} failed: {exc}")
-            args.computes.append(nodelist)
+            # if there was no `user.rabbits` annotation, a custom class is returned
+            # that converts to an empty string
+            if not str(nodelist):
+                sys.exit(f"No rabbits found for job {jobid}")
+            hlist.append(nodelist)
     aggregated_computes = Hostlist()
     for computes in args.computes:
         aggregated_computes.append(computes)
@@ -94,7 +98,7 @@ def main():
             pass
         if path is None:
             sys.exit(
-                "Flux is misconfigured, 'rabbit.mapping' key not set in"
+                "Flux is misconfigured, 'rabbit.mapping' key not set in "
                 "current instance or root/system instance"
             )
     try:
