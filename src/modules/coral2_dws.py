@@ -622,7 +622,7 @@ def drain_offline_nodes(handle, rabbit, allowlist, compute_rpaths):
             payload={
                 "targets": encoded_hostlist,
                 "mode": "update",
-                "reason": f"rabbit {rabbit['metadata']['name']} lost connection",
+                "reason": "rabbit lost PCIe connection",
             },
             nodeid=0,
         ).then(log_rpc_response)
