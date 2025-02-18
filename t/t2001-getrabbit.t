@@ -77,15 +77,23 @@ test_expect_success 'flux rabbitmapping works in nested instances' '
 '
 
 test_expect_success 'flux rabbitmapping works on jobids' '
-    echo "{\"computes\": {\"$(hostname)\": \"rabbit101\"}}" > local_rabbitmapping &&
+    echo "{\"computes\": {\"$(hostname)\": \"rabbit219\"}}" > local_rabbitmapping &&
     echo "
 [rabbit]
 mapping = \"$(pwd)/local_rabbitmapping\"
     " | flux config load &&
-    jobid=$(flux submit -n1 hostname) &&
-    $CMD -j ${jobid} &&
+    jobid=$(flux submit -n1 sleep 1) &&
+    flux job memo ${jobid} rabbits=rabbit101
     test $($CMD -j ${jobid}) = rabbit101 &&
-    test $($CMD -j ${jobid} -c $(hostname)) = rabbit101
+    jobid=$(flux submit -n1 sleep 1) &&
+    flux job memo ${jobid} rabbits=rabbit[202-210] &&
+    test $($CMD -j ${jobid}) = rabbit[202-210] &&
+    test $($CMD -j ${jobid} -c $(hostname)) = rabbit[202-210,219]
+'
+
+test_expect_success 'flux rabbitmapping fails when job has no rabbit memo' '
+    jobid=$(flux submit -n1 hostname) &&
+    test_must_fail $CMD -j ${jobid}
 '
 
 test_done
