@@ -1,3 +1,19 @@
+flux-coral2 0.20.1 - 2025-02-18
+-------------------------------
+
+### New Features
+ * `getrabbit`: fetch by jobid (#272)
+
+### Fixes
+ * `getrabbit`: check system config (#277)
+ * dws: linting, fix undefined variable (#270)
+ * dws: remove-property fix (#269)
+ * `getrabbit`: jobid memo lookups (#279)
+
+### Build/Testsuite
+ * ci: updates, add lint and format checks (#273)
+
+
 flux-coral2 0.20.0 - 2025-02-10
 -------------------------------
 
