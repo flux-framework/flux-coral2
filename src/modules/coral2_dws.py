@@ -647,7 +647,7 @@ def mark_rabbit(handle, status, resource_path, ssdcount, name, disable_fluxion):
                 handle.rpc("sched-fluxion-resource.remove_property", payload).then(
                     log_rpc_response
                 )
-                return
+            return
     else:
         LOGGER.debug("Marking rabbit %s as down, status is %s", name, status)
         status = "down"
@@ -665,7 +665,7 @@ def mark_rabbit(handle, status, resource_path, ssdcount, name, disable_fluxion):
                 handle.rpc("sched-fluxion-resource.set_property", payload).then(
                     log_rpc_response
                 )
-                return
+            return
     for ssdnum in range(ssdcount):
         payload = {"resource_path": resource_path + f"/ssd{ssdnum}", "status": status}
         handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
