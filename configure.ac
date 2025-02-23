@@ -149,6 +149,8 @@ RRA_WITH_SYSTEMD_UNITDIR
 
 AC_CONFIG_FILES([Makefile
   src/Makefile
+  src/common/Makefile
+  src/common/libtap/Makefile
   src/job-manager/Makefile
   src/job-manager/plugins/Makefile
   src/shell/Makefile

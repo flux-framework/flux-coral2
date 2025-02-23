@@ -1,6 +1,8 @@
 .NOTPARALLEL:
 
-SUBDIRS = job-manager \
+SUBDIRS = \
+	common \
+	job-manager \
 	shell \
 	cmd \
 	modules \
