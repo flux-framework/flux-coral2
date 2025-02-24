@@ -51,6 +51,11 @@ static inline const char *idf58 (flux_jobid_t id)
     return buf;
 }
 
+static inline int current_job_exception (flux_plugin_t *p, const char *reason)
+{
+    return flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB, PLUGIN_NAME, 0, reason);
+}
+
 static inline int raise_job_exception (flux_plugin_t *p,
                                        flux_jobid_t id,
                                        const char *exception,
@@ -161,6 +166,7 @@ static int depend_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
     json_t *resources;
     json_t *jobspec;
     int userid;
+    struct create_arg_t *create_args;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -179,15 +185,19 @@ static int depend_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
                                 &userid,
                                 "jobspec",
                                 &jobspec)
-        < 0)
+        < 0) {
+        current_job_exception (p, "jobtap plugin failed to unpack args");
         return -1;
+    }
     if (dw) {
         if (flux_jobtap_dependency_add (p, id, CREATE_DEP_NAME) < 0) {
             flux_log_error (h, "Failed to add dws jobtap dependency for %s", idf58 (id));
+            current_job_exception (p, "Failed to add dws jobtap dependency");
             return -1;
         }
         // subscribe to exception events
         if (flux_jobtap_job_subscribe (p, FLUX_JOBTAP_CURRENT_JOB) < 0) {
+            current_job_exception (p, "dws-jobtap: error initializing exception-monitoring");
             flux_log_error (h,
                             "dws-jobtap: error initializing exception-monitoring for %s",
                             idf58 (id));
@@ -208,11 +218,11 @@ static int depend_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
                                                    userid);
         if (create_fut == NULL) {
             flux_log_error (h, "Failed to send dws.create RPC for %s", idf58 (id));
+            current_job_exception (p, "Failed to send dws.create RPC");
             return -1;
         }
-
-        struct create_arg_t *create_args = calloc (1, sizeof (struct create_arg_t));
-        if (create_args == NULL) {
+        if (!(create_args = calloc (1, sizeof (struct create_arg_t)))) {
+            current_job_exception (p, "Failed to allocate memory");
             return -1;
         }
         create_args->p = p;
@@ -226,6 +236,7 @@ static int depend_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
                                         (flux_free_f)flux_future_destroy)
                    < 0) {
             flux_future_destroy (create_fut);
+            current_job_exception (p, "Failed to set aux on future");
             return -1;
         }
     }
@@ -341,7 +352,7 @@ static int run_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args,
                                 "dw",
                                 &dw)
         < 0) {
-        flux_log_error (h, "Failed to unpack args");
+        current_job_exception (p, "jobtap plugin failed to unpack args");
         return -1;
     }
     if (dw) {
@@ -356,11 +367,13 @@ static int run_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args,
                    < 0) {
             free (prolog_active);
             flux_log_error (h, "dws-jobtap: error creating prolog_active aux for %s", idf58 (id));
+            current_job_exception (p, "error creating prolog_active aux");
             return -1;
         }
         *prolog_active = 1;
         if (flux_jobtap_prolog_start (p, SETUP_PROLOG_NAME) < 0) {
             flux_log_error (h, "Failed to start dws jobtap prolog for %s", idf58 (id));
+            current_job_exception (p, "Failed to start dws jobtap prolog");
             return -1;
         }
         struct create_arg_t *create_args = calloc (1, sizeof (struct create_arg_t));
@@ -428,7 +441,7 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
                                 "dw",
                                 &dw)
         < 0) {
-        flux_log_error (h, "Failed to unpack args");
+        current_job_exception (p, "Failed to unpack args");
         return -1;
     }
     // check that the job has a DW attr section AND a workflow was successfully
@@ -436,6 +449,7 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
     if (dw && flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "flux::dws_workflow_created")) {
         if (!(create_args = calloc (1, sizeof (struct create_arg_t)))) {
             flux_log_error (h, "error allocating arg struct for %s", idf58 (id));
+            current_job_exception (p, "error allocating arg struct");
             return -1;
         }
         create_args->p = p;
@@ -447,6 +461,7 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
         if (flux_jobtap_job_aux_set (p, id, "dws_epilog_active", (void *)1, NULL) < 0
             || flux_jobtap_epilog_start (p, DWS_EPILOG_NAME) < 0) {
             flux_log_error (h, "Failed to start jobtap epilog for %s", idf58 (id));
+            current_job_exception (p, "Failed to start jobtap epilog");
             return -1;
         }
         if (!(post_run_fut = flux_rpc_pack (h,
