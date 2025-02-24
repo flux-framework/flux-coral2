@@ -160,7 +160,6 @@ static int depend_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
     json_t *resources;
     json_t *jobspec;
     int userid;
-    int *prolog_active = NULL;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -187,21 +186,12 @@ static int depend_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
             return -1;
         }
         // subscribe to exception events
-        if (flux_jobtap_job_subscribe (p, FLUX_JOBTAP_CURRENT_JOB) < 0
-            || !(prolog_active = malloc (sizeof (int)))
-            || flux_jobtap_job_aux_set (p,
-                                        FLUX_JOBTAP_CURRENT_JOB,
-                                        "dws_prolog_active",
-                                        prolog_active,
-                                        free)
-                   < 0) {
-            free (prolog_active);
+        if (flux_jobtap_job_subscribe (p, FLUX_JOBTAP_CURRENT_JOB) < 0) {
             flux_log_error (h,
                             "dws-jobtap: error initializing exception-monitoring for %s",
                             idf58 (id));
             return -1;
         }
-        *prolog_active = 0;
         flux_future_t *create_fut = flux_rpc_pack (h,
                                                    "dws.create",
                                                    FLUX_NODEID_ANY,
@@ -354,13 +344,24 @@ static int run_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args,
         return -1;
     }
     if (dw) {
-        if (flux_jobtap_prolog_start (p, SETUP_PROLOG_NAME) < 0
-            || !(prolog_active =
-                     flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_prolog_active"))) {
-            flux_log_error (h, "Failed to start dws jobtap prolog for %s", idf58 (id));
+        // set a boolean aux indicating whether jobtap prolog is active, so it can
+        // be finished if an exception occurs
+        if (!(prolog_active = malloc (sizeof (int)))
+            || flux_jobtap_job_aux_set (p,
+                                        FLUX_JOBTAP_CURRENT_JOB,
+                                        "dws_prolog_active",
+                                        prolog_active,
+                                        free)
+                   < 0) {
+            free (prolog_active);
+            flux_log_error (h, "dws-jobtap: error creating prolog_active aux for %s", idf58 (id));
             return -1;
         }
         *prolog_active = 1;
+        if (flux_jobtap_prolog_start (p, SETUP_PROLOG_NAME) < 0) {
+            flux_log_error (h, "Failed to start dws jobtap prolog for %s", idf58 (id));
+            return -1;
+        }
         struct create_arg_t *create_args = calloc (1, sizeof (struct create_arg_t));
         if (create_args == NULL) {
             dws_prolog_finish (h, p, id, 0, "OOM", prolog_active);
