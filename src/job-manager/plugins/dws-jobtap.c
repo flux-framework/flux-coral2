@@ -26,6 +26,7 @@
 #include <flux/core.h>
 #include <flux/jobtap.h>
 
+#define PLUGIN_NAME "dws"
 #define CREATE_DEP_NAME "dws-create"
 #define SETUP_PROLOG_NAME "dws-setup"
 #define DWS_EPILOG_NAME "dws-epilog"
@@ -613,7 +614,7 @@ static void resource_update_msg_cb (flux_t *h,
     if (strlen (exclude_str) > 0) {
         if (!(constraints = generate_constraints (h, p, jobid, exclude_str))) {
             flux_log_error (h, "Could not generate exclusion constraint for %s", idf58 (jobid));
-            raise_job_exception (p, jobid, "dws", "Could not generate exclusion constraint");
+            raise_job_exception (p, jobid, PLUGIN_NAME, "Could not generate exclusion constraint");
             return;
         }
     }
@@ -625,7 +626,7 @@ static void resource_update_msg_cb (flux_t *h,
                             idf58 (jobid));
             errmsg_str = "<could not fetch error message>";
         }
-        raise_job_exception (p, jobid, "dws", errmsg_str);
+        raise_job_exception (p, jobid, PLUGIN_NAME, errmsg_str);
         json_decref (constraints);
         return;
     } else if (flux_jobtap_job_aux_set (p,
@@ -645,7 +646,7 @@ static void resource_update_msg_cb (flux_t *h,
         flux_log_error (h,
                         "could not update jobspec for %s with new constraints and resources",
                         idf58 (jobid));
-        raise_job_exception (p, jobid, "dws", "Internal error: failed to update jobspec");
+        raise_job_exception (p, jobid, PLUGIN_NAME, "Internal error: failed to update jobspec");
         json_decref (constraints);
         return;
     }
@@ -729,7 +730,7 @@ static const struct flux_plugin_handler tab[] = {
 
 int flux_plugin_init (flux_plugin_t *p)
 {
-    if (flux_plugin_register (p, "dws", tab) < 0
+    if (flux_plugin_register (p, PLUGIN_NAME, tab) < 0
         || flux_jobtap_service_register (p, "resource-update", resource_update_msg_cb, p) < 0
         || flux_jobtap_service_register (p, "prolog-remove", prolog_remove_msg_cb, p) < 0
         || flux_jobtap_service_register (p, "epilog-remove", epilog_remove_msg_cb, p) < 0) {
