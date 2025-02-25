@@ -13,7 +13,7 @@ class Watch:
     def __init__(self, api, crd, resource_version, cb, *args, **kwargs):
         self.api = api
         self.crd = crd
-        self.resource_version = int(resource_version)
+        self.resource_version = resource_version
         self.cb = cb
         self.cb_args = args
         self.cb_kwargs = kwargs
