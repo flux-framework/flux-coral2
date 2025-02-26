@@ -748,7 +748,6 @@ def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
         compute_rpaths = {
             hostname: f"/cluster0/{hostname}" for hostname in _HOSTNAMES_TO_RABBITS
         }
-    resource_version = 0
     if drain_queues is not None:
         rset = flux.resource.resource_list(handle).get().all
         allowlist = set(rset.copy_constraint({"properties": drain_queues}).nodelist)
@@ -758,11 +757,10 @@ def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
             )
     else:
         allowlist = None
+    resource_version = 0
     for rabbit in api_response["items"]:
         name = rabbit["metadata"]["name"]
-        resource_version = max(
-            resource_version, int(rabbit["metadata"]["resourceVersion"])
-        )
+        resource_version = rabbit["metadata"]["resourceVersion"]
         if disable_fluxion:
             # don't mark the rabbit up or down but add the rabbit to the mapping
             rabbit_rpaths[name] = (None, None)
