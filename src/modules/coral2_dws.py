@@ -514,7 +514,7 @@ def set_property_on_compute_nodes(handle, rabbit, disable_fluxion, compute_rpath
             ).then(log_rpc_response)
 
 
-def drain_offline_nodes(handle, rabbit, allowlist, compute_rpaths):
+def drain_offline_nodes(handle, rabbit, allowlist):
     """Drain nodes listed as offline in a given Storage resource.
 
     Drain all the nodes in `nodelist` that are Offline, provided they are
@@ -583,7 +583,7 @@ def rabbit_state_change_cb(
         else:
             mark_rabbit(handle, status, *rabbit_rpaths[name], name)
     if handle.conf_get("rabbit.drain_compute_nodes", True):
-        drain_offline_nodes(handle, rabbit, allowlist, compute_rpaths)
+        drain_offline_nodes(handle, rabbit, allowlist)
     set_property_on_compute_nodes(handle, rabbit, disable_fluxion, compute_rpaths)
     # TODO: add some check for whether rabbit capacity has changed
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
