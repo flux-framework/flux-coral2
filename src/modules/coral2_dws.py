@@ -33,8 +33,6 @@ from flux_k8s import cleanup
 from flux_k8s.workflow import (
     TransientConditionInfo,
     WorkflowInfo,
-    WORKFLOW_NAME_PREFIX,
-    WORKFLOW_NAME_FORMAT,
     save_workflow_to_kvs,
 )
 
@@ -107,15 +105,6 @@ def save_elapsed_time_to_kvs(handle, jobid, workflow):
         )
 
 
-def move_workflow_desiredstate(workflow_name, desiredstate, k8s_api):
-    """Helper function for moving workflow to a desiredState."""
-    k8s_api.patch_namespaced_custom_object(
-        *crd.WORKFLOW_CRD,
-        workflow_name,
-        {"spec": {"desiredState": desiredstate}},
-    )
-
-
 def owner_uid(handle):
     """Get instance owner UID"""
     try:
@@ -156,7 +145,7 @@ def create_cb(handle, _t, msg, arg):
                 raise ValueError(
                     "only the instance owner can create persistent file systems"
                 )
-    workflow_name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
+    workflow_name = WorkflowInfo.get_name(jobid)
     spec = {
         "desiredState": "Proposal",
         "dwDirectives": dw_directives,
@@ -199,7 +188,7 @@ def setup_cb(handle, _t, msg, k8s_api):
     """
     jobid = msg.payload["jobid"]
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
-    workflow_name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
+    workflow_name = WorkflowInfo.get_name(jobid)
     workflow = k8s_api.get_namespaced_custom_object(*crd.WORKFLOW_CRD, workflow_name)
     compute_nodes = [{"name": hostname} for hostname in hlist]
     nodes_per_nnf = {}
@@ -239,8 +228,7 @@ def setup_cb(handle, _t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    WorkflowInfo.get(jobid)
-    move_workflow_desiredstate(workflow_name, "Setup", k8s_api)
+    WorkflowInfo.get(jobid).move_desiredstate("Setup", k8s_api)
 
 
 @message_callback_wrapper
@@ -264,7 +252,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
         # the workflow immediately to 'teardown'
         winfo.move_to_teardown(handle, k8s_api)
     else:
-        move_workflow_desiredstate(winfo.name, "PostRun", k8s_api)
+        winfo.move_desiredstate("PostRun", k8s_api)
 
 
 @message_callback_wrapper
@@ -304,7 +292,7 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
     except Exception:
         LOGGER.exception("Invalid event in workflow stream: %s", event)
         return
-    if not workflow_name.startswith(WORKFLOW_NAME_PREFIX):
+    if not WorkflowInfo.is_recognized(workflow_name):
         LOGGER.warning("unrecognized workflow '%s' in event stream", workflow_name)
         return
     winfo = WorkflowInfo.get(jobid)
@@ -404,11 +392,11 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         save_workflow_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
-        move_workflow_desiredstate(winfo.name, "DataIn", k8s_api)
+        winfo.move_desiredstate("DataIn", k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "DataIn"):
         # move workflow to next stage, PreRun
-        move_workflow_desiredstate(winfo.name, "PreRun", k8s_api)
+        winfo.move_desiredstate("PreRun", k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "PreRun"):
         # tell DWS jobtap plugin that the job can start
@@ -422,7 +410,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "PostRun"):
         # move workflow to next stage, DataOut
-        move_workflow_desiredstate(winfo.name, "DataOut", k8s_api)
+        winfo.move_desiredstate("DataOut", k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "DataOut"):
         # move workflow to next stage, teardown

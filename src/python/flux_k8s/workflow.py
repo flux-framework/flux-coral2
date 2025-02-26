@@ -9,8 +9,7 @@ import flux.job
 
 from flux_k8s import cleanup, crd
 
-WORKFLOW_NAME_PREFIX = "fluxjob-"
-WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -33,6 +32,8 @@ class WorkflowInfo:
     save_datamovements = 0
 
     _WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
+    _WORKFLOW_NAME_PREFIX = "fluxjob-"
+    _WORKFLOW_NAME_FORMAT = _WORKFLOW_NAME_PREFIX + "{jobid}"
 
     @classmethod
     def add(cls, jobid, *args, **kwargs):
@@ -51,10 +52,20 @@ class WorkflowInfo:
         """Remove an instance with the given jobid."""
         del cls._WORKFLOWINFO_CACHE[jobid]
 
+    @classmethod
+    def get_name(cls, jobid):
+        """Get the name of a workflow."""
+        return cls._WORKFLOW_NAME_FORMAT.format(jobid=jobid)
+
+    @classmethod
+    def is_recognized(cls, name):
+        """Return True if the given workflow name is consistent with the scheme."""
+        return name.startswith(cls._WORKFLOW_NAME_PREFIX)
+
     def __init__(self, jobid, name=None, resources=None):
         self.jobid = jobid
         if name is None:
-            self.name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
+            self.name = self.get_name(jobid)
         else:
             self.name = name  # name of the k8s workflow
         self.resources = resources  # jobspec 'resources' field
@@ -122,6 +133,14 @@ class WorkflowInfo:
                 successful_datamovements[: self.save_datamovements - len(datamovements)]
             )
         return datamovements
+
+    def move_desiredstate(self, desiredstate, k8s_api):
+        """Helper function for moving workflow to a desiredState."""
+        k8s_api.patch_namespaced_custom_object(
+            *crd.WORKFLOW_CRD,
+            self.name,
+            {"spec": {"desiredState": desiredstate}},
+        )
 
 
 def save_workflow_to_kvs(handle, jobid, workflow, datamovements=None):
