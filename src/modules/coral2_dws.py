@@ -32,7 +32,6 @@ from flux_k8s import directivebreakdown
 from flux_k8s import cleanup
 
 
-_WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
 _HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 _RABBITS_TO_HOSTLISTS = {}  # maps rabbits to hostlists
 LOGGER = logging.getLogger(__name__)
@@ -46,9 +45,31 @@ _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
 
 
 class WorkflowInfo:
-    """Represents and holds information about a specific workflow object."""
+    """Represents and holds information about a specific workflow object.
+
+    The class offers methods for maintaining a set of instances.
+    """
 
     save_datamovements = 0
+
+    _WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
+
+    @classmethod
+    def add(cls, jobid, *args, **kwargs):
+        """Add an entry to the cache of instances."""
+        new_instance = cls(jobid, *args, **kwargs)
+        cls._WORKFLOWINFO_CACHE[new_instance.jobid] = new_instance
+        return new_instance
+
+    @classmethod
+    def get(cls, jobid):
+        """Return an instance with the given jobid."""
+        return cls._WORKFLOWINFO_CACHE.setdefault(jobid, cls(jobid))
+
+    @classmethod
+    def remove(cls, jobid):
+        """Remove an instance with the given jobid."""
+        del cls._WORKFLOWINFO_CACHE[jobid]
 
     def __init__(self, jobid, name=None, resources=None):
         self.jobid = jobid
@@ -285,10 +306,7 @@ def create_cb(handle, _t, msg, arg):
         *crd.WORKFLOW_CRD,
         body,
     )
-    # add workflow to the cache
-    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(
-        jobid, workflow_name, msg.payload["resources"]
-    )
+    WorkflowInfo.add(jobid, workflow_name, msg.payload["resources"])
     # submit a memo providing the name of the workflow
     handle.rpc(
         "job-manager.memo",
@@ -348,7 +366,7 @@ def setup_cb(handle, _t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
+    WorkflowInfo.get(jobid)
     move_workflow_desiredstate(workflow_name, "Setup", k8s_api)
 
 
@@ -363,7 +381,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
     the workflow directly to `teardown`.
     """
     jobid = msg.payload["jobid"]
-    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
+    winfo = WorkflowInfo.get(jobid)
     run_started = msg.payload["run_started"]
     if winfo.toredown:
         # workflow has already been transitioned to 'teardown', do nothing
@@ -386,7 +404,7 @@ def teardown_cb(handle, _t, msg, k8s_api):
     Move the workflow directly to Teardown.
     """
     jobid = msg.payload["jobid"]
-    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
+    winfo = WorkflowInfo.get(jobid)
     if not winfo.toredown:
         winfo.move_to_teardown(handle, k8s_api)
 
@@ -416,10 +434,10 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
     if not workflow_name.startswith(WORKFLOW_NAME_PREFIX):
         LOGGER.warning("unrecognized workflow '%s' in event stream", workflow_name)
         return
-    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
+    winfo = WorkflowInfo.get(jobid)
     if event.get("TYPE") == "DELETED":
         # the workflow has been deleted, we can forget about it
-        del _WORKFLOWINFO_CACHE[jobid]
+        WorkflowInfo.remove(jobid)
         return
     try:
         _workflow_state_change_cb_inner(
