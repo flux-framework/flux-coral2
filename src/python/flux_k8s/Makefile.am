@@ -4,7 +4,8 @@ nobase_fluxk8spy_PYTHON = \
 	directivebreakdown.py \
 	watch.py \
 	cleanup.py \
-	workflow.py
+	workflow.py \
+	storage.py
 
 
 clean-local:
