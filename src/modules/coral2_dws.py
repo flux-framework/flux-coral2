@@ -30,57 +30,20 @@ from flux_k8s import crd
 from flux_k8s.watch import Watchers, Watch
 from flux_k8s import directivebreakdown
 from flux_k8s import cleanup
+from flux_k8s.workflow import (
+    TransientConditionInfo,
+    WorkflowInfo,
+    save_workflow_to_kvs,
+)
 
 
-_WORKFLOWINFO_CACHE = {}  # maps jobids to WorkflowInfo objects
 _HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 _RABBITS_TO_HOSTLISTS = {}  # maps rabbits to hostlists
 LOGGER = logging.getLogger(__name__)
 WORKFLOWS_IN_TC = set()  # tc for TransientCondition
-WORKFLOW_NAME_PREFIX = "fluxjob-"
-WORKFLOW_NAME_FORMAT = WORKFLOW_NAME_PREFIX + "{jobid}"
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
 EXCLUDE_PROPERTY = "badrabbit"
-
 _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
-
-
-class WorkflowInfo:
-    """Represents and holds information about a specific workflow object."""
-
-    save_datamovements = 0
-
-    def __init__(self, jobid, name=None, resources=None):
-        self.jobid = jobid
-        if name is None:
-            self.name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
-        else:
-            self.name = name  # name of the k8s workflow
-        self.resources = resources  # jobspec 'resources' field
-        self.transient_condition = None  # may be a TransientConditionInfo
-        self.toredown = False  # True if workflows has been moved to teardown
-        self.deleted = False  # True if delete request has been sent to k8s
-
-    def move_to_teardown(self, handle, k8s_api, workflow=None):
-        """Move a workflow to the 'Teardown' desiredState."""
-        if workflow is None:
-            workflow = k8s_api.get_namespaced_custom_object(
-                *crd.WORKFLOW_CRD, self.name
-            )
-        datamovements = get_datamovements(k8s_api, self.name, self.save_datamovements)
-        save_workflow_to_kvs(handle, self.jobid, workflow, datamovements)
-        cleanup.teardown_workflow(workflow)
-        self.toredown = True
-
-
-class TransientConditionInfo:
-    """Represents and holds information about a TransientCondition for a workflow."""
-
-    def __init__(self, workflow):
-        self.workflow = workflow  # workflow that hit the Transientcondition
-        self.last_time = time.time()  # time in seconds of last TransientCondition
-        # message associated with last TransientCondition
-        self.last_message = None
 
 
 def log_rpc_response(rpc):
@@ -142,86 +105,6 @@ def save_elapsed_time_to_kvs(handle, jobid, workflow):
         )
 
 
-def get_datamovements(k8s_api, workflow_name, count):
-    """Fetch datamovement resources and optionally dump them to the logs.
-
-    Save every datamovement to the logs if loglevel is INFO or more verbose.
-
-    Return 'count' datamovements.
-    """
-    if LOGGER.isEnabledFor(logging.INFO):
-        limit_arg = {}
-    else:
-        if count <= 0:
-            return []
-        limit_arg = {"limit": count}
-    try:
-        api_response = k8s_api.list_cluster_custom_object(
-            group="nnf.cray.hpe.com",
-            version="v1alpha4",
-            plural="nnfdatamovements",
-            label_selector=(
-                f"dataworkflowservices.github.io/workflow.name={workflow_name},"
-                "dataworkflowservices.github.io/workflow.namespace=default"
-            ),
-            **limit_arg,
-        )
-    except Exception as exc:
-        LOGGER.warning(
-            "Failed to fetch nnfdatamovement crds for workflow '%s': %s",
-            workflow_name,
-            exc,
-        )
-        return []
-    datamovements = []
-    successful_datamovements = []
-    for dm_crd in api_response["items"]:
-        LOGGER.info(
-            "Found nnfdatamovement crd for workflow '%s': %s",
-            workflow_name,
-            json.dumps(dm_crd),
-        )
-        if len(datamovements) < count:
-            if dm_crd["status"]["status"] == "Failed":
-                datamovements.append(dm_crd)
-            else:
-                successful_datamovements.append(dm_crd)
-    if len(datamovements) < count:
-        datamovements.extend(successful_datamovements[: count - len(datamovements)])
-    return datamovements
-
-
-def save_workflow_to_kvs(handle, jobid, workflow, datamovements=None):
-    """Save a workflow to a job's KVS, ignoring errors."""
-    try:
-        timing = workflow["status"]["elapsedTimeLastState"]
-        state = workflow["status"]["state"].lower()
-    except KeyError:
-        timing = None
-        state = None
-    try:
-        kvsdir = flux.job.job_kvs(handle, jobid)
-        kvsdir["rabbit_workflow"] = workflow
-        if timing is not None and state is not None:
-            kvsdir[f"rabbit_{state}_timing"] = timing
-        if datamovements is not None:
-            kvsdir["rabbit_datamovements"] = datamovements
-        kvsdir.commit()
-    except Exception:
-        LOGGER.exception(
-            "Failed to update KVS for job %s: workflow is %s", jobid, workflow
-        )
-
-
-def move_workflow_desiredstate(workflow_name, desiredstate, k8s_api):
-    """Helper function for moving workflow to a desiredState."""
-    k8s_api.patch_namespaced_custom_object(
-        *crd.WORKFLOW_CRD,
-        workflow_name,
-        {"spec": {"desiredState": desiredstate}},
-    )
-
-
 def owner_uid(handle):
     """Get instance owner UID"""
     try:
@@ -262,7 +145,7 @@ def create_cb(handle, _t, msg, arg):
                 raise ValueError(
                     "only the instance owner can create persistent file systems"
                 )
-    workflow_name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
+    workflow_name = WorkflowInfo.get_name(jobid)
     spec = {
         "desiredState": "Proposal",
         "dwDirectives": dw_directives,
@@ -285,10 +168,7 @@ def create_cb(handle, _t, msg, arg):
         *crd.WORKFLOW_CRD,
         body,
     )
-    # add workflow to the cache
-    _WORKFLOWINFO_CACHE[jobid] = WorkflowInfo(
-        jobid, workflow_name, msg.payload["resources"]
-    )
+    WorkflowInfo.add(jobid, workflow_name, msg.payload["resources"])
     # submit a memo providing the name of the workflow
     handle.rpc(
         "job-manager.memo",
@@ -308,7 +188,7 @@ def setup_cb(handle, _t, msg, k8s_api):
     """
     jobid = msg.payload["jobid"]
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
-    workflow_name = WORKFLOW_NAME_FORMAT.format(jobid=jobid)
+    workflow_name = WorkflowInfo.get_name(jobid)
     workflow = k8s_api.get_namespaced_custom_object(*crd.WORKFLOW_CRD, workflow_name)
     compute_nodes = [{"name": hostname} for hostname in hlist]
     nodes_per_nnf = {}
@@ -348,8 +228,7 @@ def setup_cb(handle, _t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
-    move_workflow_desiredstate(workflow_name, "Setup", k8s_api)
+    WorkflowInfo.get(jobid).move_desiredstate("Setup", k8s_api)
 
 
 @message_callback_wrapper
@@ -363,7 +242,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
     the workflow directly to `teardown`.
     """
     jobid = msg.payload["jobid"]
-    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
+    winfo = WorkflowInfo.get(jobid)
     run_started = msg.payload["run_started"]
     if winfo.toredown:
         # workflow has already been transitioned to 'teardown', do nothing
@@ -373,7 +252,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
         # the workflow immediately to 'teardown'
         winfo.move_to_teardown(handle, k8s_api)
     else:
-        move_workflow_desiredstate(winfo.name, "PostRun", k8s_api)
+        winfo.move_desiredstate("PostRun", k8s_api)
 
 
 @message_callback_wrapper
@@ -386,7 +265,7 @@ def teardown_cb(handle, _t, msg, k8s_api):
     Move the workflow directly to Teardown.
     """
     jobid = msg.payload["jobid"]
-    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
+    winfo = WorkflowInfo.get(jobid)
     if not winfo.toredown:
         winfo.move_to_teardown(handle, k8s_api)
 
@@ -413,13 +292,13 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
     except Exception:
         LOGGER.exception("Invalid event in workflow stream: %s", event)
         return
-    if not workflow_name.startswith(WORKFLOW_NAME_PREFIX):
+    if not WorkflowInfo.is_recognized(workflow_name):
         LOGGER.warning("unrecognized workflow '%s' in event stream", workflow_name)
         return
-    winfo = _WORKFLOWINFO_CACHE.setdefault(jobid, WorkflowInfo(jobid))
+    winfo = WorkflowInfo.get(jobid)
     if event.get("TYPE") == "DELETED":
         # the workflow has been deleted, we can forget about it
-        del _WORKFLOWINFO_CACHE[jobid]
+        WorkflowInfo.remove(jobid)
         return
     try:
         _workflow_state_change_cb_inner(
@@ -513,11 +392,11 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         save_workflow_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
-        move_workflow_desiredstate(winfo.name, "DataIn", k8s_api)
+        winfo.move_desiredstate("DataIn", k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "DataIn"):
         # move workflow to next stage, PreRun
-        move_workflow_desiredstate(winfo.name, "PreRun", k8s_api)
+        winfo.move_desiredstate("PreRun", k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "PreRun"):
         # tell DWS jobtap plugin that the job can start
@@ -531,7 +410,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "PostRun"):
         # move workflow to next stage, DataOut
-        move_workflow_desiredstate(winfo.name, "DataOut", k8s_api)
+        winfo.move_desiredstate("DataOut", k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "DataOut"):
         # move workflow to next stage, teardown
@@ -635,7 +514,7 @@ def set_property_on_compute_nodes(handle, rabbit, disable_fluxion, compute_rpath
             ).then(log_rpc_response)
 
 
-def drain_offline_nodes(handle, rabbit, allowlist, compute_rpaths):
+def drain_offline_nodes(handle, rabbit, allowlist):
     """Drain nodes listed as offline in a given Storage resource.
 
     Drain all the nodes in `nodelist` that are Offline, provided they are
@@ -704,7 +583,7 @@ def rabbit_state_change_cb(
         else:
             mark_rabbit(handle, status, *rabbit_rpaths[name], name)
     if handle.conf_get("rabbit.drain_compute_nodes", True):
-        drain_offline_nodes(handle, rabbit, allowlist, compute_rpaths)
+        drain_offline_nodes(handle, rabbit, allowlist)
     set_property_on_compute_nodes(handle, rabbit, disable_fluxion, compute_rpaths)
     # TODO: add some check for whether rabbit capacity has changed
     # TODO: update capacity of rabbit in resource graph (mark some slices down?)
