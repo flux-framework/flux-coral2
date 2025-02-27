@@ -124,7 +124,7 @@ class WorkflowInfo:
                 json.dumps(dm_crd),
             )
             if len(datamovements) < self.save_datamovements:
-                if dm_crd["status"]["status"] == "Failed":
+                if dm_crd.get("status", {}).get("status") == "Failed":
                     datamovements.append(dm_crd)
                 else:
                     successful_datamovements.append(dm_crd)
