@@ -161,7 +161,7 @@ test_expect_success 'shell: pals shell plugin creates apinfo file' '
 test_expect_success 'shell: apinfo file contents are valid for one task' '
 	apinfo=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 ${PYTHON:-python3} \
 	${SHARNESS_TEST_SRCDIR}/scripts/apinfo_checker.py) &&
-	echo "$apinfo" | jq -e ".version == 1" &&
+	echo "$apinfo" | jq -e ".version == 5" &&
 	echo "$apinfo" | jq -e ".cmds[0].npes == 1" &&
 	echo "$apinfo" | jq -e ".pes[0].localidx == 0" &&
 	echo "$apinfo" | jq -e ".pes[0].cmdidx == 0" &&
