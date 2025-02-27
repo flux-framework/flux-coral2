@@ -1,3 +1,27 @@
+flux-coral2 0.21.0 - 2025-03-06
+-------------------------------
+
+### New Features
+ * dws: add jobid to jobtap error messages (#284)
+
+### Fixes
+ * dws: fix nnfdatamovement keyerror (#293)
+ * dws: stop casting k8s resourceVersion to int (#288)
+ * dws-jobtap: avoid setting aux too early (#286)
+ * dws-jobtap: rpc responses (#302)
+ * dws: remove create callback jobtap aux (#300)
+ * dws: fix dependency error (#304)
+
+### Cleanup
+ * Cleanup: refactor workflow representation (#291)
+ * `coral2_dws`: refactor badrabbit property (#281)
+ * dws: drop unnecessary log messages (#298)
+ * dws: storage refactor (#299)
+
+### Build/Testsuite
+ * libtap: add unit testing framework (#283)
+
+
 flux-coral2 0.20.1 - 2025-02-18
 -------------------------------
 
