@@ -1,6 +1,6 @@
 """Module defining classes and functions for storing and manipulating workflows."""
 
-import time
+import collections
 import logging
 
 import flux
@@ -12,14 +12,10 @@ from flux_k8s import cleanup, crd
 LOGGER = logging.getLogger(__name__)
 
 
-class TransientConditionInfo:
-    """Represents and holds information about a TransientCondition for a workflow."""
-
-    def __init__(self, workflow):
-        self.workflow = workflow  # workflow that hit the Transientcondition
-        self.last_time = time.time()  # time in seconds of last TransientCondition
-        # message associated with last TransientCondition
-        self.last_message = None
+# Represents and holds information about a TransientCondition for a workflow
+TransientConditionInfo = collections.namedtuple(
+    "TransientConditionInfo", ["last_time", "last_message"]
+)
 
 
 class WorkflowInfo:
@@ -68,7 +64,6 @@ class WorkflowInfo:
         else:
             self.name = name  # name of the k8s workflow
         self.resources = resources  # jobspec 'resources' field
-        self.transient_condition = None  # may be a TransientConditionInfo
         self.toredown = False  # True if workflows has been moved to teardown
         self.deleted = False  # True if delete request has been sent to k8s
 

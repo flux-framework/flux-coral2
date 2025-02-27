@@ -41,7 +41,7 @@ from flux_k8s.workflow import (
 _HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 _RABBITS_TO_HOSTLISTS = {}  # maps rabbits to hostlists
 LOGGER = logging.getLogger(__name__)
-WORKFLOWS_IN_TC = set()  # tc for TransientCondition
+WORKFLOWS_IN_TC = {}  # tc for TransientCondition
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
 EXCLUDE_PROPERTY = "badrabbit"
 _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
@@ -433,13 +433,18 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
             winfo.move_to_teardown(handle, k8s_api, workflow)
     elif workflow["status"].get("status") == "TransientCondition":
         # a potentially fatal error has occurred, but may resolve itself
-        if winfo.transient_condition is None:
-            winfo.transient_condition = TransientConditionInfo(workflow)
-        winfo.transient_condition.last_message = workflow["status"].get("message", "")
-        WORKFLOWS_IN_TC.add(winfo)
+        message = workflow["status"].get("message", "")
+        if winfo.jobid not in WORKFLOWS_IN_TC:
+            WORKFLOWS_IN_TC[winfo.jobid] = TransientConditionInfo(time.time(), message)
+        else:
+            # grab the old time field and keep it, but replace the message
+            new_tc = TransientConditionInfo(
+                WORKFLOWS_IN_TC[winfo.jobid].last_time, message
+            )
+            WORKFLOWS_IN_TC[winfo.jobid] = new_tc
     else:
-        winfo.transient_condition = None
-        WORKFLOWS_IN_TC.discard(winfo)
+        if winfo.jobid in WORKFLOWS_IN_TC:
+            del WORKFLOWS_IN_TC[winfo.jobid]
 
 
 def set_property_on_compute_nodes(handle, rabbit, disable_fluxion, compute_rpaths):
@@ -671,16 +676,16 @@ def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
     # iterate over a copy of the set
     # otherwise an exception occurs because we modify the set as we
     # iterate over it.
-    for winfo in WORKFLOWS_IN_TC.copy():
-        if curr_time - winfo.transient_condition.last_time > tc_timeout:
+    for jobid, trans_cond in list(WORKFLOWS_IN_TC.items()):
+        if curr_time - trans_cond.last_time > tc_timeout:
             watcher.flux_handle.job_raise(
-                winfo.jobid,
+                jobid,
                 "exception",
                 0,
                 "DWS/Rabbit interactions failed: workflow in 'TransientCondition' "
-                f"state too long: {winfo.transient_condition.last_message}",
+                f"state too long: {trans_cond.last_message}",
             )
-            WORKFLOWS_IN_TC.discard(winfo)
+            del WORKFLOWS_IN_TC[jobid]
 
 
 def setup_parsing():
