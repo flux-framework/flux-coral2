@@ -45,6 +45,8 @@ EXTRA_DIST= \
 dist_check_SCRIPTS = \
 	scripts/run_timeout.py \
 	scripts/apinfo_checker.py \
+	scripts/set_status.py \
+	scripts/sign-as.py \
 	rc/rc1-job \
 	rc/rc3-job \
 	python/pycotap \
