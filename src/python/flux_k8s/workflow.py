@@ -2,7 +2,6 @@
 
 import time
 import logging
-import json
 
 import flux
 import flux.job
@@ -91,22 +90,18 @@ class WorkflowInfo:
 
         Return 'self.save_datamovements' datamovements.
         """
-        if LOGGER.isEnabledFor(logging.INFO):
-            limit_arg = {}
-        else:
-            if self.save_datamovements <= 0:
-                return []
-            limit_arg = {"limit": self.save_datamovements}
+        if self.save_datamovements <= 0:
+            return []
         try:
             api_response = k8s_api.list_cluster_custom_object(
                 group="nnf.cray.hpe.com",
                 version="v1alpha4",
                 plural="nnfdatamovements",
+                limit=self.save_datamovements,
                 label_selector=(
                     f"dataworkflowservices.github.io/workflow.name={self.name},"
                     "dataworkflowservices.github.io/workflow.namespace=default"
                 ),
-                **limit_arg,
             )
         except Exception as exc:
             LOGGER.warning(
@@ -118,11 +113,6 @@ class WorkflowInfo:
         datamovements = []
         successful_datamovements = []
         for dm_crd in api_response["items"]:
-            LOGGER.info(
-                "Found nnfdatamovement crd for workflow '%s': %s",
-                self.name,
-                json.dumps(dm_crd),
-            )
             if len(datamovements) < self.save_datamovements:
                 if dm_crd.get("status", {}).get("status") == "Failed":
                     datamovements.append(dm_crd)
