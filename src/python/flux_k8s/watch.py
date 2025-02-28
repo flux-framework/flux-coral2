@@ -1,3 +1,5 @@
+"""Module defining utilities for watching K8s resources."""
+
 import syslog
 import logging
 
@@ -10,11 +12,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Watch:
-    def __init__(self, api, crd, resource_version, cb, *args, **kwargs):
+    """Represents a watch on a k8s resource."""
+
+    def __init__(self, api, crd, resource_version, callback, *args, **kwargs):
         self.api = api
         self.crd = crd
         self.resource_version = resource_version
-        self.cb = cb
+        self.callback = callback
         self.cb_args = args
         self.cb_kwargs = kwargs
 
@@ -53,9 +57,10 @@ class Watch:
                         event["object"]["message"],
                     )
                     self.resource_version = 0
-                    return self.watch()
+                    self.watch()
+                    return
                 self.resource_version = event["object"]["metadata"]["resourceVersion"]
-                self.cb(event, *self.cb_args, **self.cb_kwargs)
+                self.callback(event, *self.cb_args, **self.cb_kwargs)
         except ApiException as apiexc:
             if apiexc.status != 410:
                 raise
@@ -63,27 +68,30 @@ class Watch:
             self.watch()
 
 
-def watch_cb(reactor, watcher, _r, watchers):
-    # watchers.fh.log(syslog.LOG_ERR, "Watch timer cb fired")
+def _watch_cb(reactor, watcher, _r, watchers):
     watchers.watch()
 
 
-def watch_test_cb(fh, t, msg, watchers):
-    fh.log(syslog.LOG_DEBUG, "received DWS watch test RPC")
+def _watch_test_cb(handle, _t, msg, watchers):
+    """Respond to watch_test RPC."""
+    handle.log(syslog.LOG_DEBUG, "received DWS watch test RPC")
     watchers.watch()
-    fh.respond(msg)
+    handle.respond(msg)
 
 
 class Watchers:
-    def __init__(self, fh, watch_interval=5):
+    """Watch a group of resources."""
+
+    def __init__(self, handle, watch_interval=5):
         self.watches = []
-        self.fh = fh
-        self.timer_fh_watch = fh.timer_watcher_create(
-            watch_interval, watch_cb, repeat=watch_interval, args=self
+        self.handle = handle
+        self.timer_fh_watch = handle.timer_watcher_create(
+            watch_interval, _watch_cb, repeat=watch_interval, args=self
         )
         self.timer_fh_watch.start()
-        self.msg_fh_watch = fh.msg_watcher_create(
-            watch_test_cb, FLUX_MSGTYPE_REQUEST, "dws.watch_test", args=self
+        # for testing purposes
+        self.msg_fh_watch = handle.msg_watcher_create(
+            _watch_test_cb, FLUX_MSGTYPE_REQUEST, "dws.watch_test", args=self
         )
         self.msg_fh_watch.start()
 
@@ -97,8 +105,10 @@ class Watchers:
         self.msg_fh_watch.destroy()
 
     def add_watch(self, watch):
+        """Add a new resource to watch."""
         self.watches.append(watch)
 
     def watch(self):
+        """Watch all resources currently registered."""
         for watch in self.watches:
             watch.watch()
