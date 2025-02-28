@@ -26,6 +26,7 @@ from flux.hostlist import Hostlist
 from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
+import flux_k8s
 from flux_k8s import crd
 from flux_k8s.watch import Watchers, Watch
 from flux_k8s import directivebreakdown
@@ -53,7 +54,7 @@ def log_rpc_response(rpc):
     except Exception as exc:
         LOGGER.warning("RPC error %s", repr(exc))
     else:
-        if msg is not None:
+        if msg:
             LOGGER.debug("RPC response was %s", msg)
 
 
@@ -432,12 +433,6 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
             winfo.move_to_teardown(handle, k8s_api, workflow)
     elif workflow["status"].get("status") == "TransientCondition":
         # a potentially fatal error has occurred, but may resolve itself
-        LOGGER.info(
-            "Workflow '%s' has TransientCondition set, message is '%s', workflow is %s",
-            winfo.name,
-            workflow["status"].get("message", ""),
-            workflow,
-        )
         if winfo.transient_condition is None:
             winfo.transient_condition = TransientConditionInfo(workflow)
         winfo.transient_condition.last_message = workflow["status"].get("message", "")
@@ -757,10 +752,10 @@ def config_logging(args):
         log_level = logging.INFO
     if args.verbose > 1:
         log_level = logging.DEBUG
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        level=log_level,
-    )
+    logging.basicConfig(format="%(levelname)s - %(message)s")
+    LOGGER.setLevel(log_level)
+    # also set level on flux_k8s package
+    logging.getLogger(flux_k8s.__name__).setLevel(log_level)
 
 
 def populate_rabbits_dict(k8s_api):
