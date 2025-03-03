@@ -1,3 +1,5 @@
+"""Module defining constants for fetching k8s resources."""
+
 from collections import namedtuple
 
 CRD = namedtuple("CRD", ["group", "version", "namespace", "plural"])

@@ -21,7 +21,6 @@ from kubernetes.client.rest import ApiException
 import urllib3
 
 import flux
-import flux.kvs
 from flux.hostlist import Hostlist
 from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
@@ -31,6 +30,7 @@ from flux_k8s import crd
 from flux_k8s.watch import Watchers, Watch
 from flux_k8s import directivebreakdown
 from flux_k8s import cleanup
+from flux_k8s import storage
 from flux_k8s.workflow import (
     TransientConditionInfo,
     WorkflowInfo,
@@ -38,24 +38,10 @@ from flux_k8s.workflow import (
 )
 
 
-_HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
-_RABBITS_TO_HOSTLISTS = {}  # maps rabbits to hostlists
 LOGGER = logging.getLogger(__name__)
-WORKFLOWS_IN_TC = set()  # tc for TransientCondition
+WORKFLOWS_IN_TC = {}  # tc for TransientCondition
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
-EXCLUDE_PROPERTY = "badrabbit"
 _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
-
-
-def log_rpc_response(rpc):
-    """RPC callback for logging response."""
-    try:
-        msg = rpc.get()
-    except Exception as exc:
-        LOGGER.warning("RPC error %s", repr(exc))
-    else:
-        if msg:
-            LOGGER.debug("RPC response was %s", msg)
 
 
 def message_callback_wrapper(func):
@@ -174,7 +160,7 @@ def create_cb(handle, _t, msg, arg):
     handle.rpc(
         "job-manager.memo",
         payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}},
-    ).then(log_rpc_response)
+    ).then(storage.log_rpc_response)
 
 
 @message_callback_wrapper
@@ -194,7 +180,7 @@ def setup_cb(handle, _t, msg, k8s_api):
     compute_nodes = [{"name": hostname} for hostname in hlist]
     nodes_per_nnf = {}
     for hostname in hlist:
-        nnf_name = _HOSTNAMES_TO_RABBITS[hostname]
+        nnf_name = storage.HOSTNAMES_TO_RABBITS[hostname]
         nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
     handle.rpc(
         "job-manager.memo",
@@ -202,7 +188,7 @@ def setup_cb(handle, _t, msg, k8s_api):
             "id": jobid,
             "memo": {"rabbits": Hostlist(nodes_per_nnf.keys()).encode()},
         },
-    ).then(log_rpc_response)
+    ).then(storage.log_rpc_response)
     k8s_api.patch_namespaced_custom_object(
         crd.COMPUTE_CRD.group,
         crd.COMPUTE_CRD.version,
@@ -344,7 +330,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         # Attempt to remove the finalizer again in case the state transitioned
         # too quickly for it to be noticed earlier.
         handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
-            log_rpc_response
+            storage.log_rpc_response
         )
         save_elapsed_time_to_kvs(handle, jobid, workflow)
         cleanup.delete_workflow(workflow)
@@ -383,13 +369,13 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
                 "copy-offload": copy_offload,
                 "errmsg": errmsg,
                 "exclude": (
-                    EXCLUDE_PROPERTY
+                    storage.EXCLUDE_PROPERTY
                     if disable_fluxion
                     or not handle.conf_get("rabbit.drain_compute_nodes", True)
                     else ""
                 ),
             },
-        ).then(log_rpc_response)
+        ).then(storage.log_rpc_response)
         save_workflow_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
@@ -407,7 +393,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
                 "id": jobid,
                 "variables": workflow["status"].get("env", {}),
             },
-        ).then(log_rpc_response)
+        ).then(storage.log_rpc_response)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "PostRun"):
         # move workflow to next stage, DataOut
@@ -433,269 +419,40 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
             winfo.move_to_teardown(handle, k8s_api, workflow)
     elif workflow["status"].get("status") == "TransientCondition":
         # a potentially fatal error has occurred, but may resolve itself
-        if winfo.transient_condition is None:
-            winfo.transient_condition = TransientConditionInfo(workflow)
-        winfo.transient_condition.last_message = workflow["status"].get("message", "")
-        WORKFLOWS_IN_TC.add(winfo)
-    else:
-        winfo.transient_condition = None
-        WORKFLOWS_IN_TC.discard(winfo)
-
-
-def set_property_on_compute_nodes(handle, rabbit, disable_fluxion, compute_rpaths):
-    """Set properties on compute nodes so that rabbit jobs can avoid them
-
-    This provides a mechanism for handling both down rabbits AND
-    down rabbit-to-compute-node links. If the rabbit as a whole is down,
-    all nodes should be marked with the property. If individual PCIe
-    links are down, just the affected nodes should be marked.
-    """
-    name = rabbit["metadata"]["name"]
-    all_nodes = set(_RABBITS_TO_HOSTLISTS[name])
-    down_nodes = set()
-    try:
-        status = rabbit["status"]["status"]
-    except KeyError:
-        # if rabbit doesn't have a status, consider it down
-        status = "Disabled"
-    if status != "Ready" and disable_fluxion:
-        # all nodes should be marked with the property, we can end here
-        down_nodes = all_nodes
-    elif (
-        status == "Ready"
-        and not handle.conf_get("rabbit.drain_compute_nodes", True)
-        and handle.conf_get("rabbit.soft_drain", True)
-    ):
-        # rabbit is up, draining disabled, individual nodes may be marked with property
-        try:
-            nodelist = rabbit["status"]["access"]["computes"]
-        except KeyError:
-            nodelist = []
-        for compute_node in nodelist:
-            if compute_node["status"] != "Ready":
-                down_nodes.add(compute_node["name"])
-    up_nodes = all_nodes - down_nodes
-    if up_nodes:
-        LOGGER.debug(
-            "Removing property %s from nodes %s attached to rabbit %s",
-            EXCLUDE_PROPERTY,
-            Hostlist(up_nodes).uniq(),
-            name,
-        )
-    for hostname in up_nodes:
-        if hostname in compute_rpaths:
-            payload = {
-                "resource_path": compute_rpaths[hostname],
-                "key": EXCLUDE_PROPERTY,
-            }
-            handle.rpc("sched-fluxion-resource.remove_property", payload).then(
-                log_rpc_response
-            )
-    if down_nodes:
-        LOGGER.debug(
-            "Adding property %s to nodes %s attached to rabbit %s",
-            EXCLUDE_PROPERTY,
-            Hostlist(down_nodes).uniq(),
-            name,
-        )
-    for hostname in down_nodes:
-        if hostname in compute_rpaths:
-            handle.rpc(
-                "sched-fluxion-resource.set_property",
-                {
-                    "sp_resource_path": compute_rpaths[hostname],
-                    "sp_keyval": f"{EXCLUDE_PROPERTY}=bad",
-                },
-            ).then(log_rpc_response)
-
-
-def drain_offline_nodes(handle, rabbit, allowlist):
-    """Drain nodes listed as offline in a given Storage resource.
-
-    Drain all the nodes in `nodelist` that are Offline, provided they are
-    in `allowlist`.
-
-    If draining is disabled in the rabbit config table, do nothing.
-    """
-    # rabbits don't have a 'status' field until they boot, in which case
-    # there is nothing to do
-    try:
-        nodelist = rabbit["status"]["access"]["computes"]
-    except KeyError:
-        return
-    offline_nodes = Hostlist()
-    for compute_node in nodelist:
-        if compute_node["status"] != "Ready":
-            if allowlist is None or compute_node["name"] in allowlist:
-                offline_nodes.append(compute_node["name"])
-    if offline_nodes:
-        encoded_hostlist = offline_nodes.encode()
-        LOGGER.debug("Draining nodes %s", encoded_hostlist)
-        handle.rpc(
-            "resource.drain",
-            payload={
-                "targets": encoded_hostlist,
-                "mode": "update",
-                "reason": "rabbit lost PCIe connection",
-            },
-            nodeid=0,
-        ).then(log_rpc_response)
-
-
-def mark_rabbit(handle, status, resource_path, ssdcount, name):
-    """Send RPCs to mark a rabbit as up or down in Fluxion."""
-    if status == "Ready":
-        LOGGER.debug("Marking rabbit %s as up", name)
-        status = "up"
-    else:
-        LOGGER.debug("Marking rabbit %s as down, status is %s", name, status)
-        status = "down"
-    for ssdnum in range(ssdcount):
-        payload = {"resource_path": resource_path + f"/ssd{ssdnum}", "status": status}
-        handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
-
-
-def rabbit_state_change_cb(
-    event, handle, rabbit_rpaths, disable_fluxion, allowlist, compute_rpaths
-):
-    """Callback firing when a Storage object changes.
-
-    Marks a rabbit as up or down.
-    """
-    rabbit = event["object"]
-    name = rabbit["metadata"]["name"]
-    if name not in rabbit_rpaths:
-        LOGGER.error(
-            "Encountered an unknown Storage object '%s' in the event stream", name
-        )
-        return
-    if not disable_fluxion:
-        try:
-            status = rabbit["status"]["status"]
-        except KeyError:
-            # if rabbit doesn't have a status, consider it down
-            mark_rabbit(handle, "Down", *rabbit_rpaths[name], name)
+        message = workflow["status"].get("message", "")
+        if winfo.jobid not in WORKFLOWS_IN_TC:
+            WORKFLOWS_IN_TC[winfo.jobid] = TransientConditionInfo(time.time(), message)
         else:
-            mark_rabbit(handle, status, *rabbit_rpaths[name], name)
-    if handle.conf_get("rabbit.drain_compute_nodes", True):
-        drain_offline_nodes(handle, rabbit, allowlist)
-    set_property_on_compute_nodes(handle, rabbit, disable_fluxion, compute_rpaths)
-    # TODO: add some check for whether rabbit capacity has changed
-    # TODO: update capacity of rabbit in resource graph (mark some slices down?)
-
-
-def map_rabbits_to_fluxion_paths(handle):
-    """Read the fluxion resource graph and map rabbit hostnames to resource paths."""
-    rabbit_rpaths = {}
-    compute_rpaths = {}
-    try:
-        nodes = flux.kvs.get(handle, "resource.R")["scheduling"]["graph"]["nodes"]
-    except Exception as exc:
-        raise ValueError(
-            "Could not load rabbit resource graph data from KVS's resource.R"
-        ) from exc
-    for vertex in nodes:
-        metadata = vertex["metadata"]
-        if metadata["type"] == "rack" and "rabbit" in metadata["properties"]:
-            rabbit_rpaths[metadata["properties"]["rabbit"]] = (
-                metadata["paths"]["containment"],
-                int(metadata["properties"].get("ssdcount", 36)),
+            # grab the old time field and keep it, but replace the message
+            new_tc = TransientConditionInfo(
+                WORKFLOWS_IN_TC[winfo.jobid].last_time, message
             )
-        if metadata["type"] == "node":
-            compute_rpaths[metadata["name"]] = metadata["paths"]["containment"]
-    return rabbit_rpaths, compute_rpaths
-
-
-def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
-    """Watch every rabbit ('Storage' resources in k8s) known to k8s.
-
-    Whenever a Storage resource changes, mark it as 'up' or 'down' in Fluxion.
-
-    Also, to initialize, check the status of all rabbits and mark each one as up or
-    down, because status may have changed while this service was inactive.
-    """
-    api_response = k8s_api.list_namespaced_custom_object(*crd.RABBIT_CRD)
-    if not disable_fluxion:
-        rabbit_rpaths, compute_rpaths = map_rabbits_to_fluxion_paths(handle)
+            WORKFLOWS_IN_TC[winfo.jobid] = new_tc
     else:
-        rabbit_rpaths = {}
-        compute_rpaths = {
-            hostname: f"/cluster0/{hostname}" for hostname in _HOSTNAMES_TO_RABBITS
-        }
-    if drain_queues is not None:
-        rset = flux.resource.resource_list(handle).get().all
-        allowlist = set(rset.copy_constraint({"properties": drain_queues}).nodelist)
-        if not allowlist:
-            raise ValueError(
-                f"No resources found associated with queues {drain_queues}"
-            )
-    else:
-        allowlist = None
-    resource_version = 0
-    for rabbit in api_response["items"]:
-        name = rabbit["metadata"]["name"]
-        resource_version = rabbit["metadata"]["resourceVersion"]
-        if disable_fluxion:
-            # don't mark the rabbit up or down but add the rabbit to the mapping
-            rabbit_rpaths[name] = (None, None)
-        rabbit_state_change_cb(
-            {"object": rabbit},
-            handle,
-            rabbit_rpaths,
-            disable_fluxion,
-            allowlist,
-            compute_rpaths,
-        )
-    watchers.add_watch(
-        Watch(
-            k8s_api,
-            crd.RABBIT_CRD,
-            resource_version,
-            rabbit_state_change_cb,
-            handle,
-            rabbit_rpaths,
-            disable_fluxion,
-            allowlist,
-            compute_rpaths,
-        )
-    )
+        if winfo.jobid in WORKFLOWS_IN_TC:
+            del WORKFLOWS_IN_TC[winfo.jobid]
 
 
-def kill_workflows_in_tc(_reactor, watcher, _r, arg):
+def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
     """Callback firing every (tc_timeout / 2) seconds.
 
     Raise exceptions on jobs stuck in TransientCondition for more than
     tc_timeout seconds.
     """
-    tc_timeout, k8s_api = arg
     curr_time = time.time()
     # iterate over a copy of the set
     # otherwise an exception occurs because we modify the set as we
     # iterate over it.
-    for winfo in WORKFLOWS_IN_TC.copy():
-        if curr_time - winfo.transient_condition.last_time > tc_timeout:
+    for jobid, trans_cond in list(WORKFLOWS_IN_TC.items()):
+        if curr_time - trans_cond.last_time > tc_timeout:
             watcher.flux_handle.job_raise(
-                winfo.jobid,
+                jobid,
                 "exception",
                 0,
                 "DWS/Rabbit interactions failed: workflow in 'TransientCondition' "
-                f"state too long: {winfo.transient_condition.last_message}",
+                f"state too long: {trans_cond.last_message}",
             )
-            # for most states, raising an exception should be enough to trigger other
-            # logic that eventually moves the workflow to Teardown. However, if the
-            # workflow is in PostRun or DataOut, the exception won't affect the
-            # dws-epilog action holding the job, so the workflow should be moved
-            # to Teardown now.
-            if winfo.transient_condition.workflow["spec"]["desiredState"] in (
-                "PostRun",
-                "DataOut",
-            ):
-                winfo.move_to_teardown(
-                    watcher.flux_handle,
-                    k8s_api,
-                    winfo.transient_condition.workflow,
-                )
-            WORKFLOWS_IN_TC.discard(winfo)
+            del WORKFLOWS_IN_TC[jobid]
 
 
 def setup_parsing():
@@ -756,30 +513,6 @@ def config_logging(args):
     LOGGER.setLevel(log_level)
     # also set level on flux_k8s package
     logging.getLogger(flux_k8s.__name__).setLevel(log_level)
-
-
-def populate_rabbits_dict(k8s_api):
-    """Populate the _HOSTNAMES_TO_RABBITS dictionary."""
-    systemconf = k8s_api.get_namespaced_custom_object(
-        *crd.SYSTEMCONFIGURATION_CRD, "default"
-    )
-    for nnf in systemconf["spec"]["storageNodes"]:
-        hlist = Hostlist()
-        try:
-            rabbit_computes = nnf["computesAccess"]
-        except KeyError:
-            rabbit_computes = []
-        for compute in rabbit_computes:
-            hostname = compute["name"]
-            hlist.append(hostname)
-            if hostname in _HOSTNAMES_TO_RABBITS:
-                raise KeyError(
-                    f"Same hostname ({hostname}) cannot be associated with "
-                    f"both {nnf['name']} and "
-                    f"{_HOSTNAMES_TO_RABBITS[hostname]}"
-                )
-            _HOSTNAMES_TO_RABBITS[hostname] = nnf["name"]
-        _RABBITS_TO_HOSTLISTS[nnf["name"]] = hlist.uniq()
 
 
 def register_services(handle, k8s_api, restrict_persistent):
@@ -911,7 +644,7 @@ def main():
         )
         sys.exit(_EXITCODE_NORESTART)
     cleanup.setup_cleanup_thread(handle.conf_get("rabbit.kubeconfig"))
-    populate_rabbits_dict(k8s_api)
+    storage.populate_rabbits_dict(k8s_api)
     # create a timer watcher for killing workflows that have been stuck in
     # the "Error" state for too long
     tc_timeout = handle.conf_get("rabbit.tc_timeout", 10)
@@ -919,12 +652,12 @@ def main():
         tc_timeout / 2,
         kill_workflows_in_tc,
         repeat=tc_timeout / 2,
-        args=(tc_timeout, k8s_api),
+        args=tc_timeout,
     ).start()
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
     with Watchers(handle, watch_interval=args.watch_interval) as watchers:
-        init_rabbits(
+        storage.init_rabbits(
             k8s_api,
             handle,
             watchers,
