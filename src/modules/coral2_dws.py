@@ -242,8 +242,22 @@ def post_run_cb(handle, _t, msg, k8s_api):
         return
     if not run_started:
         # the job hit an exception before beginning to run; transition
-        # the workflow immediately to 'teardown'
-        winfo.move_to_teardown(handle, k8s_api)
+        # the workflow immediately to 'teardown' if it exists.
+        try:
+            workflow = k8s_api.get_namespaced_custom_object(
+                *crd.WORKFLOW_CRD, winfo.name
+            )
+        except ApiException as api_err:
+            if api_err.status != 404:
+                raise
+            # workflow doesn't exist, presumably it was never created
+            WorkflowInfo.remove(jobid)
+            handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
+                storage.log_rpc_response
+            )
+        else:
+            # workflow does exist
+            winfo.move_to_teardown(handle, k8s_api, workflow)
     else:
         winfo.move_desiredstate("PostRun", k8s_api)
 
