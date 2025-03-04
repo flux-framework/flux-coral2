@@ -24,7 +24,6 @@ def create_cb(fh, t, msg, arg):
     fh.respond(msg, payload)
     print(f"Responded to create request with {payload}")
     if args.create_fail:
-        fh.reactor_stop()
         return
     fh.rpc(
         "job-manager.dws.resource-update",
