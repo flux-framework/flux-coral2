@@ -19,8 +19,9 @@ args = parser.parse_args()
 def create_cb(fh, t, msg, arg):
     payload = {
         "success": not args.create_fail,
-        "errstr": "create RPC failed for test purposes",
     }
+    if args.create_fail:
+        payload["errstr"] = "create RPC failed for test purposes"
     fh.respond(msg, payload)
     print(f"Responded to create request with {payload}")
     if args.create_fail:
@@ -43,6 +44,7 @@ def setup_cb(fh, t, msg, arg):
     payload = {"success": not args.setup_fail}
     if args.setup_fail:
         payload["errstr"] = "setup RPC failed for test purposes"
+    print(f"Responded to setup request with {payload}")
     fh.respond(msg, payload)
     fh.rpc(
         "job-manager.dws.prolog-remove",
@@ -58,6 +60,7 @@ def post_run_cb(fh, t, msg, arg):
     if args.post_run_fail:
         payload["errstr"] = "post_run RPC failed for test purposes"
     fh.respond(msg, payload)
+    print(f"Responded to post_run request with {payload}")
     if not args.post_run_fail:
         fh.rpc(
             "job-manager.dws.epilog-remove",
