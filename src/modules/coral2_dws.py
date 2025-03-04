@@ -44,6 +44,10 @@ _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
 _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
 
 
+class UserError(Exception):
+    """Represents user errors."""
+
+
 def message_callback_wrapper(func):
     """Decorator for msg_watcher callbacks.
 
@@ -54,6 +58,8 @@ def message_callback_wrapper(func):
     def wrapper(handle, arg, msg, k8s_api):
         try:
             func(handle, arg, msg, k8s_api)
+        except UserError as exc:
+            handle.respond(msg, {"success": False, "errstr": str(exc)})
         except Exception as exc:
             try:
                 jobid = msg.payload["jobid"]
@@ -121,15 +127,15 @@ def create_cb(handle, _t, msg, arg):
             # remove any blank entries that resulted and add back "#DW "
             dw_directives = ["#DW " + dw.strip() for dw in dw_directives if dw.strip()]
     if not isinstance(dw_directives, list):
-        raise TypeError(
-            f"Malformed dw_directives, not list or string: {dw_directives!r}"
+        raise UserError(
+            f"Malformed #DW directives, not list or string: {dw_directives!r}"
         )
     for i, directive in enumerate(dw_directives):
         if directive.strip() in presets:
             dw_directives[i] = presets[directive.strip()]
         if restrict_persistent and "create_persistent" in directive:
             if userid != owner_uid(handle):
-                raise ValueError(
+                raise UserError(
                     "only the instance owner can create persistent file systems"
                 )
     workflow_name = WorkflowInfo.get_name(jobid)
