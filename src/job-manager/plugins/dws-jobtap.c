@@ -152,9 +152,6 @@ static void create_cb (flux_future_t *f, void *arg)
                                  CREATE_DEP_NAME,
                                  "dws.create RPC returned failure");
         }
-    } else {
-        // add an aux specifying that a workflow has been created for the job
-        flux_jobtap_job_aux_set (args->p, args->id, "flux::dws_workflow_created", (void *)1, NULL);
     }
 }
 
@@ -444,9 +441,8 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
         current_job_exception (p, "Failed to unpack args");
         return -1;
     }
-    // check that the job has a DW attr section AND a workflow was successfully
-    // created for it
-    if (dw && flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "flux::dws_workflow_created")) {
+    // check that the job has a DW attr section
+    if (dw) {
         if (!(create_args = calloc (1, sizeof (struct create_arg_t)))) {
             flux_log_error (h, "error allocating arg struct for %s", idf58 (id));
             current_job_exception (p, "error allocating arg struct");

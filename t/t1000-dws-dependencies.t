@@ -44,6 +44,7 @@ test_expect_success 'job-manager: dws jobtap plugin works when RPCs succeed' '
 	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
 	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 1 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 5 ${create_jobid} clean
 '
 
@@ -120,6 +121,34 @@ test_expect_success 'job-manager: dws jobtap plugin works when job hits exceptio
 	flux job wait-event -vt 5 ${jobid} clean &&
 	flux job wait-event -vt 5 ${create_jobid} clean &&
 	test_must_fail flux job attach ${jobid}
+'
+
+test_expect_success 'job-manager: dws jobtap plugin works when reloaded' '
+	create_jobid=$(flux submit -t 8 --output=dws6.out --error=dws6.out \
+		flux python ${DWS_SCRIPT}) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	flux queue stop --all &&
+	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-remove &&
+	test_must_fail flux job wait-event -vt 2 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux jobtap remove dws-jobtap.so &&
+	flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
+	flux queue start --all &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 1 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 5 ${create_jobid} clean
 '
 
 test_done
