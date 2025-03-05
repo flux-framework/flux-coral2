@@ -27,6 +27,7 @@
 #include <flux/taskmap.h>
 
 #include "eventlog_helpers.h"
+#include "src/common/libapinfo/apinfo.h"
 
 /* PALS --- interface with HPE/Cray's PMI.
  *
@@ -72,79 +73,6 @@
  * the PMI_CONTROL_PORT distribution mechanism.
  */
 
-/* Application file format version */
-#define PALS_APINFO_VERSION 1
-
-/* File header structure */
-typedef struct {
-    int version;               // Set to PALS_APINFO_VERSION
-    size_t total_size;         // Size of the whole file in bytes
-    size_t comm_profile_size;  // sizeof(pals_comm_profile_t)
-    // offset from beginning of file to the first comm_profile_t
-    size_t comm_profile_offset;
-    // number of comm_profile_t (not used yet, set to 0)
-    int ncomm_profiles;
-    size_t cmd_size;  // sizeof(pals_cmd_t)
-    // offset from beginning of file to the first pals_cmd_t
-    size_t cmd_offset;
-    int ncmds;       // number of commands (MPMD programs)
-    size_t pe_size;  // sizeof(pals_pe_t)
-    // offset from beginning of file to the first pals_pe_t
-    size_t pe_offset;
-    int npes;          // number of PEs (processes/ranks)
-    size_t node_size;  // sizeof(pals_node_t)
-    // offset from beginning of file to the first pals_node_t
-    size_t node_offset;
-    int nnodes;       // number of nodes
-    size_t nic_size;  // sizeof(pals_nic_t)
-    // offset from beginning of file to the first pals_nic_t
-    size_t nic_offset;
-    int nnics;  // number of NICs (not used yet, set to 0)
-} pals_header_t;
-
-/* Network communication profile structure */
-typedef struct {
-    char tokenid[40];    /* Token UUID */
-    int vni;             /* VNI associated with this token */
-    int vlan;            /* VLAN associated with this token */
-    int traffic_classes; /* Bitmap of allowed traffic classes */
-} pals_comm_profile_t;
-
-/* MPMD command information structure */
-typedef struct {
-    int npes;         /* Number of tasks in this command */
-    int pes_per_node; /* Number of tasks per node */
-    int cpus_per_pe;  /* Number of CPUs per task */
-} pals_cmd_t;
-
-/* PE (i.e. task) information structure */
-typedef struct {
-    int localidx; /* Node-local PE index */
-    int cmdidx;   /* Command index for this PE */
-    int nodeidx;  /* Node index this PE is running on */
-} pals_pe_t;
-
-/* Node information structure */
-typedef struct {
-    int nid;           /* Node ID */
-    char hostname[64]; /* Node hostname */
-} pals_node_t;
-
-/* NIC address type */
-typedef enum { PALS_ADDR_IPV4, PALS_ADDR_IPV6, PALS_ADDR_MAC } pals_address_type_t;
-
-/* NIC information structure */
-typedef struct {
-    int nodeidx;                      /* Node index this NIC belongs to */
-    pals_address_type_t address_type; /* Address type for this NIC */
-    char address[40];                 /* Address of this NIC */
-} pals_nic_t;
-
-struct task_placement {
-    int *task_counts;
-    int **task_ids;
-};
-
 /* If true, don't edit LD_LIBRARY_PATH
  */
 static int no_edit_env;
@@ -169,220 +97,6 @@ static struct hostlist *hostlist_from_array (json_t *nodelist_array)
         }
     }
     return hlist;
-}
-
-/* Wrap calls to write for checks to EINTR/EAGAIN */
-static int safe_write (int fd, const void *buf, size_t size)
-{
-    ssize_t rc;
-    while (size > 0) {
-        rc = write (fd, buf, size);
-        if (rc < 0) {
-            if ((errno == EAGAIN) || (errno == EINTR))
-                continue;
-            return -1;
-        } else {
-            buf += rc;
-            size -= rc;
-        }
-    }
-    return 0;
-}
-
-/*
- * Return an array of initialized pals_pe_t structures.
- * 'task_counts' should be an array of length 'nnodes' specifying
- * how many tasks are on each node in the job.
- * 'tids' should be a 2D ragged array giving the job ranks for each
- * node in the job.
- */
-static pals_pe_t *setup_pals_pes (int ntasks, int nnodes, int *task_counts, int **tids)
-{
-    pals_pe_t *pes = NULL;
-    int nodeidx, localidx, taskid;
-
-    if (!(pes = calloc (ntasks, sizeof (pals_pe_t)))) {
-        return NULL;
-    }
-    for (nodeidx = 0; nodeidx < nnodes; nodeidx++) {  // for each node identifier nodeidx ...
-        for (localidx = 0; localidx < task_counts[nodeidx];
-             localidx++) {  // for each task within that node
-            // get the global task ID of that task
-            taskid = tids[nodeidx][localidx];
-            if (taskid >= ntasks) {
-                shell_log_error ("taskid %d (on node %d) >= ntasks %d", taskid, nodeidx, ntasks);
-                free (pes);
-                return NULL;
-            }
-            pes[taskid].nodeidx = nodeidx;
-            pes[taskid].localidx = localidx;
-            pes[taskid].cmdidx = 0;
-        }
-    }
-    return pes;
-}
-
-/*
- * Initialize a pals_cmd_t.
- */
-static void setup_pals_cmd (pals_cmd_t *cmd,
-                            int ntasks,
-                            int nnodes,
-                            int cores_per_task,
-                            int *task_counts)
-{
-    int max_tasks_per_node = 1;
-
-    cmd->npes = ntasks;
-    cmd->cpus_per_pe = cores_per_task;
-    for (int i = 0; i < nnodes; ++i) {
-        max_tasks_per_node =
-            max_tasks_per_node > task_counts[i] ? max_tasks_per_node : task_counts[i];
-    }
-    cmd->pes_per_node = max_tasks_per_node;
-}
-
-/*
- * Fill in the apinfo header.
- */
-static void build_header (pals_header_t *hdr, int ncmds, int npes, int nnodes)
-{
-    size_t offset = sizeof (pals_header_t);
-
-    memset (hdr, 0, sizeof (pals_header_t));
-    hdr->version = PALS_APINFO_VERSION;
-
-    hdr->comm_profile_size = sizeof (pals_comm_profile_t);
-    hdr->comm_profile_offset = offset;
-    hdr->ncomm_profiles = 0;
-    offset += hdr->comm_profile_size * hdr->ncomm_profiles;
-
-    hdr->cmd_size = sizeof (pals_cmd_t);
-    hdr->cmd_offset = offset;
-    hdr->ncmds = ncmds;
-    offset += hdr->cmd_size * hdr->ncmds;
-
-    hdr->pe_size = sizeof (pals_pe_t);
-    hdr->pe_offset = offset;
-    hdr->npes = npes;
-    offset += hdr->pe_size * hdr->npes;
-
-    hdr->node_size = sizeof (pals_node_t);
-    hdr->node_offset = offset;
-    hdr->nnodes = nnodes;
-    offset += hdr->node_size * hdr->nnodes;
-
-    hdr->nic_size = sizeof (pals_nic_t);
-    hdr->nic_offset = offset;
-    hdr->nnics = 0;
-    offset += hdr->nic_size * hdr->nnics;
-
-    hdr->total_size = offset;
-}
-
-/*
- * Write the job's hostlist to the file.
- */
-static int write_pals_nodes (int fd, struct hostlist *hlist)
-{
-    const char *entry;
-    pals_node_t node;
-    int node_index = 0;
-
-    if (!(entry = hostlist_first (hlist))) {
-        return -1;
-    }
-    while (entry) {
-        node.nid = node_index++;
-        if (snprintf (node.hostname, sizeof (node.hostname), "%s", entry) >= sizeof (node.hostname)
-            || safe_write (fd, &node, sizeof (pals_node_t)) < 0) {
-            return -1;
-        }
-        entry = hostlist_next (hlist);
-    }
-    return 0;
-}
-
-/*
- * Allocate and return a `struct task_placement`, returning
- * NULL on error. Destroy with `task_placement_destroy`.
- */
-static struct task_placement *task_placement_create (int nnodes)
-{
-    struct task_placement *ret = NULL;
-
-    if (!(ret = malloc (sizeof (struct task_placement)))) {
-        return NULL;
-    }
-    if (!(ret->task_counts = malloc (sizeof (*(ret->task_counts)) * nnodes))) {
-        free (ret);
-        return NULL;
-    }
-    // use calloc so we can call `free` indiscriminately on pointers
-    // in the `task_ids` array
-    if (!(ret->task_ids = calloc (nnodes, sizeof (*(ret->task_ids))))) {
-        free (ret->task_counts);
-        free (ret);
-        return NULL;
-    }
-    return ret;
-}
-
-/*
- * Destroy a `struct task_placement`. The elements of the `task_ids` array
- * must either be pointers to valid memory or NULL.
- */
-static void task_placement_destroy (struct task_placement *t, int nnodes)
-{
-    if (!t) {
-        return;
-    }
-    free (t->task_counts);
-    for (int i = 0; i < nnodes; ++i) {
-        free (t->task_ids[i]);
-    }
-    free (t->task_ids);
-    free (t);
-}
-
-/*
- * Return a mapping from nodes to the task IDs they are associated with.
- */
-static struct task_placement *get_task_placement (flux_shell_t *shell)
-{
-    struct task_placement *ret = NULL;
-    const struct taskmap *map;
-    const struct idset *idset;
-    int nnodes;
-    unsigned int curr_task_id = 0;
-
-    if (!(map = flux_shell_get_taskmap (shell)) || (nnodes = taskmap_nnodes (map)) < 1
-        || !(ret = task_placement_create (nnodes))) {
-        return NULL;
-    }
-
-    for (int nodeid = 0; nodeid < nnodes; ++nodeid) {
-        if ((ret->task_counts[nodeid] = taskmap_ntasks (map, nodeid)) < 0
-            || !(ret->task_ids[nodeid] =
-                     malloc (sizeof (*(ret->task_ids[nodeid])) * ret->task_counts[nodeid]))
-            || !(idset = taskmap_taskids (map, nodeid))) {
-            shell_log_error ("Error fetching task idset for nodeid %i", nodeid);
-            task_placement_destroy (ret, nnodes);
-            return NULL;
-        }
-        curr_task_id = idset_first (idset);
-        for (int localtasknum = 0; localtasknum < ret->task_counts[nodeid]; ++localtasknum) {
-            if (curr_task_id == IDSET_INVALID_ID) {
-                shell_log_error ("Fetched an invalid ID for nodeid %i", nodeid);
-                task_placement_destroy (ret, nnodes);
-                return NULL;
-            }
-            ret->task_ids[nodeid][localtasknum] = (int)curr_task_id;
-            curr_task_id = idset_next (idset, curr_task_id);
-        }
-    }
-
-    return ret;
 }
 
 static int get_cores_per_task (flux_shell_t *shell, int ntasks)
@@ -411,18 +125,15 @@ static int get_cores_per_task (flux_shell_t *shell, int ntasks)
  */
 static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
 {
-    int fd = -1;
-    pals_header_t hdr;
-    pals_cmd_t cmd;
-    pals_pe_t *pes = NULL;
-    int shell_size, ntasks, cores_per_task, nnodes = 0;
+    int shell_size, ntasks, cores_per_task;
     json_t *nodelist_array;
+    const struct taskmap *map;
     struct hostlist *hlist = NULL;
-    struct task_placement *placement = NULL;
+    struct apinfo *ap = NULL;
+    flux_error_t error;
 
-    // Get shell size and hostlist
     if (flux_shell_info_unpack (shell,
-                                "{s:i, s:i, s:{s:{s:o}}}",
+                                "{s:i s:i s:{s:{s:o}}}",
                                 "size",
                                 &shell_size,
                                 "ntasks",
@@ -431,47 +142,41 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
                                 "execution",
                                 "nodelist",
                                 &nodelist_array)
-            < 0
-        || !(hlist = hostlist_from_array (nodelist_array))) {
-        shell_log_error ("Error creating hostlists");
+        < 0) {
+        shell_log_error ("Error unpacking shell info");
         goto error;
     }
-    nnodes = hostlist_count (hlist);
-    if (nnodes < 1 || !(placement = get_task_placement (shell))
-        || (cores_per_task = get_cores_per_task (shell, ntasks)) < 0) {
-        shell_log_error ("Error calculating task placement");
+    if (!(map = flux_shell_get_taskmap (shell))) {
+        shell_log_error ("Error getting shell taskmap");
         goto error;
     }
-    // Gather the header, pes, and cmds structs
-    build_header (&hdr, 1, ntasks, nnodes);
-    setup_pals_cmd (&cmd, ntasks, nnodes, cores_per_task, placement->task_counts);
-    if (!(pes = setup_pals_pes (ntasks, nnodes, placement->task_counts, placement->task_ids))) {
-        shell_log_error ("Error initializing pals_pe_t structs");
+    if ((cores_per_task = get_cores_per_task (shell, ntasks)) < 0)
+        goto error;
+    if (!(hlist = hostlist_from_array (nodelist_array))) {
+        shell_log_error ("Error creating hostlist from nodelist array");
         goto error;
     }
-    // Write the header, cmds, pes, and nodes structs
-    if ((fd = creat (apinfo_path, S_IRUSR | S_IWUSR)) == -1
-        || safe_write (fd, &hdr, sizeof (pals_header_t)) < 0
-        || safe_write (fd, &cmd, (hdr.ncmds * sizeof (pals_cmd_t))) < 0
-        || safe_write (fd, pes, (hdr.npes * sizeof (pals_pe_t))) < 0
-        || write_pals_nodes (fd, hlist) < 0 || fsync (fd) == -1) {
-        shell_log_errno ("Couldn't write apinfo to disk");
+    if (!(ap = apinfo_create (1)) || apinfo_set_hostlist (ap, hlist) < 0
+        || apinfo_set_taskmap (ap, map, cores_per_task)) {
+        shell_log_error ("Error creating apinfo object");
+        goto error;
+    }
+    if (apinfo_check (ap, &error) < 0) {
+        shell_log_error ("apinfo check failed: %s", error.text);
+        goto error;
+    }
+    if (apinfo_put (ap, apinfo_path)) {
+        shell_log_error ("Error writing apinfo object");
         goto error;
     }
     shell_trace ("created pals apinfo file %s", apinfo_path);
-
-cleanup:
-
+    apinfo_destroy (ap);
     hostlist_destroy (hlist);
-    task_placement_destroy (placement, nnodes);
-    free (pes);
-    close (fd);
     return shell_size;
-
 error:
-
-    shell_size = -1;
-    goto cleanup;
+    apinfo_destroy (ap);
+    hostlist_destroy (hlist);
+    return -1;
 }
 
 static int read_future (flux_future_t *fut,
