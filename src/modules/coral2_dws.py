@@ -393,20 +393,22 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
             errmsg = repr(exc.args[0])
         else:
             errmsg = None
+        payload = {
+            "id": jobid,
+            "resources": resources,
+            "copy-offload": copy_offload,
+            "exclude": (
+                storage.EXCLUDE_PROPERTY
+                if disable_fluxion
+                or not handle.conf_get("rabbit.drain_compute_nodes", True)
+                else ""
+            ),
+        }
+        if errmsg is not None:
+            payload["errmsg"] = errmsg
         handle.rpc(
             "job-manager.dws.resource-update",
-            payload={
-                "id": jobid,
-                "resources": resources,
-                "copy-offload": copy_offload,
-                "errmsg": errmsg,
-                "exclude": (
-                    storage.EXCLUDE_PROPERTY
-                    if disable_fluxion
-                    or not handle.conf_get("rabbit.drain_compute_nodes", True)
-                    else ""
-                ),
-            },
+            payload=payload,
         ).then(log_rpc_response, jobid)
         save_workflow_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "Setup"):

@@ -602,12 +602,12 @@ static void resource_update_msg_cb (flux_t *h,
 {
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
-    json_t *resources = NULL, *errmsg_json, *constraints = NULL;
+    json_t *resources = NULL, *constraints = NULL;
     int copy_offload;
-    const char *errmsg = "", *exclude_str;
+    const char *errmsg = NULL, *exclude_str;
 
     if (flux_msg_unpack (msg,
-                         "{s:I, s:o, s:b, s:o, s:s}",
+                         "{s:I, s:o, s:b, s?s, s:s}",
                          "id",
                          &jobid,
                          "resources",
@@ -615,24 +615,18 @@ static void resource_update_msg_cb (flux_t *h,
                          "copy-offload",
                          &copy_offload,
                          "errmsg",
-                         &errmsg_json,
+                         &errmsg,
                          "exclude",
                          &exclude_str)
         < 0) {
         errmsg = "received malformed dws.resource-update RPC";
         goto error;
     }
-    if (!json_is_null (errmsg_json)) {
-        if (!(errmsg = json_string_value (errmsg_json))) {
-            raise_job_exception (p, jobid, PLUGIN_NAME, "<could not fetch error message>");
-            errmsg = "malformed dws.resource-update RPC, errmsg must be string or null";
-            goto error;
-        } else {
-            raise_job_exception (p, jobid, PLUGIN_NAME, errmsg);
-            if (flux_respond (h, msg, NULL) < 0)
-                flux_log_error (h, PLUGIN_NAME " %s: flux_respond", __FUNCTION__);
-            return;
-        }
+    if (errmsg) {
+        raise_job_exception (p, jobid, PLUGIN_NAME, errmsg);
+        if (flux_respond (h, msg, NULL) < 0)
+            flux_log_error (h, PLUGIN_NAME " %s: flux_respond", __FUNCTION__);
+        return;
     }
     if (strlen (exclude_str) > 0) {
         if (!(constraints = generate_constraints (h, p, jobid, exclude_str))) {
