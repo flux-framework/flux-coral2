@@ -622,6 +622,18 @@ static void resource_update_msg_cb (flux_t *h,
         errmsg = "received malformed dws.resource-update RPC";
         goto error;
     }
+    if (!json_is_null (errmsg_json)) {
+        if (!(errmsg = json_string_value (errmsg_json))) {
+            raise_job_exception (p, jobid, PLUGIN_NAME, "<could not fetch error message>");
+            errmsg = "malformed dws.resource-update RPC, errmsg must be string or null";
+            goto error;
+        } else {
+            raise_job_exception (p, jobid, PLUGIN_NAME, errmsg);
+            if (flux_respond (h, msg, NULL) < 0)
+                flux_log_error (h, PLUGIN_NAME " %s: flux_respond", __FUNCTION__);
+            return;
+        }
+    }
     if (strlen (exclude_str) > 0) {
         if (!(constraints = generate_constraints (h, p, jobid, exclude_str))) {
             errmsg = "Could not generate exclusion constraint";
@@ -630,33 +642,20 @@ static void resource_update_msg_cb (flux_t *h,
             goto error;
         }
     }
-    if (!json_is_null (errmsg_json)) {
-        if (!(errmsg = json_string_value (errmsg_json))) {
-            raise_job_exception (p, jobid, PLUGIN_NAME, "<could not fetch error message>");
-            errmsg = "malformed dws.resource-update RPC, errmsg must be string or null";
-            json_decref (constraints);
-            goto error;
-        } else {
-            raise_job_exception (p, jobid, PLUGIN_NAME, errmsg);
-            json_decref (constraints);
-            if (flux_respond (h, msg, NULL) < 0)
-                flux_log_error (h, PLUGIN_NAME " %s: flux_respond", __FUNCTION__);
-            return;
-        }
-    } else if (flux_jobtap_job_aux_set (p,
-                                        jobid,
-                                        "flux::dws-copy-offload",
-                                        copy_offload ? (void *)1 : (void *)0,
-                                        NULL)
-                   < 0
-               || flux_jobtap_jobspec_update_id_pack (p,
-                                                      (flux_jobid_t)jobid,
-                                                      "{s:O, s:o*}",
-                                                      "resources",
-                                                      resources,
-                                                      "attributes.system.constraints",
-                                                      constraints)
-                      < 0) {
+    if (flux_jobtap_job_aux_set (p,
+                                 jobid,
+                                 "flux::dws-copy-offload",
+                                 copy_offload ? (void *)1 : (void *)0,
+                                 NULL)
+            < 0
+        || flux_jobtap_jobspec_update_id_pack (p,
+                                               (flux_jobid_t)jobid,
+                                               "{s:O, s:o*}",
+                                               "resources",
+                                               resources,
+                                               "attributes.system.constraints",
+                                               constraints)
+               < 0) {
         errmsg = "could not update jobspec with new constraints and resources";
         flux_log_error (h, "%s: %s", idf58 (jobid), errmsg);
         raise_job_exception (p, jobid, PLUGIN_NAME, "Internal error: failed to update jobspec");
