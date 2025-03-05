@@ -602,12 +602,12 @@ static void resource_update_msg_cb (flux_t *h,
 {
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
-    json_t *resources = NULL, *errmsg, *constraints = NULL;
+    json_t *resources = NULL, *constraints = NULL;
     int copy_offload;
-    const char *errmsg_str, *exclude_str;
+    const char *errmsg = NULL, *exclude_str;
 
     if (flux_msg_unpack (msg,
-                         "{s:I, s:o, s:b, s:o, s:s}",
+                         "{s:I, s:o, s:b, s?s, s:s}",
                          "id",
                          &jobid,
                          "resources",
@@ -619,52 +619,58 @@ static void resource_update_msg_cb (flux_t *h,
                          "exclude",
                          &exclude_str)
         < 0) {
-        flux_log_error (h, "received malformed dws.resource-update RPC");
+        errmsg = "received malformed dws.resource-update RPC";
+        goto error;
+    }
+    if (errmsg) {
+        raise_job_exception (p, jobid, PLUGIN_NAME, errmsg);
+        if (flux_respond (h, msg, NULL) < 0)
+            flux_log_error (h, PLUGIN_NAME " %s: flux_respond", __FUNCTION__);
         return;
     }
     if (strlen (exclude_str) > 0) {
         if (!(constraints = generate_constraints (h, p, jobid, exclude_str))) {
-            flux_log_error (h, "Could not generate exclusion constraint for %s", idf58 (jobid));
-            raise_job_exception (p, jobid, PLUGIN_NAME, "Could not generate exclusion constraint");
-            return;
+            errmsg = "Could not generate exclusion constraint";
+            flux_log_error (h, "%s for %s", errmsg, idf58 (jobid));
+            raise_job_exception (p, jobid, PLUGIN_NAME, errmsg);
+            goto error;
         }
     }
-    if (!json_is_null (errmsg)) {
-        if (!(errmsg_str = json_string_value (errmsg))) {
-            flux_log_error (h,
-                            "received malformed dws.resource-update RPC, errmsg must be string or "
-                            "JSON null: %s",
-                            idf58 (jobid));
-            errmsg_str = "<could not fetch error message>";
-        }
-        raise_job_exception (p, jobid, PLUGIN_NAME, errmsg_str);
-        json_decref (constraints);
-        return;
-    } else if (flux_jobtap_job_aux_set (p,
-                                        jobid,
-                                        "flux::dws-copy-offload",
-                                        copy_offload ? (void *)1 : (void *)0,
-                                        NULL)
-                   < 0
-               || flux_jobtap_jobspec_update_id_pack (p,
-                                                      (flux_jobid_t)jobid,
-                                                      "{s:O, s:o*}",
-                                                      "resources",
-                                                      resources,
-                                                      "attributes.system.constraints",
-                                                      constraints)
-                      < 0) {
-        flux_log_error (h,
-                        "could not update jobspec for %s with new constraints and resources",
-                        idf58 (jobid));
+    if (flux_jobtap_job_aux_set (p,
+                                 jobid,
+                                 "flux::dws-copy-offload",
+                                 copy_offload ? (void *)1 : (void *)0,
+                                 NULL)
+            < 0
+        || flux_jobtap_jobspec_update_id_pack (p,
+                                               (flux_jobid_t)jobid,
+                                               "{s:O, s:o*}",
+                                               "resources",
+                                               resources,
+                                               "attributes.system.constraints",
+                                               constraints)
+               < 0) {
+        errmsg = "could not update jobspec with new constraints and resources";
+        flux_log_error (h, "%s: %s", idf58 (jobid), errmsg);
         raise_job_exception (p, jobid, PLUGIN_NAME, "Internal error: failed to update jobspec");
         json_decref (constraints);
-        return;
+        goto error;
     }
     if (flux_jobtap_dependency_remove (p, jobid, CREATE_DEP_NAME) < 0) {
-        raise_job_exception (p, jobid, CREATE_DEP_NAME, "Failed to remove dependency for job");
-        return;
+        errmsg = "Failed to remove dependency for job";
+        raise_job_exception (p, jobid, CREATE_DEP_NAME, errmsg);
+        goto error;
     }
+
+    if (flux_respond (h, msg, NULL) < 0)
+        flux_log_error (h, PLUGIN_NAME " %s: flux_respond", __FUNCTION__);
+    return;
+
+error:
+    if (flux_respond_error (h, msg, 0, errmsg) < 0) {
+        flux_log_error (h, PLUGIN_NAME " %s: flux_respond_error", __FUNCTION__);
+    }
+    return;
 }
 
 /*
@@ -681,10 +687,11 @@ static void prolog_remove_msg_cb (flux_t *h,
     json_t *env = NULL;
     int *prolog_active, junk_prolog_active = 1;
     int copy_offload = 0;
+    const char *errmsg = "";
 
     if (flux_msg_unpack (msg, "{s:I, s:o}", "id", &jobid, "variables", &env) < 0) {
-        flux_log_error (h, "received malformed dws.prolog-remove RPC");
-        return;
+        errmsg = "received malformed dws.prolog-remove RPC";
+        goto error;
     }
     if (flux_jobtap_job_aux_get (p, (flux_jobid_t)jobid, "flux::dws-copy-offload")) {
         copy_offload = 1;
@@ -706,10 +713,23 @@ static void prolog_remove_msg_cb (flux_t *h,
                                      copy_offload)
             < 0
         || flux_jobtap_job_aux_set (p, jobid, "flux::dws_run_started", (void *)1, NULL) < 0) {
-        dws_prolog_finish (h, p, jobid, 0, "failed to post dws_environment event", prolog_active);
-    } else {
-        dws_prolog_finish (h, p, jobid, 1, "success!", prolog_active);
+        errmsg = "failed to post dws_environment event";
+        dws_prolog_finish (h, p, jobid, 0, errmsg, prolog_active);
+        goto error;
     }
+    if (dws_prolog_finish (h, p, jobid, 1, "success!", prolog_active) < 0) {
+        errmsg = "failed to finish prolog";
+        goto error;
+    }
+    if (flux_respond (h, msg, NULL) < 0)
+        flux_log_error (h, PLUGIN_NAME " %s: flux_respond", __FUNCTION__);
+    return;
+
+error:
+    if (flux_respond_error (h, msg, 0, errmsg) < 0) {
+        flux_log_error (h, PLUGIN_NAME " %s: flux_respond_error", __FUNCTION__);
+    }
+    return;
 }
 
 /*
@@ -723,12 +743,25 @@ static void epilog_remove_msg_cb (flux_t *h,
 {
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
+    const char *errmsg = "";
 
     if (flux_msg_unpack (msg, "{s:I}", "id", &jobid) < 0) {
-        flux_log_error (h, "received malformed dws.epilog-remove RPC");
-        return;
+        errmsg = "received malformed dws.epilog-remove RPC";
+        goto error;
     }
-    dws_epilog_finish (h, p, jobid, 1, "success!");
+    if (dws_epilog_finish (h, p, jobid, 1, "success!") < 0) {
+        errmsg = "could not finish epilog";
+        goto error;
+    }
+    if (flux_respond (h, msg, NULL) < 0)
+        flux_log_error (h, PLUGIN_NAME " %s: flux_respond", __FUNCTION__);
+    return;
+
+error:
+    if (flux_respond_error (h, msg, 0, errmsg) < 0) {
+        flux_log_error (h, PLUGIN_NAME " %s: flux_respond_error", __FUNCTION__);
+    }
+    return;
 }
 
 static const struct flux_plugin_handler tab[] = {

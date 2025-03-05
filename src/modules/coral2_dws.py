@@ -48,6 +48,18 @@ class UserError(Exception):
     """Represents user errors."""
 
 
+def log_rpc_response(rpc, jobid):
+    """RPC callback for logging response."""
+    jobid = flux.job.JobID(jobid).f58plain
+    try:
+        msg = rpc.get()
+    except Exception as exc:
+        LOGGER.warning("RPC error for job %s: %s", jobid, repr(exc))
+    else:
+        if msg:
+            LOGGER.debug("RPC response for job %s was %s", jobid, msg)
+
+
 def message_callback_wrapper(func):
     """Decorator for msg_watcher callbacks.
 
@@ -142,7 +154,7 @@ def create_cb(handle, _t, msg, arg):
     spec = {
         "desiredState": "Proposal",
         "dwDirectives": dw_directives,
-        "jobID": flux.job.JobID(jobid).f58.replace("ƒ", "f"),
+        "jobID": flux.job.JobID(jobid).f58plain,
         "userID": userid,
         "groupID": pwd.getpwuid(userid).pw_gid,
         "wlmID": "flux",
@@ -166,7 +178,7 @@ def create_cb(handle, _t, msg, arg):
     handle.rpc(
         "job-manager.memo",
         payload={"id": jobid, "memo": {"rabbit_workflow": workflow_name}},
-    ).then(storage.log_rpc_response)
+    ).then(log_rpc_response, jobid)
 
 
 @message_callback_wrapper
@@ -194,7 +206,7 @@ def setup_cb(handle, _t, msg, k8s_api):
             "id": jobid,
             "memo": {"rabbits": Hostlist(nodes_per_nnf.keys()).encode()},
         },
-    ).then(storage.log_rpc_response)
+    ).then(log_rpc_response, jobid)
     k8s_api.patch_namespaced_custom_object(
         crd.COMPUTE_CRD.group,
         crd.COMPUTE_CRD.version,
@@ -253,7 +265,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
             # workflow doesn't exist, presumably it was never created
             WorkflowInfo.remove(jobid)
             handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
-                storage.log_rpc_response
+                log_rpc_response, jobid
             )
         else:
             # workflow does exist
@@ -350,7 +362,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         # Attempt to remove the finalizer again in case the state transitioned
         # too quickly for it to be noticed earlier.
         handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
-            storage.log_rpc_response
+            log_rpc_response, jobid
         )
         save_elapsed_time_to_kvs(handle, jobid, workflow)
         cleanup.delete_workflow(workflow)
@@ -381,21 +393,23 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
             errmsg = repr(exc.args[0])
         else:
             errmsg = None
+        payload = {
+            "id": jobid,
+            "resources": resources,
+            "copy-offload": copy_offload,
+            "exclude": (
+                storage.EXCLUDE_PROPERTY
+                if disable_fluxion
+                or not handle.conf_get("rabbit.drain_compute_nodes", True)
+                else ""
+            ),
+        }
+        if errmsg is not None:
+            payload["errmsg"] = errmsg
         handle.rpc(
             "job-manager.dws.resource-update",
-            payload={
-                "id": jobid,
-                "resources": resources,
-                "copy-offload": copy_offload,
-                "errmsg": errmsg,
-                "exclude": (
-                    storage.EXCLUDE_PROPERTY
-                    if disable_fluxion
-                    or not handle.conf_get("rabbit.drain_compute_nodes", True)
-                    else ""
-                ),
-            },
-        ).then(storage.log_rpc_response)
+            payload=payload,
+        ).then(log_rpc_response, jobid)
         save_workflow_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "Setup"):
         # move workflow to next stage, DataIn
@@ -413,7 +427,7 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
                 "id": jobid,
                 "variables": workflow["status"].get("env", {}),
             },
-        ).then(storage.log_rpc_response)
+        ).then(log_rpc_response, jobid)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "PostRun"):
         # move workflow to next stage, DataOut
