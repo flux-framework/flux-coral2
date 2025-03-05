@@ -19,7 +19,7 @@ libapinfo_la_SOURCES = \
 	apinfo1.h \
 	apimpl.h
 
-TESTS =
+TESTS = test_apinfo.t
 
 if HAVE_PALS
 TESTS += test_pals.t
@@ -56,3 +56,7 @@ test_pals_t_CPPFLAGS = \
 test_pals_t_LDADD = \
 	$(PALS_LIBS) \
 	$(test_ldadd)
+
+test_apinfo_t_SOURCES = test/apinfo.c
+test_apinfo_t_CPPFLAGS = $(test_cppflags)
+test_apinfo_t_LDADD = $(test_ldadd)
