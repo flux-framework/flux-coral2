@@ -603,8 +603,9 @@ static void resource_update_msg_cb (flux_t *h,
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
     json_t *resources = NULL, *constraints = NULL;
-    int copy_offload;
+    int copy_offload, state;
     const char *errmsg = NULL, *exclude_str;
+    flux_plugin_arg_t *job;
 
     if (flux_msg_unpack (msg,
                          "{s:I, s:o, s:b, s?s, s:s}",
@@ -627,6 +628,15 @@ static void resource_update_msg_cb (flux_t *h,
         if (flux_respond (h, msg, NULL) < 0)
             flux_log_error (h, PLUGIN_NAME " %s: flux_respond", __FUNCTION__);
         return;
+    }
+    if (!(job = flux_jobtap_job_lookup (p, jobid))
+        || flux_plugin_arg_unpack (job, FLUX_PLUGIN_ARG_IN, "{s:i}", "state", &state) < 0
+        || state != FLUX_JOB_STATE_DEPEND) {
+        errmsg = "job not found in depend state";
+        flux_plugin_arg_destroy (job);
+        goto error;
+    } else {
+        flux_plugin_arg_destroy (job);
     }
     if (strlen (exclude_str) > 0) {
         if (!(constraints = generate_constraints (h, p, jobid, exclude_str))) {
@@ -658,7 +668,7 @@ static void resource_update_msg_cb (flux_t *h,
     }
     if (flux_jobtap_dependency_remove (p, jobid, CREATE_DEP_NAME) < 0) {
         errmsg = "Failed to remove dependency for job";
-        raise_job_exception (p, jobid, CREATE_DEP_NAME, errmsg);
+        flux_log_error (h, CREATE_DEP_NAME ": %s %s", errmsg, idf58 (jobid));
         goto error;
     }
 

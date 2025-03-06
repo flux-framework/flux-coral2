@@ -109,6 +109,36 @@ test_expect_success 'job submission with valid DW string works with fluxion-rabb
     flux job wait-event -vt 15 ${jobid} clean
 '
 
+test_expect_success 'dws service script handles restarts while a job is in SCHED with fluxion disabled' '
+	flux queue stop --all &&
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 true) &&
+	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 15 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-remove &&
+	flux cancel ${DWS_JOBID} &&
+	R=$(flux R encode -r 0) &&
+	DWS_JOBID=$(flux submit \
+		--setattr=system.alloc-bypass.R="$R" \
+		-o per-resource.type=node --output=dws-fluxion-disabled2.out \
+		--error=dws-fluxion-disabled2.err \
+		python ${DWS_MODULE_PATH} -vvv --disable-fluxion) &&
+	test_must_fail flux job wait-event -vt 10 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux queue start --all &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish
+	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 25 ${jobid} clean
+'
+
 test_expect_success 'load fluxion with rabbits' '
     flux cancel ${DWS_JOBID} &&
     flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-rabbitmapping.py > rabbits.json &&
@@ -455,6 +485,35 @@ test_expect_success 'dws service script handles restarts while a job is running'
 	flux job wait-event -vt 25 ${jobid} clean
 '
 
+test_expect_success 'dws service script handles restarts while a job is in SCHED' '
+	flux queue stop --all &&
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 true) &&
+	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 15 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-remove &&
+	flux cancel ${DWS_JOBID} &&
+	R=$(flux R encode -r 0) &&
+	DWS_JOBID=$(flux submit \
+		--setattr=system.alloc-bypass.R="$R" \
+		-o per-resource.type=node --output=dws4.out --error=dws4.err \
+		python ${DWS_MODULE_PATH} -vvv) &&
+	test_must_fail flux job wait-event -vt 10 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux queue start --all &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish
+	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 25 ${jobid} clean
+'
+
 test_expect_success 'back-to-back job submissions with 10TiB file systems works' '
 	jobid1=$(flux submit --setattr=system.dw="#DW jobdw capacity=10TiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
@@ -503,7 +562,7 @@ test_expect_success 'launch service with storage maximums and presets' '
 	flux config load ${DATADIR}/maximums &&
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws4.out --error=dws4.err \
+		-o per-resource.type=node --output=dws5.out --error=dws5.err \
 		python ${DWS_MODULE_PATH} -vvv) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
 	${RPC} "dws.create"
