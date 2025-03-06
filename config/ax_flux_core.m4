@@ -28,6 +28,8 @@
 #   - FLUX_OPTPARSE_CFLAGS libflux-optparse CFLAGS
 #   - FLUX_HOSTLIST_LIBS   libflux-hostlist LIBS
 #   - FLUX_HOSTLIST_CFLAGS libflux-hostlist CFLAGS
+#   - FLUX_TASKMAP_LIBS    libflux-taskmap LIBS
+#   - FLUX_TASKMAP_CFLAGS  libflux-taskmap CFLAGS
 #
 # LICENSE
 #
@@ -93,6 +95,7 @@ AC_DEFUN([AX_FLUX_CORE], [
   PKG_CHECK_MODULES([FLUX_SCHEDUTIL], [flux-schedutil], [], [])
   PKG_CHECK_MODULES([FLUX_OPTPARSE], [flux-optparse], [], [])
   PKG_CHECK_MODULES([FLUX_HOSTLIST], [flux-hostlist], [], [])
+  PKG_CHECK_MODULES([FLUX_TASKMAP], [flux-taskmap], [], [])
 
   PKG_CONFIG_PATH=$saved_PKG_CONFIG_PATH
   export PKG_CONFIG_PATH
