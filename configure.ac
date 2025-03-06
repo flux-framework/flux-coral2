@@ -10,7 +10,7 @@ AC_CONFIG_SRCDIR([NEWS.md])
 
 AM_INIT_AUTOMAKE([subdir-objects tar-ustar filename-length-max=256 foreign])
 AM_SILENT_RULES([yes])
-AM_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADERS([config.h])
 AM_MAINTAINER_MODE([enable])
 
 #LT_PREREQ([2.4.2])
@@ -21,7 +21,7 @@ AC_PREFIX_PROGRAM([flux])
 # Checks for programs.
 AC_DEFINE([_GNU_SOURCE], 1,
           [Define _GNU_SOURCE so that we get all necessary prototypes])
-AC_PROG_CC_C99
+m4_version_prereq(2.70, [AC_PROG_CC], [AC_PROG_CC_C99])
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
 AM_PROG_CC_C_O
@@ -60,14 +60,14 @@ AS_IF([test "x$enable_pylint" = "xyes"], [
   AC_CHECK_PROG(PYLINT,[pylint],[pylint])
   AS_IF([test "x$PYLINT" != "xpylint"], [AC_MSG_ERROR([No pylint found in PATH])])
   AM_CHECK_PYMOD(pylint,
-                   [StrictVersion(pylint.__version__) >= StrictVersion('1.8.4')],
+                   [Version(pylint.__version__) >= Version('1.8.4')],
                    ,
                    [AC_MSG_ERROR([could not find python module pylint, version 1.8.4+ required])]
                  )
 ])
 AM_CONDITIONAL([ENABLE_PYLINT], [test "x$PYLINT" = "xpylint"])
 AM_CHECK_PYMOD(kubernetes,
-                  [StrictVersion(kubernetes.__version__) >= StrictVersion('11.0.0')],
+                  [Version(kubernetes.__version__) >= Version('11.0.0')],
                   ,
                   [AC_MSG_ERROR([could not find python module kubernetes, version 11.0.0+ required])]
                 )

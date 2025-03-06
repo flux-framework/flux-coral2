@@ -15,12 +15,15 @@ except:
         sys.exit(0)
 sys.exit(0)"], [prog="
 import sys
-from distutils.version import LooseVersion, StrictVersion
+try:
+    from distutils.version import StrictVersion as Version
+except ModuleNotFoundError:
+    from packaging.version import Version
 import $1
 if not $2:
     sys.exit(1)
 "])
-if $PYTHON -c "$prog" 1>&AC_FD_CC 2>&AC_FD_CC
+if $PYTHON -c "$prog" 1>&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
   then
     eval "py_cv_mod_$py_mod_var=yes"
   else
