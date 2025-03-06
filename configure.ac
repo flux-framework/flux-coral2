@@ -151,6 +151,7 @@ AC_CONFIG_FILES([Makefile
   src/Makefile
   src/common/Makefile
   src/common/libtap/Makefile
+  src/common/libutil/Makefile
   src/job-manager/Makefile
   src/job-manager/plugins/Makefile
   src/shell/Makefile
