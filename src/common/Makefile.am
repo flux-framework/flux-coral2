@@ -1,2 +1,4 @@
 SUBDIRS = \
-	libtap
+	libutil \
+	libtap \
+	libapinfo

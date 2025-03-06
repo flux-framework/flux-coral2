@@ -98,6 +98,9 @@ AC_CHECK_FUNCS([gettimeofday localtime_r memset strchr strdup strerror strstr st
 # Checks for packages
 PKG_CHECK_MODULES([SODIUM], [libsodium >= 1.0.14], [], [])
 PKG_CHECK_MODULES([JANSSON], [jansson >= 2.10], [], [])
+PKG_CHECK_MODULES([PALS], [libpals], [HAVE_PALS=yes], [HAVE_PALS=no])
+
+AM_CONDITIONAL([HAVE_PALS], [test "x$HAVE_PALS" = "xyes"])
 
 ##
 # Project directories
@@ -151,6 +154,8 @@ AC_CONFIG_FILES([Makefile
   src/Makefile
   src/common/Makefile
   src/common/libtap/Makefile
+  src/common/libutil/Makefile
+  src/common/libapinfo/Makefile
   src/job-manager/Makefile
   src/job-manager/plugins/Makefile
   src/shell/Makefile

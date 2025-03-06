@@ -6,6 +6,7 @@ AM_LDFLAGS = \
 	$(CODE_COVERAGE_LIBS)
 
 AM_CPPFLAGS = \
+	-I$(top_srcdir) \
 	$(FLUX_CORE_CFLAGS) \
 	$(FLUX_HOSTLIST_CFLAGS) \
 	$(FLUX_TASKMAP_CFLAGS) \
@@ -24,6 +25,8 @@ cray_pals_la_SOURCES = cray_pals.c \
 	eventlog_helpers.h
 cray_pals_la_CPPFLAGS = $(AM_CPPFLAGS)
 cray_pals_la_LIBADD = \
+	$(top_builddir)/src/common/libapinfo/libapinfo.la \
+	$(top_builddir)/src/common/libutil/libutil.la \
 	$(FLUX_CORE_LIBS) \
 	$(FLUX_HOSTLIST_LIBS) \
 	$(FLUX_TASKMAP_LIBS) \
