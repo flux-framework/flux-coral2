@@ -73,6 +73,10 @@
  * the PMI_CONTROL_PORT distribution mechanism.
  */
 
+static const int default_apinfo_version = 5;
+
+static int apinfo_version = default_apinfo_version;
+
 /* If true, don't edit LD_LIBRARY_PATH
  */
 static int no_edit_env;
@@ -156,9 +160,9 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
         shell_log_error ("Error creating hostlist from nodelist array");
         goto error;
     }
-    if (!(ap = apinfo_create (1)) || apinfo_set_hostlist (ap, hlist) < 0
+    if (!(ap = apinfo_create (apinfo_version)) || apinfo_set_hostlist (ap, hlist) < 0
         || apinfo_set_taskmap (ap, map, cores_per_task)) {
-        shell_log_error ("Error creating apinfo object");
+        shell_log_error ("Error creating apinfo v%d object", apinfo_version);
         goto error;
     }
     if (apinfo_check (ap, &error) < 0) {
@@ -169,7 +173,7 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
         shell_log_error ("Error writing apinfo object");
         goto error;
     }
-    shell_trace ("created pals apinfo file %s", apinfo_path);
+    shell_trace ("created pals apinfo v%d file %s", apinfo_version, apinfo_path);
     apinfo_destroy (ap);
     hostlist_destroy (hlist);
     return shell_size;
@@ -471,6 +475,10 @@ int flux_plugin_init (flux_plugin_t *p)
     // If -o cray-pals.no-edit-env is was specified set a flag for later
     no_edit_env = 0;
     (void)flux_shell_getopt_unpack (shell, "cray-pals", "{s?i}", "no-edit-env", &no_edit_env);
+
+    // If -o cray-pals.apinfo-version=N, use that version
+    apinfo_version = default_apinfo_version;
+    (void)flux_shell_getopt_unpack (shell, "cray-pals", "{s?i}", "apinfo-version", &apinfo_version);
 
     if (flux_plugin_add_handler (p, "shell.init", libpals_init, NULL) < 0
         || flux_plugin_add_handler (p, "task.init", libpals_task_init, NULL) < 0)
