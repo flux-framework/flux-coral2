@@ -466,7 +466,7 @@ int flux_plugin_init (flux_plugin_t *p)
         // otherwise libPALS might pick up and try to use them
         return unset_pals_env (shell);
 
-    shell_debug ("enabled");
+    shell_debug ("enabled (version %s)", PACKAGE_VERSION);
 
     // If -o cray-pals.no-edit-env is was specified set a flag for later
     no_edit_env = 0;
