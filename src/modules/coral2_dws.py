@@ -169,10 +169,16 @@ def create_cb(handle, _t, msg, arg):
             "finalizers": [cleanup.FINALIZER],
         },
     }
-    api_instance.create_namespaced_custom_object(
-        *crd.WORKFLOW_CRD,
-        body,
-    )
+    try:
+        api_instance.create_namespaced_custom_object(
+            *crd.WORKFLOW_CRD,
+            body,
+        )
+    except ApiException as api_err:
+        if api_err.status == 403:
+            # 403 Forbidden when the DW directive is invalid
+            raise UserError(json.loads(api_err.body)["message"]) from api_err
+        raise
     WorkflowInfo.add(jobid, workflow_name, msg.payload["resources"])
     # submit a memo providing the name of the workflow
     handle.rpc(
