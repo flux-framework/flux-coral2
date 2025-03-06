@@ -72,7 +72,7 @@ static void set_sizes (struct apinfo1 *ap)
 
 /* Write the entire apinfo object to the specified stream.
  */
-int op_write (void *handle, FILE *stream)
+static int op_write (void *handle, FILE *stream)
 {
     struct apinfo1 *ap = handle;
 
@@ -178,7 +178,7 @@ static int set_pes (struct apinfo1 *ap, const struct taskmap *map)
     return 0;
 }
 
-int op_set_taskmap (void *handle, const struct taskmap *map, int cpus_per_pe)
+static int op_set_taskmap (void *handle, const struct taskmap *map, int cpus_per_pe)
 {
     struct apinfo1 *ap = handle;
 
@@ -188,7 +188,7 @@ int op_set_taskmap (void *handle, const struct taskmap *map, int cpus_per_pe)
     return 0;
 }
 
-int op_set_hostlist (void *handle, const struct hostlist *hosts)
+static int op_set_hostlist (void *handle, const struct hostlist *hosts)
 {
     struct apinfo1 *ap = handle;
     int nnodes = hostlist_count ((struct hostlist *)hosts);
@@ -289,7 +289,7 @@ static const struct hostlist *op_get_hostlist (void *handle)
  * To check that the two are equivalent, call taskmap_encode()
  * with the TASKMAP_ENCODE_RAW flag and compare the result.
  */
-const struct taskmap *op_get_taskmap (void *handle)
+static const struct taskmap *op_get_taskmap (void *handle)
 {
     struct apinfo1 *ap = handle;
     struct taskmap *map;
