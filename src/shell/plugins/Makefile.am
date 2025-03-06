@@ -7,6 +7,9 @@ AM_LDFLAGS = \
 
 AM_CPPFLAGS = \
 	$(FLUX_CORE_CFLAGS) \
+	$(FLUX_HOSTLIST_CFLAGS) \
+	$(FLUX_TASKMAP_CFLAGS) \
+	$(FLUX_IDSET_CFLAGS) \
 	$(JANSSON_CFLAGS)
 
 shell_plugindir = \
@@ -23,6 +26,8 @@ cray_pals_la_CPPFLAGS = $(AM_CPPFLAGS)
 cray_pals_la_LIBADD = \
 	$(FLUX_CORE_LIBS) \
 	$(FLUX_HOSTLIST_LIBS) \
+	$(FLUX_TASKMAP_LIBS) \
+	$(FLUX_IDSET_LIBS) \
 	$(JANSSON_LIBS)
 cray_pals_la_LDFLAGS = \
 	$(AM_LDFLAGS) \
