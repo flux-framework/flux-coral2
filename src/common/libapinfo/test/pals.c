@@ -21,14 +21,14 @@
 
 #include "apinfo.h"
 
-void empty_apinfo1 (char *path)
+void empty_apinfo (char *path, int version)
 {
     struct apinfo *ap;
     pals_rc_t rc;
     pals_state_t *state;
 
-    if (!(ap = apinfo_create (1)))
-        BAIL_OUT ("apinfo_create version=1 failed");
+    if (!(ap = apinfo_create (version)))
+        BAIL_OUT ("apinfo_create version=%d failed", version);
     if (apinfo_put (ap, path) < 0)
         BAIL_OUT ("apinfo_put path=simple failed");
     apinfo_destroy (ap);
@@ -73,7 +73,7 @@ void empty_apinfo1 (char *path)
     ok (rc == PALS_OK, "pals_fini is OK");
 }
 
-void simple_apinfo1 (char *path)
+void simple_apinfo (char *path, int version)
 {
     struct apinfo *ap;
     pals_rc_t rc;
@@ -81,8 +81,8 @@ void simple_apinfo1 (char *path)
     struct hostlist *hosts;
     struct taskmap *map;
 
-    if (!(ap = apinfo_create (1)))
-        BAIL_OUT ("apinfo_create version=1 failed");
+    if (!(ap = apinfo_create (version)))
+        BAIL_OUT ("apinfo_create version=%d failed", version);
     if (!(hosts = hostlist_decode ("test[0-3]")) || apinfo_set_hostlist (ap, hosts) < 0)
         BAIL_OUT ("error setting hostlist");
     if (!(map = taskmap_decode ("[[0,4,256,1]]", NULL)) || apinfo_set_taskmap (ap, map, 1) < 0)
@@ -172,8 +172,13 @@ int main (int argc, char *argv[])
         || setenv ("PALS_NODEID", "0", 1) < 0)
         BAIL_OUT ("error setting PALS environment variables");
 
-    empty_apinfo1 (path);
-    simple_apinfo1 (path);
+    diag ("testing APINFO v1");
+    empty_apinfo (path, 1);
+    simple_apinfo (path, 1);
+
+    diag ("testing APINFO v5");
+    empty_apinfo (path, 5);
+    simple_apinfo (path, 5);
 
     unlink (path);
 
