@@ -1,14 +1,14 @@
 AM_CFLAGS = \
 	$(WARNING_CFLAGS) \
 	$(CODE_COVERAGE_CFLAGS) \
-    $(FLUX_CORE_CFLAGS) \
-    $(JANSSON_CFLAGS)
+	$(FLUX_CORE_CFLAGS) \
+	$(JANSSON_CFLAGS)
 
 AM_LDFLAGS = \
 	$(CODE_COVERAGE_LIBS)
 
 shell_plugindir = \
-    $(fluxlibdir)/shell/plugins
+	$(fluxlibdir)/shell/plugins
 
 shell_plugin_LTLIBRARIES = \
 	cray_pals.la \
