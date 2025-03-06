@@ -142,12 +142,28 @@ def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_
 
 
 def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
-    """Apply all of the directive breakdown information to a jobspec's `resources`."""
+    """Apply all of the directive breakdown information to a jobspec's `resources`.
+
+    Return the resources and a boolean indicating whether copy offload has been
+    requested.
+
+    If it appears that the information has already been applied, return
+    (None, None).
+    """
     limits = ResourceLimits()
     resources = copy.deepcopy(old_resources)
     breakdown_list = list(fetch_breakdowns(k8s_api, workflow))
     if not resources:
         raise ValueError("jobspec resources empty")
+    # update ssd_resources to the right number
+    if resources[0]["type"] == "slot" and len(resources[0]["with"]) == 2:
+        for subresource in resources[0]["with"]:
+            if subresource["type"] not in ("ssd", "node"):
+                raise ValueError(
+                    "jobspec resources has top level 'slot' entry with "
+                    f"{subresource['type']} below it"
+                )
+        return (None, None)
     if len(resources) > 1 or resources[0]["type"] != "node":
         raise ValueError(
             "jobspec resources must have a single top-level 'node' entry, "
