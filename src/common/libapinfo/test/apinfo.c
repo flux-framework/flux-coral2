@@ -105,11 +105,11 @@ int check (struct apinfo *ap, struct input *in, const char *path)
     return 0;
 }
 
-void test_good (const char *path)
+void test_good (const char *path, int version)
 {
     struct apinfo *ap;
 
-    if (!(ap = apinfo_create (1)))
+    if (!(ap = apinfo_create (version)))
         BAIL_OUT ("apinfo_create failed");
 
     for (int i = 0; i < sizeof (good) / sizeof (good[0]); i++) {
@@ -119,12 +119,12 @@ void test_good (const char *path)
     apinfo_destroy (ap);
 }
 
-void test_empty (const char *path)
+void test_empty (const char *path, int version)
 {
     struct apinfo *ap;
     struct stat sb;
 
-    ok ((ap = apinfo_create (1)) != NULL, "apinfo_create version=1 works");
+    ok ((ap = apinfo_create (version)) != NULL, "apinfo_create version=%d works", version);
 
     ok (apinfo_check (ap, NULL) == 0, "apinfo_check says good!");
 
@@ -136,14 +136,14 @@ void test_empty (const char *path)
     apinfo_destroy (ap);
 }
 
-void test_check (const char *path)
+void test_check (const char *path, int version)
 {
     struct apinfo *ap;
     struct hostlist *hosts;
     struct taskmap *map;
     flux_error_t error;
 
-    if (!((ap = apinfo_create (1))))
+    if (!((ap = apinfo_create (version))))
         BAIL_OUT ("apinfo_create failed");
     if (!((map = taskmap_decode ("[[0,2,1,1]]", NULL))))
         BAIL_OUT ("taskmap_decode failed");
@@ -171,14 +171,14 @@ void test_check (const char *path)
     hostlist_destroy (hosts);
 }
 
-void test_inval (const char *path)
+void test_inval (const char *path, int version)
 {
     struct apinfo *ap;
     struct hostlist *hosts;
     struct taskmap *map;
     flux_error_t error;
 
-    if (!((ap = apinfo_create (1))))
+    if (!((ap = apinfo_create (version))))
         BAIL_OUT ("apinfo_create failed");
     if (!((hosts = hostlist_decode ("test[0-1]"))))
         BAIL_OUT ("hostlist_decode failed");
@@ -222,7 +222,7 @@ void test_inval (const char *path)
     ok (apinfo_get_taskmap (NULL) == NULL && errno == EINVAL,
         "apinfo_get_taskmap map=NULL fails with EINVAL");
 
-    lives_ok ({ apinfo_destroy (NULL); }, "apinfo_destroy NULL doesn't cash");
+    lives_ok ({ apinfo_destroy (NULL); }, "apinfo_destroy NULL doesn't crash");
 
     hostlist_destroy (hosts);
     taskmap_destroy (map);
@@ -238,10 +238,17 @@ int main (int argc, char *argv[])
     if (mkstemp (path) < 0)
         BAIL_OUT ("mkstemp failed");
 
-    test_empty (path);
-    test_good (path);
-    test_check (path);
-    test_inval (path);
+    diag ("testing APINFO v1");
+    test_empty (path, 1);
+    test_good (path, 1);
+    test_check (path, 1);
+    test_inval (path, 1);
+
+    diag ("testing APINFO v5");
+    test_empty (path, 5);
+    test_good (path, 5);
+    test_check (path, 5);
+    test_inval (path, 5);
 
     unlink (path);
 

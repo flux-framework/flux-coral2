@@ -21,16 +21,23 @@
 
 #include "src/common/libutil/errprintf.h"
 
-#include "apinfo1.h"
+#include "apinfo5.h"
 #include "apimpl.h"
 
-struct apinfo1 {
+struct apinfo5 {
     pals_header_t hdr;
     pals_comm_profile_t *comms;
     pals_cmd_t *cmds;
     pals_pe_t *pes;
     pals_node_t *nodes;
-    pals_nic_t *nics;
+    pals_hsn_nic_t *nics;
+    pals_distance_t *dist;
+    int *status;
+
+    // missing from pals_header_t
+    int ndist;
+    int nstatus;
+    size_t status_size;
 
     struct hostlist *hosts;  // cache for op_get_hostlist()
     struct taskmap *map;     // cache for op_get_taskmap()
@@ -38,7 +45,7 @@ struct apinfo1 {
 
 /* Assign section offsets after section element counts have been updated.
  */
-static void set_offsets (struct apinfo1 *ap)
+static void set_offsets (struct apinfo5 *ap)
 {
     pals_header_t *hdr = &ap->hdr;
     size_t offset = sizeof (*hdr);
@@ -54,12 +61,22 @@ static void set_offsets (struct apinfo1 *ap)
     hdr->nic_offset = offset;
     offset += hdr->nic_size * hdr->nnics;
 
+    /* Breaking from the pattern above:
+     - pals_header_t does not contain "ndist", so set dist_offset=0 if unused
+     - pals_header_t does not contain "nstatus", so set status_offset=0 if unused.
+     * pals_header_t does not contain "status_size"
+     */
+    hdr->dist_offset = ap->ndist > 0 ? offset : 0;
+    offset += hdr->dist_size * ap->ndist;
+    hdr->status_offset = ap->nstatus > 0 ? offset : 0;
+    offset += ap->status_size * ap->nstatus;
+
     hdr->total_size = offset;
 }
 
 /* Assign section element sizes.
  */
-static void set_sizes (struct apinfo1 *ap)
+static void set_sizes (struct apinfo5 *ap)
 {
     pals_header_t *hdr = &ap->hdr;
 
@@ -68,13 +85,15 @@ static void set_sizes (struct apinfo1 *ap)
     hdr->pe_size = sizeof (ap->pes[0]);
     hdr->node_size = sizeof (ap->nodes[0]);
     hdr->nic_size = sizeof (ap->nics[0]);
+    hdr->dist_size = sizeof (ap->dist[0]);
+    ap->status_size = sizeof (ap->status[0]);
 }
 
 /* Write the entire apinfo object to the specified stream.
  */
 static int op_write (void *handle, FILE *stream)
 {
-    struct apinfo1 *ap = handle;
+    struct apinfo5 *ap = handle;
 
     if (fwrite (&ap->hdr, sizeof (ap->hdr), 1, stream) != 1)
         return -1;
@@ -88,6 +107,10 @@ static int op_write (void *handle, FILE *stream)
     if (fwrite (ap->nodes, ap->hdr.node_size, ap->hdr.nnodes, stream) != ap->hdr.nnodes)
         return -1;
     if (fwrite (ap->nics, ap->hdr.nic_size, ap->hdr.nnics, stream) != ap->hdr.nnics)
+        return -1;
+    if (fwrite (ap->dist, ap->hdr.dist_size, ap->ndist, stream) != ap->ndist)
+        return -1;
+    if (fwrite (ap->status, ap->status_size, ap->nstatus, stream) != ap->nstatus)
         return -1;
 
     return 0;
@@ -112,7 +135,7 @@ static int max_ntasks (const struct taskmap *map)
 
 /* For now, no MPMD support - just one cmd element.
  */
-static int set_cmd (struct apinfo1 *ap, const struct taskmap *map, int cpus_per_pe)
+static int set_cmd (struct apinfo5 *ap, const struct taskmap *map, int cpus_per_pe)
 {
     int ncmds = 1;
     pals_cmd_t *cmds;
@@ -155,7 +178,7 @@ static int localidx (const struct taskmap *map, int nodeid, int taskid)
     return -1;
 }
 
-static int set_pes (struct apinfo1 *ap, const struct taskmap *map)
+static int set_pes (struct apinfo5 *ap, const struct taskmap *map)
 {
     int npes = taskmap_total_ntasks (map);
     pals_pe_t *pes;
@@ -180,7 +203,7 @@ static int set_pes (struct apinfo1 *ap, const struct taskmap *map)
 
 static int op_set_taskmap (void *handle, const struct taskmap *map, int cpus_per_pe)
 {
-    struct apinfo1 *ap = handle;
+    struct apinfo5 *ap = handle;
 
     if (set_pes (ap, map) < 0 || set_cmd (ap, map, cpus_per_pe) < 0)
         return -1;
@@ -190,7 +213,7 @@ static int op_set_taskmap (void *handle, const struct taskmap *map, int cpus_per
 
 static int op_set_hostlist (void *handle, const struct hostlist *hosts)
 {
-    struct apinfo1 *ap = handle;
+    struct apinfo5 *ap = handle;
     int nnodes = hostlist_count ((struct hostlist *)hosts);
     pals_node_t *nodes;
 
@@ -212,7 +235,7 @@ static int op_set_hostlist (void *handle, const struct hostlist *hosts)
 
 static int op_check (void *handle, flux_error_t *error)
 {
-    struct apinfo1 *ap = handle;
+    struct apinfo5 *ap = handle;
 
     // check that the all nodeidx referenced from pes are valid
     for (int taskid = 0; taskid < ap->hdr.npes; taskid++) {
@@ -247,25 +270,25 @@ error:
 
 static size_t op_get_size (void *handle)
 {
-    struct apinfo1 *ap = handle;
+    struct apinfo5 *ap = handle;
     return ap->hdr.total_size;
 }
 
 static int op_get_nnodes (void *handle)
 {
-    struct apinfo1 *ap = handle;
+    struct apinfo5 *ap = handle;
     return ap->hdr.nnodes;
 }
 
 static int op_get_npes (void *handle)
 {
-    struct apinfo1 *ap = handle;
+    struct apinfo5 *ap = handle;
     return ap->hdr.npes;
 }
 
 static const struct hostlist *op_get_hostlist (void *handle)
 {
-    struct apinfo1 *ap = handle;
+    struct apinfo5 *ap = handle;
     struct hostlist *hosts;
 
     if (!(hosts = hostlist_create ()))
@@ -281,17 +304,10 @@ static const struct hostlist *op_get_hostlist (void *handle)
     return ap->hosts;
 }
 
-/* N.B. this builds a taskmap that is equivalent to the original,
- * but unoptimized.  For example:
- * [[0,2,2,1]] => [[0,1,2,1],[1,1,2,1]]
- * [[0,4,4,1]] => [[0,1,4,1],[1,1,4,1],[2,1,4,1],[3,1,4,1]]
- *
- * To check that the two are equivalent, call taskmap_encode()
- * with the TASKMAP_ENCODE_RAW flag and compare the result.
- */
+// see note in apinfo1.c
 static const struct taskmap *op_get_taskmap (void *handle)
 {
-    struct apinfo1 *ap = handle;
+    struct apinfo5 *ap = handle;
     struct taskmap *map;
 
     if (!(map = taskmap_create ()))
@@ -309,7 +325,7 @@ static const struct taskmap *op_get_taskmap (void *handle)
 
 static void *op_create (void)
 {
-    struct apinfo1 *ap;
+    struct apinfo5 *ap;
 
     if (!(ap = calloc (1, sizeof (*ap))))
         return NULL;
@@ -323,7 +339,7 @@ static void *op_create (void)
 
 static void op_destroy (void *handle)
 {
-    struct apinfo1 *ap = handle;
+    struct apinfo5 *ap = handle;
 
     if (ap) {
         int saved_errno = errno;
@@ -334,12 +350,13 @@ static void op_destroy (void *handle)
         free (ap->pes);
         free (ap->nodes);
         free (ap->nics);
+        free (ap->status);
         free (ap);
         errno = saved_errno;
     }
 }
 
-struct apinfo_impl apinfo1 = {
+struct apinfo_impl apinfo5 = {
     .version = PALS_APINFO_VERSION,
     .create = op_create,
     .destroy = op_destroy,

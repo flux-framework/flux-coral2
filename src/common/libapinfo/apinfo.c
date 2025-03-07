@@ -24,9 +24,11 @@
 #include "apimpl.h"
 
 extern struct apinfo_impl apinfo1;
+extern struct apinfo_impl apinfo5;
 
 static struct apinfo_impl *itab[] = {
     &apinfo1,
+    &apinfo5,
 };
 
 struct apinfo {

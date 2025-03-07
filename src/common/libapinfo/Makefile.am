@@ -17,6 +17,8 @@ libapinfo_la_SOURCES = \
 	apinfo.h \
 	apinfo1.c \
 	apinfo1.h \
+	apinfo5.c \
+	apinfo5.h \
 	apimpl.h
 
 TESTS = test_apinfo.t
