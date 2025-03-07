@@ -115,7 +115,7 @@ class Coral2Graph(FluxionResourceGraphV1):
                 index,
                 self._rank_to_children[index],
                 rabbit_name,
-                None,
+                self._rank_to_properties.get(index, {}),
             )
         self._rackids += 1
 
@@ -136,7 +136,12 @@ class Coral2Graph(FluxionResourceGraphV1):
         for rank, node in enumerate(self._r_hostlist):
             if node not in dws_computes:
                 self._encode_rank(
-                    vtx.get_id(), path, rank, self._rank_to_children[rank], node, None
+                    vtx.get_id(),
+                    path,
+                    rank,
+                    self._rank_to_children[rank],
+                    node,
+                    self._rank_to_properties.get(rank, {}),
                 )
 
 
