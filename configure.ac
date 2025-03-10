@@ -43,6 +43,9 @@ AX_VALGRIND_H
 
 AX_FLUX_CORE
 
+AC_ARG_ENABLE([docs],
+              AS_HELP_STRING([--disable-docs], [disable building docs]))
+
 #  Set PYTHON_VERSION to FLUX_PYTHON_VERSION here
 PYTHON_VERSION=${PYTHON_VERSION:-$FLUX_PYTHON_VERSION}
 
@@ -71,6 +74,31 @@ AM_CHECK_PYMOD(kubernetes,
                   ,
                   [AC_MSG_ERROR([could not find python module kubernetes, version 11.0.0+ required])]
                 )
+
+AS_IF([test "x$enable_docs" != "xno"], [
+            AM_CHECK_PYMOD(sphinx,
+                           [Version(sphinx.__version__) >= Version ('1.6.7')],
+                           [sphinx=true],
+                           [sphinx=false; AC_MSG_WARN([could not find sphinx to generate docs, version 1.6.7+ required])]
+                           )
+            AM_CHECK_PYMOD(docutils,
+                           [Version(docutils.__version__) >= Version ('0.11.0')],
+                           [docutils=true],
+                           [docutils=false; AC_MSG_WARN([could not find docutils to generate docs, version 0.11.0+ required])]
+                           )
+])
+
+#  If --enable-docs=yes, but no doc generator found,
+#   then error immediately:
+#
+AS_IF([test "x$enable_docs" = "xyes" -a "x$sphinx" = "xfalse"],[
+  AC_MSG_ERROR([--enable-docs used but no document generator found!])
+])
+AS_IF([test "x$enable_docs" = "xyes" -a "x$docutils" = "xfalse"],[
+  AC_MSG_ERROR([--enable-docs used but docutils not found!])
+])
+AM_CONDITIONAL([ENABLE_DOCS], [test "x$sphinx" = "xtrue" -a "x$docutils" = "xtrue"])
+AC_CHECK_PROG(ASPELL,[aspell],[aspell])
 
 # Checks for header files.
 AC_CHECK_HEADERS([\
@@ -164,6 +192,8 @@ AC_CONFIG_FILES([Makefile
   src/modules/Makefile
   src/python/Makefile
   src/python/flux_k8s/Makefile
+  doc/Makefile
+  doc/test/Makefile
   etc/Makefile
   etc/flux-coral2-dws.service
   t/Makefile])
