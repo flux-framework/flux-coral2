@@ -60,6 +60,7 @@ EXTRA_DIST = \
 	index.rst \
 	domainrefs.py \
 	requirements.txt \
+	guide/glossary.rst \
 	$(RST_FILES) \
 	man1/index.rst
 
