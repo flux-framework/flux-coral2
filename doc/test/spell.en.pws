@@ -60,3 +60,12 @@ Cassini
 El
 Livermore
 PCI
+elcap
+ethernet
+fanout
+rcvhwm
+SuSE
+tbon
+tcp
+toml
+zmq
