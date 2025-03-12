@@ -54,7 +54,8 @@ Table of Contents
 .. toctree::
    :maxdepth: 2
 
+   index_man
+
    guide/admin.rst
    guide/glossary.rst
-
-   index_man
+   guide/reference.rst
