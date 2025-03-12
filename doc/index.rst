@@ -1,11 +1,9 @@
 Flux CORAL2
 ===========
 
-The Flux CORAL2 project contains Flux plugins and other add-ons required
-for Flux to run as the primary resource manager on HPE Cray EX and similar
-systems.  This includes
-`El Capitan <https://www.top500.org/news/el-capitan-achieves-top-spot-frontier-and-aurora-follow-behind/>`_,
-a relatively large one.
+This project contains plugins and other add-ons required for Flux to
+run as the primary resource manager on HPE Cray EX systems, specifically
+the :term:`CORAL-2` systems at Lawrence Livermore National Laboratory.
 
 Documentation is currently under construction.
 
@@ -15,5 +13,8 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 2
+
+   guide/admin.rst
+   guide/glossary.rst
 
    index_man
