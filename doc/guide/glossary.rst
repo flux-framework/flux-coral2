@@ -3,6 +3,10 @@ Glossary
 
 .. glossary::
 
+  APU
+    Acronym (general): Accelerated Processing Unit.  CPU and GPU are combined
+    on a single chip.
+
   CORAL
     Acronym (U.S. Dept. of Energy): *Collaboration of Oak Ridge, Argonne,
     and Livermore*.  The first CORAL procurement was awarded to IBM and
