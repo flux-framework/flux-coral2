@@ -365,10 +365,12 @@ test_expect_success 'job submission with invalid copy_out DW directive fails' '
 '
 
 test_expect_success 'job-manager: dependency plugin works when validation fails' '
-	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
+	jobid=$(flux submit --setattr=system.dw="foo_test" hostname) &&
 	flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
-	flux job wait-event -vt 10 ${jobid} exception
+	flux job wait-event -vt 10 ${jobid} exception | grep "DWS workflow interactions failed" &&
+	test_must_fail grep foo_test dws1.out &&
+	test_must_fail grep foo_test dws1.err
 '
 
 test_expect_success 'dws service kills workflows in Error properly' '
