@@ -129,6 +129,18 @@ test_expect_success 'shell: the -o cray-pals=no-edit-env shell option works' '
 	test_cmp libedit3.exp libedit3.out
 '
 
+test_expect_success 'shell: pals shell plugin hates unknown options' '
+	test_must_fail_or_be_terminated flux run -o cray-pals.xyz=1 \
+	    -o userrc=$(pwd)/$USERRC_NAME true
+'
+test_expect_success 'shell: pals shell plugin timeout can be set' '
+	flux run -o cray-pals.timeout=2 \
+	    -o userrc=$(pwd)/$USERRC_NAME true
+'
+test_expect_success 'shell: pals shell plugin timeout must be a number' '
+	test_must_fail_or_be_terminated flux run -o cray-pals.timeout=42s \
+	    -o userrc=$(pwd)/$USERRC_NAME true
+'
 test_expect_success 'shell: pals shell plugin sets environment' '
 	environment=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 env) &&
 	echo "$environment" | grep PALS_NODEID=0 &&
