@@ -12,4 +12,6 @@ noinst_LTLIBRARIES = libutil.la
 
 libutil_la_SOURCES = \
 	errprintf.h \
-	errprintf.c
+	errprintf.c \
+	eventlog.h \
+	eventlog.c

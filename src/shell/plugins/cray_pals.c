@@ -26,7 +26,7 @@
 #include <flux/shell.h>
 #include <flux/taskmap.h>
 
-#include "eventlog_helpers.h"
+#include "src/common/libutil/eventlog.h"
 #include "src/common/libapinfo/apinfo.h"
 
 /* PALS --- interface with HPE/Cray's PMI.

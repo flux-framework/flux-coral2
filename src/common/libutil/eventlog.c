@@ -8,7 +8,9 @@
  * SPDX-License-Identifier: LGPL-3.0
 \************************************************************/
 
-#include "eventlog_helpers.h"
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <errno.h>
 #include <fcntl.h>
@@ -16,6 +18,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+
+#include "eventlog.h"
 
 bool eventlog_entry_validate (json_t *entry)
 {
@@ -106,3 +110,5 @@ int eventlog_entry_parse (json_t *entry, double *timestamp, const char **name, j
 
     return 0;
 }
+
+// vi:ts=4 sw=4 expandtab
