@@ -73,13 +73,58 @@
  * the PMI_CONTROL_PORT distribution mechanism.
  */
 
+struct cray_pals {
+    int apinfo_version;
+    char apinfo_path[1024];
+    int no_edit_env;  // If true, don't edit LD_LIBRARY_PATH
+    int timeout;
+
+    int shell_size;
+    int shell_rank;
+    int ntasks;
+    flux_jobid_t jobid;
+
+    flux_shell_t *shell;
+};
+
 static const int default_apinfo_version = 5;
+static const double default_timeout = 10.;
 
-static int apinfo_version = default_apinfo_version;
+static void cray_pals_destroy (void *arg)
+{
+    if (arg) {
+        int saved_errno = errno;
+        free (arg);
+        errno = saved_errno;
+    }
+}
 
-/* If true, don't edit LD_LIBRARY_PATH
- */
-static int no_edit_env;
+static struct cray_pals *cray_pals_create (flux_shell_t *shell)
+{
+    struct cray_pals *ctx;
+
+    if (!(ctx = calloc (1, sizeof (*ctx))))
+        return NULL;
+    if (flux_shell_info_unpack (shell,
+                                "{s:i s:i s:i s:I}",
+                                "size",
+                                &ctx->shell_size,
+                                "rank",
+                                &ctx->shell_rank,
+                                "ntasks",
+                                &ctx->ntasks,
+                                "jobid",
+                                &ctx->jobid)
+        < 0) {
+        shell_log_error ("Error unpacking shell info");
+        goto error;
+    }
+    ctx->shell = shell;
+    return ctx;
+error:
+    cray_pals_destroy (ctx);
+    return NULL;
+}
 
 /*
  * Return a 'struct hostlist' containing the hostnames of every shell rank.
@@ -127,21 +172,28 @@ static int get_cores_per_task (flux_shell_t *shell, int ntasks)
  * Write the application information file and return the number
  * of shells in the job.
  */
-static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
+static int create_apinfo (struct cray_pals *ctx)
 {
-    int shell_size, ntasks, cores_per_task;
+    const char *tmpdir;
+    int cores_per_task;
     json_t *nodelist_array;
     const struct taskmap *map;
     struct hostlist *hlist = NULL;
     struct apinfo *ap = NULL;
     flux_error_t error;
 
-    if (flux_shell_info_unpack (shell,
-                                "{s:i s:i s:{s:{s:o}}}",
-                                "size",
-                                &shell_size,
-                                "ntasks",
-                                &ntasks,
+    if (!(tmpdir = flux_shell_getenv (ctx->shell, "FLUX_JOB_TMPDIR"))) {
+        shell_log_error ("FLUX_JOB_TMPDIR is not set");
+        goto error;
+    }
+    if (snprintf (ctx->apinfo_path, sizeof (ctx->apinfo_path), "%s/libpals_apinfo", tmpdir)
+        >= sizeof (ctx->apinfo_path)) {
+        errno = EOVERFLOW;
+        shell_log_error ("Error building apinfo path");
+        goto error;
+    }
+    if (flux_shell_info_unpack (ctx->shell,
+                                "{s:{s:{s:o}}}",
                                 "R",
                                 "execution",
                                 "nodelist",
@@ -150,33 +202,33 @@ static int create_apinfo (const char *apinfo_path, flux_shell_t *shell)
         shell_log_error ("Error unpacking shell info");
         goto error;
     }
-    if (!(map = flux_shell_get_taskmap (shell))) {
+    if (!(map = flux_shell_get_taskmap (ctx->shell))) {
         shell_log_error ("Error getting shell taskmap");
         goto error;
     }
-    if ((cores_per_task = get_cores_per_task (shell, ntasks)) < 0)
+    if ((cores_per_task = get_cores_per_task (ctx->shell, ctx->ntasks)) < 0)
         goto error;
     if (!(hlist = hostlist_from_array (nodelist_array))) {
         shell_log_error ("Error creating hostlist from nodelist array");
         goto error;
     }
-    if (!(ap = apinfo_create (apinfo_version)) || apinfo_set_hostlist (ap, hlist) < 0
+    if (!(ap = apinfo_create (ctx->apinfo_version)) || apinfo_set_hostlist (ap, hlist) < 0
         || apinfo_set_taskmap (ap, map, cores_per_task)) {
-        shell_log_error ("Error creating apinfo v%d object", apinfo_version);
+        shell_log_error ("Error creating apinfo v%d object", ctx->apinfo_version);
         goto error;
     }
     if (apinfo_check (ap, &error) < 0) {
         shell_log_error ("apinfo check failed: %s", error.text);
         goto error;
     }
-    if (apinfo_put (ap, apinfo_path)) {
+    if (apinfo_put (ap, ctx->apinfo_path)) {
         shell_log_error ("Error writing apinfo object");
         goto error;
     }
-    shell_trace ("created pals apinfo v%d file %s", apinfo_version, apinfo_path);
+    shell_trace ("created pals apinfo v%d file %s", ctx->apinfo_version, ctx->apinfo_path);
     apinfo_destroy (ap);
     hostlist_destroy (hlist);
-    return shell_size;
+    return 0;
 error:
     apinfo_destroy (ap);
     hostlist_destroy (hlist);
@@ -257,30 +309,28 @@ static int read_future (flux_future_t *fut,
     return -1;
 }
 
-static int get_pals_ports (flux_shell_t *shell, json_int_t jobid)
+static int get_pals_ports (struct cray_pals *ctx)
 {
     flux_t *h;
     char buf[256];
     flux_future_t *fut = NULL;
     int rc;
     json_int_t random;
-    double timeout = 10.0;
 
-    if (!(h = flux_shell_get_flux (shell))
-        || !(fut = flux_job_event_watch (h, (flux_jobid_t)jobid, "eventlog", 0))) {
+    if (!(h = flux_shell_get_flux (ctx->shell))
+        || !(fut = flux_job_event_watch (h, ctx->jobid, "eventlog", 0))) {
         shell_log_error ("Error creating event_watch future");
         return -1;
     }
-    if (flux_shell_getopt_unpack (shell, "cray-pals", "{s?F}", "timeout", &timeout) < 0
-        || (rc = read_future (fut, buf, sizeof (buf), &random, timeout)) < 0)
+    if ((rc = read_future (fut, buf, sizeof (buf), &random, ctx->timeout)) < 0)
         shell_log_error ("Error reading ports from eventlog");
     flux_future_destroy (fut);
 
     /* read_future() returns 1 if port distribution event was found:
      */
     if (rc == 1) {
-        if (flux_shell_setenvf (shell, 1, "PMI_CONTROL_PORT", "%s", buf) < 0
-            || flux_shell_setenvf (shell, 1, "PMI_SHARED_SECRET", "%ju", (uintmax_t)random) < 0) {
+        if (flux_shell_setenvf (ctx->shell, 1, "PMI_CONTROL_PORT", "%s", buf) < 0
+            || flux_shell_setenvf (ctx->shell, 1, "PMI_SHARED_SECRET", "%ju", (uintmax_t)random) < 0) {
             return -1;
         }
         shell_trace ("set PMI_CONTROL_PORT to %s", buf);
@@ -327,29 +377,26 @@ out:
 /*
  * Set job-wide environment variables for LibPALS
  */
-static int set_environment (flux_shell_t *shell, const char *apinfo_path, int shell_size)
+static int set_environment (struct cray_pals *ctx)
 {
-    int rank = -1;
-    json_int_t jobid;
     const char *tmpdir;
 
     // must unset PMI_CONTROL_PORT if it was set by Slurm
-    flux_shell_unsetenv (shell, "PMI_CONTROL_PORT");
-    if (flux_shell_info_unpack (shell, "{s:i, s:I}", "rank", &rank, "jobid", &jobid) < 0
-        || flux_shell_setenvf (shell, 1, "PALS_NODEID", "%i", rank) < 0
-        || flux_shell_setenvf (shell, 1, "PALS_APID", "%" JSON_INTEGER_FORMAT, jobid) < 0
-        || !(tmpdir = flux_shell_getenv (shell, "FLUX_JOB_TMPDIR"))
-        || flux_shell_setenvf (shell, 1, "PALS_SPOOL_DIR", "%s", tmpdir) < 0
-        || flux_shell_setenvf (shell, 1, "PALS_APINFO", "%s", apinfo_path) < 0
+    flux_shell_unsetenv (ctx->shell, "PMI_CONTROL_PORT");
+    if (flux_shell_setenvf (ctx->shell, 1, "PALS_NODEID", "%d", ctx->shell_rank) < 0
+        || flux_shell_setenvf (ctx->shell, 1, "PALS_APID", "%ju", (uintmax_t)ctx->jobid) < 0
+        || !(tmpdir = flux_shell_getenv (ctx->shell, "FLUX_JOB_TMPDIR"))
+        || flux_shell_setenvf (ctx->shell, 1, "PALS_SPOOL_DIR", "%s", tmpdir) < 0
+        || flux_shell_setenvf (ctx->shell, 1, "PALS_APINFO", "%s", ctx->apinfo_path) < 0
         // no need to set ports if shell_size == 1
-        || (shell_size > 1 && get_pals_ports (shell, jobid) < 0)) {
+        || (ctx->shell_size > 1 && get_pals_ports (ctx) < 0)) {
         shell_log_error ("Error setting libpals environment");
         return -1;
     }
-    shell_trace ("set PALS_NODEID to %i", rank);
-    shell_trace ("set PALS_APID to %" JSON_INTEGER_FORMAT, jobid);
+    shell_trace ("set PALS_NODEID to %d", ctx->shell_rank);
+    shell_trace ("set PALS_APID to %ju", (uintmax_t)ctx->jobid);
     shell_trace ("set PALS_SPOOL_DIR to %s", tmpdir);
-    shell_trace ("set PALS_APINFO to %s", apinfo_path);
+    shell_trace ("set PALS_APINFO to %s", ctx->apinfo_path);
     return 0;
 }
 
@@ -359,16 +406,9 @@ static int set_environment (flux_shell_t *shell, const char *apinfo_path, int sh
  */
 static int libpals_init (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *data)
 {
-    const char *tmpdir;
-    char apinfo_path[1024];
-    flux_shell_t *shell = flux_plugin_get_shell (p);
-    int shell_size;
+    struct cray_pals *ctx = data;
 
-    if (!(tmpdir = flux_shell_getenv (shell, "FLUX_JOB_TMPDIR"))
-        || snprintf (apinfo_path, sizeof (apinfo_path), "%s/%s", tmpdir, "libpals_apinfo")
-               >= sizeof (apinfo_path)
-        || (shell_size = create_apinfo (apinfo_path, shell)) < 1
-        || set_environment (shell, apinfo_path, shell_size) < 0) {
+    if (create_apinfo (ctx) < 0 || set_environment (ctx) < 0) {
         return -1;
     }
     return 0;
@@ -382,19 +422,19 @@ static int libpals_task_init (flux_plugin_t *p,
                               flux_plugin_arg_t *args,
                               void *data)
 {
-    flux_shell_t *shell = flux_plugin_get_shell (p);
+    struct cray_pals *ctx = data;
     flux_shell_task_t *task;
     flux_cmd_t *cmd;
     int task_rank;
 
-    if (!shell || !(task = flux_shell_current_task (shell)) || !(cmd = flux_shell_task_cmd (task))
+    if (!(task = flux_shell_current_task (ctx->shell)) || !(cmd = flux_shell_task_cmd (task))
         || flux_shell_task_info_unpack (task, "{s:i}", "rank", &task_rank) < 0
         || flux_cmd_setenvf (cmd, 1, "PALS_RANKID", "%d", task_rank) < 0) {
         return -1;
     }
     shell_trace ("set PALS_RANKID to %d", task_rank);
 
-    if (!no_edit_env) {
+    if (!ctx->no_edit_env) {
         const char *pmipath = flux_conf_builtin_get ("pmi_library_path", FLUX_CONF_AUTO);
         char *cpy = NULL;
         char *dir;
@@ -452,10 +492,44 @@ static int unset_pals_env (flux_shell_t *shell)
     return 0;
 }
 
+static int cray_pals_parse_args (struct cray_pals *ctx)
+{
+    json_t *opts = NULL;
+
+    ctx->no_edit_env = 0;
+    ctx->apinfo_version = default_apinfo_version;
+    ctx->timeout = default_timeout;
+
+    if (flux_shell_getopt_unpack (ctx->shell, "cray-pals", "o", &opts) < 0) {
+        shell_log_error ("error parsing cray-pals options");
+        return -1;
+    }
+    if (opts) {
+        json_error_t jerror;
+        if (json_unpack_ex (opts,
+                            &jerror,
+                            0,
+                            "{s?i s?i s?F !}",
+                            "no-edit-env",
+                            &ctx->no_edit_env,
+                            "apinfo-version",
+                            &ctx->apinfo_version,
+                            "timeout",
+                            &ctx->timeout)
+            < 0) {
+            shell_log_error ("error parsing cray-pals options: %s", jerror.text);
+            errno = EINVAL;
+            return -1;
+        }
+    }
+    return 0;
+}
+
 int flux_plugin_init (flux_plugin_t *p)
 {
     const char *pmi_opt = NULL;
     flux_shell_t *shell;
+    struct cray_pals *ctx;
 
     if (!(shell = flux_plugin_get_shell (p))
         || flux_plugin_set_name (p, FLUX_SHELL_PLUGIN_NAME) < 0)
@@ -472,16 +546,17 @@ int flux_plugin_init (flux_plugin_t *p)
 
     shell_debug ("enabled (version %s)", PACKAGE_VERSION);
 
-    // If -o cray-pals.no-edit-env is was specified set a flag for later
-    no_edit_env = 0;
-    (void)flux_shell_getopt_unpack (shell, "cray-pals", "{s?i}", "no-edit-env", &no_edit_env);
+    if (!(ctx = cray_pals_create (shell))
+        || flux_plugin_aux_set (p, "pals", ctx, cray_pals_destroy) < 0) {
+        cray_pals_destroy (ctx);
+        return -1;
+    }
 
-    // If -o cray-pals.apinfo-version=N, use that version
-    apinfo_version = default_apinfo_version;
-    (void)flux_shell_getopt_unpack (shell, "cray-pals", "{s?i}", "apinfo-version", &apinfo_version);
+    if (cray_pals_parse_args (ctx) < 0)
+        return -1;
 
-    if (flux_plugin_add_handler (p, "shell.init", libpals_init, NULL) < 0
-        || flux_plugin_add_handler (p, "task.init", libpals_task_init, NULL) < 0)
+    if (flux_plugin_add_handler (p, "shell.init", libpals_init, ctx) < 0
+        || flux_plugin_add_handler (p, "task.init", libpals_task_init, ctx) < 0)
         return -1;
 
     return 0;
