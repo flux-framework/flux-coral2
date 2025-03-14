@@ -12,3 +12,6 @@ References
 
 - `AMD ROCm documentation
   <https://rocm.docs.amd.com/en/latest/>`_
+
+- `Rabbit Storage for El Capitan <https://www.opensfs.org/wp-content/uploads/Fast-IO-El-Capitan-Rabbits.revised.pdf>`_,
+  Behlendorf and Faaland, LUG May 2023.
