@@ -73,11 +73,19 @@
  * the PMI_CONTROL_PORT distribution mechanism.
  */
 
+struct pmi_bootstrap_info {
+    int port[2];  // in the future, make array size dynamic for MPMD
+    json_int_t secret;
+    bool valid;     // flag indicating the above are valid
+    bool disabled;  // cray-pals.pmi-bootstrap=off
+};
+
 struct cray_pals {
     int apinfo_version;
     char apinfo_path[1024];
     int no_edit_env;  // If true, don't edit LD_LIBRARY_PATH
     int timeout;
+    struct pmi_bootstrap_info pmi;
 
     int shell_size;
     int shell_rank;
@@ -235,29 +243,25 @@ error:
     return -1;
 }
 
-static int read_future (flux_future_t *fut,
-                        char *buf,
-                        size_t bufsize,
-                        json_int_t *random,
-                        double timeout)
+/* Read events synchronously, looking for  the "cray_port_distribution" event.
+ * The following outcomes are possible:
+ * - "cray_port_distribution" was posted: populate 'pmi', set pmi->valid true,
+ *   return 0.
+ * - "clean" event was encountered (module not loaded?): leave pmi->valid false,
+ *   return 0
+ * - an error occurred such as timeout: log an error message, return -1.
+ */
+static int read_future (flux_future_t *fut, struct pmi_bootstrap_info *pmi, double timeout)
 {
     json_t *o = NULL;
     json_t *context = NULL;
-    json_t *array;
     const char *name = "<no events received>", *event = NULL;
-    size_t index = 0;
-    json_t *value;
-    json_int_t portnum;
-    int bytes_written;
 
     while (flux_future_wait_for (fut, timeout) == 0
            && flux_job_event_watch_get (fut, &event) == 0) {
-        if (!(o = eventlog_entry_decode (event))) {
+        if (!(o = eventlog_entry_decode (event))
+            || eventlog_entry_parse (o, NULL, &name, &context) < 0) {
             shell_log_errno ("Error decoding eventlog entry");
-            return -1;
-        }
-        if (eventlog_entry_parse (o, NULL, &name, &context) < 0) {
-            shell_log_errno ("Error parsing eventlog entry");
             json_decref (o);
             return -1;
         }
@@ -271,71 +275,46 @@ static int read_future (flux_future_t *fut,
             return 0;
         }
         if (!strcmp (name, "cray_port_distribution")) {
-            if (json_unpack (context, "{s:o, s:I}", "ports", &array, "random_integer", random)
+            if (json_unpack (context,
+                             "{s:[ii] s:I}",
+                             "ports",
+                             &pmi->port[0],
+                             &pmi->port[1],
+                             "random_integer",
+                             &pmi->secret)
                 < 0) {
                 shell_log_error ("Error unpacking 'cray_port_distribution' event");
                 json_decref (o);
                 return -1;
             }
-            json_array_foreach (array, index, value) {
-                if ((portnum = json_integer_value (value)) == 0) {
-                    shell_log_error ("Received non-integer port");
-                    json_decref (o);
-                    return -1;
-                }
-                if (index == 0) {
-                    bytes_written = snprintf (buf, bufsize, "%" JSON_INTEGER_FORMAT, portnum);
-                } else {
-                    bytes_written = snprintf (buf, bufsize, ",%" JSON_INTEGER_FORMAT, portnum);
-                }
-                buf += bytes_written;
-                bufsize -= bytes_written;
-                if (bufsize < 10) {
-                    shell_log_error ("Port buffer exhausted");
-                    json_decref (o);
-                    return -1;
-                }
-            }
+            pmi->valid = true;
             json_decref (o);
-            /*  Return 1 on success
-             */
-            return 1;
-        } else {
-            flux_future_reset (fut);
-            json_decref (o);
+            return 0;
         }
+        flux_future_reset (fut);
+        json_decref (o);
     }
     shell_log_error ("Timed out waiting for start event, last event received was %s", name);
     return -1;
 }
 
-static int get_pals_ports (struct cray_pals *ctx)
+/* Read pmi bootstrap info from the job eventlog.
+ * This is a synchronous operation, under a timeout.
+ */
+static int get_pmi_bootstrap (struct cray_pals *ctx)
 {
     flux_t *h;
-    char buf[256];
     flux_future_t *fut = NULL;
     int rc;
-    json_int_t random;
 
     if (!(h = flux_shell_get_flux (ctx->shell))
         || !(fut = flux_job_event_watch (h, ctx->jobid, "eventlog", 0))) {
         shell_log_error ("Error creating event_watch future");
         return -1;
     }
-    if ((rc = read_future (fut, buf, sizeof (buf), &random, ctx->timeout)) < 0)
-        shell_log_error ("Error reading ports from eventlog");
+    if ((rc = read_future (fut, &ctx->pmi, ctx->timeout)) < 0)
+        shell_log_error ("Error reading PMI bootstrap info from eventlog");
     flux_future_destroy (fut);
-
-    /* read_future() returns 1 if port distribution event was found:
-     */
-    if (rc == 1) {
-        if (flux_shell_setenvf (ctx->shell, 1, "PMI_CONTROL_PORT", "%s", buf) < 0
-            || flux_shell_setenvf (ctx->shell, 1, "PMI_SHARED_SECRET", "%ju", (uintmax_t)random) < 0) {
-            return -1;
-        }
-        shell_trace ("set PMI_CONTROL_PORT to %s", buf);
-        shell_trace ("set PMI_SHARED_SECRET to %ju", (uintmax_t)random);
-    }
     return rc;
 }
 
@@ -374,6 +353,15 @@ out:
     return rc;
 }
 
+static void trace_env (flux_shell_t *shell, const char *name)
+{
+    const char *val = flux_shell_getenv (shell, name);
+    if (val)
+        shell_trace ("set %s to %s", name, val);
+    else
+        shell_trace ("%s is unset", name);
+}
+
 /*
  * Set job-wide environment variables for LibPALS
  */
@@ -383,21 +371,39 @@ static int set_environment (struct cray_pals *ctx)
 
     // must unset PMI_CONTROL_PORT if it was set by Slurm
     flux_shell_unsetenv (ctx->shell, "PMI_CONTROL_PORT");
+
     if (flux_shell_setenvf (ctx->shell, 1, "PALS_NODEID", "%d", ctx->shell_rank) < 0
         || flux_shell_setenvf (ctx->shell, 1, "PALS_APID", "%ju", (uintmax_t)ctx->jobid) < 0
         || !(tmpdir = flux_shell_getenv (ctx->shell, "FLUX_JOB_TMPDIR"))
         || flux_shell_setenvf (ctx->shell, 1, "PALS_SPOOL_DIR", "%s", tmpdir) < 0
-        || flux_shell_setenvf (ctx->shell, 1, "PALS_APINFO", "%s", ctx->apinfo_path) < 0
-        // no need to set ports if shell_size == 1
-        || (ctx->shell_size > 1 && get_pals_ports (ctx) < 0)) {
-        shell_log_error ("Error setting libpals environment");
-        return -1;
+        || flux_shell_setenvf (ctx->shell, 1, "PALS_APINFO", "%s", ctx->apinfo_path) < 0)
+        goto error;
+    if (ctx->pmi.valid) {
+        if (flux_shell_setenvf (ctx->shell,
+                                1,
+                                "PMI_CONTROL_PORT",
+                                "%d,%d",
+                                ctx->pmi.port[0],
+                                ctx->pmi.port[1])
+                < 0
+            || flux_shell_setenvf (ctx->shell,
+                                   1,
+                                   "PMI_SHARED_SECRET",
+                                   "%ju",
+                                   (uintmax_t)ctx->pmi.secret)
+                   < 0)
+            goto error;
     }
-    shell_trace ("set PALS_NODEID to %d", ctx->shell_rank);
-    shell_trace ("set PALS_APID to %ju", (uintmax_t)ctx->jobid);
-    shell_trace ("set PALS_SPOOL_DIR to %s", tmpdir);
-    shell_trace ("set PALS_APINFO to %s", ctx->apinfo_path);
+    trace_env (ctx->shell, "PALS_NODEID");
+    trace_env (ctx->shell, "PALS_APID");
+    trace_env (ctx->shell, "PALS_SPOOL_DIR");
+    trace_env (ctx->shell, "PALS_APINFO");
+    trace_env (ctx->shell, "PMI_CONTROL_PORT");
+    trace_env (ctx->shell, "PMI_SHARED_SECRET");
     return 0;
+error:
+    shell_log_error ("Error setting libpals environment");
+    return -1;
 }
 
 /*
@@ -408,6 +414,18 @@ static int libpals_init (flux_plugin_t *p, const char *topic, flux_plugin_arg_t 
 {
     struct cray_pals *ctx = data;
 
+    /* Cray PMI wants a shared secret and a pair of unused port numbers
+     * if it has to wire up across nodes.  This is non-trivial, so skip if
+     * one of the following is true:
+     * - the job is single node only
+     * - the user set -ocray-pals.pmi-bootstrap=off
+     * - the user set -ocray-pals.pmi-bootstrap=[port1,port2,secret]
+     * get_pmi_boostrap() populates ctx->pmi, seting ctx->pmi.valid upon success.
+     */
+    if (ctx->shell_size > 1 && !ctx->pmi.disabled && !ctx->pmi.valid) {
+        if (get_pmi_bootstrap (ctx) < 0)
+            return -1;
+    }
     if (create_apinfo (ctx) < 0 || set_environment (ctx) < 0) {
         return -1;
     }
@@ -506,23 +524,48 @@ static int cray_pals_parse_args (struct cray_pals *ctx)
     }
     if (opts) {
         json_error_t jerror;
+        json_t *pmi_bootstrap = NULL;
+
         if (json_unpack_ex (opts,
                             &jerror,
                             0,
-                            "{s?i s?i s?F !}",
+                            "{s?i s?i s?F s?o !}",
                             "no-edit-env",
                             &ctx->no_edit_env,
                             "apinfo-version",
                             &ctx->apinfo_version,
                             "timeout",
-                            &ctx->timeout)
+                            &ctx->timeout,
+                            "pmi-bootstrap",
+                            &pmi_bootstrap)
             < 0) {
             shell_log_error ("error parsing cray-pals options: %s", jerror.text);
-            errno = EINVAL;
-            return -1;
+            goto error;
+        }
+        if (pmi_bootstrap) {
+            if (json_is_string (pmi_bootstrap)
+                && !strcmp (json_string_value (pmi_bootstrap), "off"))
+                ctx->pmi.disabled = true;
+            else {
+                if (json_unpack_ex (pmi_bootstrap,
+                                    &jerror,
+                                    0,
+                                    "[iiI]",
+                                    &ctx->pmi.port[0],
+                                    &ctx->pmi.port[1],
+                                    &ctx->pmi.secret)
+                    < 0) {
+                    shell_log_error ("error parsing cray-pals.pmi-bootstrap: %s", jerror.text);
+                    goto error;
+                }
+                ctx->pmi.valid = true;
+            }
         }
     }
     return 0;
+error:
+    errno = EINVAL;
+    return -1;
 }
 
 int flux_plugin_init (flux_plugin_t *p)
