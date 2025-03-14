@@ -32,6 +32,28 @@ test_size_large() {
     echo ${size}
 }
 
+#
+#  Like test_must_fail(), but additionally allow process to be
+#   terminated by SIGKILL or SIGTERM
+#
+test_must_fail_or_be_terminated() {
+    "$@"
+    exit_code=$?
+    # Allow death by SIGTERM or SIGKILL
+    if test $exit_code = 143 -o $exit_code = 137; then
+        return 0
+    elif test $exit_code = 0; then
+        echo >&2 "test_must_fail_or_be_terminated: command succeeded: $*"
+        return 1
+    elif test $exit_code -ge 129 -a $exit_code -le 192; then
+        echo >&2 "test_must_fail_or_be_terminated: died by signal $(($exit_code-128)): $*"
+        return 1
+    elif test $exit_code = 127; then
+        echo >&2 "test_must_fail_or_be_terminated: command not found: $*"
+        return 1
+    fi
+    return 0
+}
 
 #
 #  Tests using test_under_flux() and which load their own modules should
