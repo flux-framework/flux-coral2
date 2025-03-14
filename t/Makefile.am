@@ -29,6 +29,7 @@ TESTSCRIPTS = \
 	t1004-dws-environment.t \
 	t2000-dws2jgf.t \
 	t2001-getrabbit.t \
+	t2002-dws2jgf2.t \
 	python/t0001-directive-breakdown.py
 
 # make check runs these TAP tests directly (both scripts and programs)

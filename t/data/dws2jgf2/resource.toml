@@ -1,0 +1,35 @@
+[resource]
+exclude = "somecluster[6,10-11]"
+norestrict = true
+
+[[resource.config]]
+hosts = "somecluster6"
+cores = "0-23"
+
+[[resource.config]]
+hosts = "somecluster[10-11,14-41]"
+cores = "0-63"
+gpus = "0-7"
+
+[[resource.config]]
+hosts = "somecluster[42-43]"
+cores = "0-95"
+gpus = "0-3"
+
+# properties that define queues should not overlap.
+# all resources should be assigned to a queue.
+# policy.toml shows which properties are mapped to queues.
+
+[[resource.config]]
+hosts = "somecluster[18-41]"
+properties = ["pdebug"]
+
+[[resource.config]]
+hosts = "somecluster[14-17]"
+properties = ["pci"]
+
+
+# these nodes are not in the rabbitmapping
+[[resource.config]]
+hosts = "somecluster[42-43]"
+properties = ["mi300a"]
