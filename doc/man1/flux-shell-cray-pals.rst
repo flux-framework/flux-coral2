@@ -26,18 +26,6 @@ SHELL OPTIONS
   Enable only the cray-pals PMI plugin.  Other PMI implementations may
   be added, separated by commas.
 
-.. option:: cray-pals.no-edit-env
-
-  Prevent the cray-pals PMI plugin from removing Flux's PMI library
-  directory from :envvar:`LD_LIBRARY_PATH`, if present.
-
-  It is removed by default to ensure that Cray PMI library is found
-  before Flux's.
-
-.. option:: cray-pals.apinfo-version=1
-
-  Force HPE apinfo version 1.  The default is version 5.
-
 .. note::
 
   On systems where Cray MPICH is used, it may be helpful for system
@@ -53,13 +41,36 @@ SHELL OPTIONS
   :program:`simple` PMI is required to launch Flux instances, so if the
   :option:`pmi` default is changed, be sure to include it also.
 
+.. option:: cray-pals.no-edit-env
+
+  Prevent the cray-pals PMI plugin from removing Flux's PMI library
+  directory from :envvar:`LD_LIBRARY_PATH`, if present.
+
+  It is removed by default to ensure that Cray PMI library is found
+  before Flux's.
+
+.. option:: cray-pals.apinfo-version=1
+
+  Force HPE apinfo version 1.  The default is version 5.
+
 .. option:: cray-pals.timeout=SECONDS
 
   The plugin synchronously watches the job eventlog for data from the
   ``cray_pals_port_distributor`` jobtap plugin.  The job is aborted
-  the eventlog does not make progress for the specified number of
+  if the eventlog does not make progress for the specified number of
   seconds.  Setting the timeout to a negative value disables it.
   Default: 10.
+
+.. option:: cray-pals.pmi-bootstrap=off
+
+  Disable setting :envvar:`PMI_CONTROL_PORT` and
+  :envvar:`PMI_SHARED_SECRET`.  This is mainly useful for testing.
+
+.. option:: cray-pals.pmi-bootstrap=[port1,port2,secret]
+
+  Provide fixed values for setting :envvar:`PMI_CONTROL_PORT` and
+  and :envvar:`PMI_SHARED_SECRET`.  The option value is expressed
+  as a JSON array of three integers.  This is mainly useful for testing.
 
 ENVIRONMENT
 ===========
