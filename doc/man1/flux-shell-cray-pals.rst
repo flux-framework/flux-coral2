@@ -53,6 +53,13 @@ SHELL OPTIONS
   :program:`simple` PMI is required to launch Flux instances, so if the
   :option:`pmi` default is changed, be sure to include it also.
 
+.. option:: cray-pals.timeout=SECONDS
+
+  The plugin synchronously watches the job eventlog for data from the
+  ``cray_pals_port_distributor`` jobtap plugin.  The job is aborted
+  the eventlog does not make progress for the specified number of
+  seconds.  Setting the timeout to a negative value disables it.
+  Default: 10.
 
 ENVIRONMENT
 ===========
@@ -82,14 +89,14 @@ as required by Cray PMI.
 
 .. envvar:: PMI_CONTROL_PORT
 
-  Set to a comma-separated pair of port numbers allocated to the job by
-  the :program:`cray_pals_port_distributor` jobtap plugin and passed to
-  :program:`cray-pals` via the job eventlog.
+  A comma-separated pair of port numbers to assist Cray PMI in
+  bootstrapping peer connections. The ports should be available
+  for binding on all nodes of the job.
 
 .. envvar:: PMI_SHARED_SECRET
 
-  Set to a random 64 bit integer, also allocated to the job by
-  :program:`cray_pals_port_distributor`.
+  A random 64 bit integer to assist Cray PMI in bootstrapping
+  secure communications.
 
 APINFO
 ======
@@ -218,4 +225,4 @@ If all else fails, Cray MPICH works at least superficially with Flux's
 SEE ALSO
 ========
 
-:core:man1:`flux-submit`, :core:man1:`flux-shell`
+:core:man1:`flux-submit`, :core:man1:`flux-shell`, :core:man1:`flux-pmi`
