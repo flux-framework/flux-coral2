@@ -1,0 +1,46 @@
+{
+  "computes": {
+    "somecluster10": "somecluster101",
+    "somecluster11": "somecluster101",
+    "somecluster12": "somecluster101",
+    "somecluster13": "somecluster101",
+    "somecluster14": "somecluster101",
+    "somecluster15": "somecluster101",
+    "somecluster16": "somecluster101",
+    "somecluster17": "somecluster101",
+    "somecluster18": "somecluster101",
+    "somecluster19": "somecluster101",
+    "somecluster20": "somecluster101",
+    "somecluster21": "somecluster101",
+    "somecluster22": "somecluster101",
+    "somecluster23": "somecluster101",
+    "somecluster24": "somecluster101",
+    "somecluster25": "somecluster101",
+    "somecluster26": "somecluster102",
+    "somecluster27": "somecluster102",
+    "somecluster28": "somecluster102",
+    "somecluster29": "somecluster102",
+    "somecluster30": "somecluster102",
+    "somecluster31": "somecluster102",
+    "somecluster32": "somecluster102",
+    "somecluster33": "somecluster102",
+    "somecluster34": "somecluster102",
+    "somecluster35": "somecluster102",
+    "somecluster36": "somecluster102",
+    "somecluster37": "somecluster102",
+    "somecluster38": "somecluster102",
+    "somecluster39": "somecluster102",
+    "somecluster40": "somecluster102",
+    "somecluster41": "somecluster102"
+  },
+  "rabbits": {
+    "somecluster101": {
+      "capacity": 30659987079168,
+      "hostlist": "somecluster[10-25]"
+    },
+    "somecluster102": {
+      "capacity": 28743737888768,
+      "hostlist": "somecluster[26-41]"
+    }
+  }
+}
