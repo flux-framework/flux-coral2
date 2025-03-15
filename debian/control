@@ -8,7 +8,7 @@ Build-Depends:
   flux-core (>= 0.49.0),
   python3-dev,
   python3-kubernetes,
-  pylint3,
+  pylint,
   jq
 
 Homepage: https://github.com/flux-framework/flux-core

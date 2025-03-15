@@ -129,6 +129,39 @@ test_expect_success 'shell: the -o cray-pals=no-edit-env shell option works' '
 	test_cmp libedit3.exp libedit3.out
 '
 
+test_expect_success 'shell: pals shell plugin hates unknown options' '
+	test_must_fail_or_be_terminated flux run -o cray-pals.xyz=1 \
+	    -o userrc=$(pwd)/$USERRC_NAME true
+'
+test_expect_success 'shell: pals shell plugin timeout can be set' '
+	flux run -o cray-pals.timeout=2 \
+	    -o userrc=$(pwd)/$USERRC_NAME true
+'
+test_expect_success 'shell: pals shell plugin timeout must be a number' '
+	test_must_fail_or_be_terminated flux run -o cray-pals.timeout=42s \
+	    -o userrc=$(pwd)/$USERRC_NAME true
+'
+test_expect_success 'shell: pals shell plugin pmi-bootstrap=[1,2,3] works' '
+	cat >cmdline.exp <<-EOT &&
+	1,2
+	3
+	EOT
+	flux run -o cray-pals.pmi-bootstrap=[1,2,3] \
+	    -o userrc=$(pwd)/$USERRC_NAME \
+	    printenv PMI_CONTROL_PORT PMI_SHARED_SECRET >cmdline.out &&
+	test_cmp cmdline.exp cmdline.out
+'
+test_expect_success 'shell: pals shell plugin pmi-bootstrap=off works' '
+	flux run -N2 -o cray-pals.pmi-bootstrap=off \
+	    -o userrc=$(pwd)/$USERRC_NAME \
+	    printenv >env.out &&
+	test_must_fail grep PMI_CONTROL_PORT env.out &&
+	test_must_fail grep PMI_SHARED_SECRET env.out
+'
+test_expect_success 'shell: pals shell plugin pmi-bootstrap must have three elements' '
+	test_must_fail_or_be_terminated flux run -o cray-pals.pmi-bootstrap="[1,2]" \
+	    -o userrc=$(pwd)/$USERRC_NAME true
+'
 test_expect_success 'shell: pals shell plugin sets environment' '
 	environment=$(flux run -o userrc=$(pwd)/$USERRC_NAME -N1 -n1 env) &&
 	echo "$environment" | grep PALS_NODEID=0 &&

@@ -18,7 +18,7 @@
 #include <flux/hostlist.h>
 #include <flux/shell.h>
 
-#include "eventlog_helpers.h"
+#include "src/common/libutil/eventlog.h"
 
 /* DWS Environment --- set environment variables provided by DWS
  *

@@ -22,3 +22,5 @@ json_t *eventlog_entry_decode (const char *entry);
 int eventlog_entry_parse (json_t *entry, double *timestamp, const char **name, json_t **context);
 
 #endif /* !_EVENTLOG_HELPERS_H */
+
+// vi:ts=4 sw=4 expandtab
