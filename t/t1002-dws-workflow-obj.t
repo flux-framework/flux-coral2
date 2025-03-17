@@ -19,6 +19,7 @@ flux setattr log-stderr-level 1
 
 PLUGINPATH=${FLUX_BUILD_DIR}/src/job-manager/plugins/.libs
 DWS_MODULE_PATH=${FLUX_SOURCE_DIR}/src/modules/coral2_dws.py
+LAUNCH_DWS="flux python ${DWS_MODULE_PATH}"
 RPC=${FLUX_BUILD_DIR}/t/util/rpc
 CREATE_DEP_NAME="dws-create"
 PROLOG_NAME="dws-setup"
@@ -41,14 +42,14 @@ test_expect_success 'job-manager: load dws-jobtap and alloc-bypass plugin' '
 '
 
 test_expect_success 'exec dws service-providing script with bad arguments' '
-    KUBECONFIG=/dev/null test_expect_code 3 flux python ${DWS_MODULE_PATH} \
+    KUBECONFIG=/dev/null test_expect_code 3 ${LAUNCH_DWS} \
         -v &&
     echo "
 [rabbit]
 kubeconfig = \"/dev/null\"
     " | flux config load &&
-    test_expect_code 3 flux python ${DWS_MODULE_PATH} -v &&
-    test_expect_code 2 flux python ${DWS_MODULE_PATH} \
+    test_expect_code 3 ${LAUNCH_DWS} -v &&
+    test_expect_code 2 ${LAUNCH_DWS} \
         -v --foobar
 '
 
@@ -57,12 +58,12 @@ test_expect_success 'exec dws service-providing script with bad config' '
 [rabbit]
 foobar = false
     " | flux config load &&
-    test_must_fail flux python ${DWS_MODULE_PATH} -v &&
+    test_must_fail ${LAUNCH_DWS} -v &&
     echo "
 [rabbit.policy.maximums]
 fake = 1
     " | flux config load &&
-    test_must_fail flux python ${DWS_MODULE_PATH} -v
+    test_must_fail ${LAUNCH_DWS} -v
 '
 
 test_expect_success 'exec dws service-providing script with fluxion scheduling disabled' '
@@ -71,7 +72,7 @@ test_expect_success 'exec dws service-providing script with fluxion scheduling d
     DWS_JOBID=$(flux submit \
             --setattr=system.alloc-bypass.R="$R" \
             -o per-resource.type=node --output=dws-fluxion-disabled.out \
-            --error=dws-fluxion-disabled.err python ${DWS_MODULE_PATH} \
+            --error=dws-fluxion-disabled.err ${LAUNCH_DWS} \
             -vvv --disable-fluxion) &&
     flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start &&
     flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
@@ -123,7 +124,7 @@ test_expect_success 'dws service script handles restarts while a job is in SCHED
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws-fluxion-disabled2.out \
 		--error=dws-fluxion-disabled2.err \
-		python ${DWS_MODULE_PATH} -vvv --disable-fluxion) &&
+		${LAUNCH_DWS} -vvv --disable-fluxion) &&
 	test_must_fail flux job wait-event -vt 10 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
 	flux queue start --all &&
@@ -157,7 +158,7 @@ test_expect_success 'exec dws service-providing script' '
 	DWS_JOBID=$(flux submit \
 	        --setattr=system.alloc-bypass.R="$R" \
 	        -o per-resource.type=node --output=dws1.out --error=dws1.err \
-	        python ${DWS_MODULE_PATH} -vvv) &&
+	        ${LAUNCH_DWS} -vvv) &&
 	flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start
 '
 
@@ -394,7 +395,7 @@ kubeconfig = \"$PWD/kubeconfig\"
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws2.out --error=dws2.err \
-		python ${DWS_MODULE_PATH} -vvv) &&
+		${LAUNCH_DWS} -vvv) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
 	${RPC} "dws.create"
 '
@@ -478,7 +479,7 @@ test_expect_success 'dws service script handles restarts while a job is running'
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws3.out --error=dws3.err \
-		python ${DWS_MODULE_PATH} -vvv) &&
+		${LAUNCH_DWS} -vvv) &&
 	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -500,7 +501,7 @@ test_expect_success 'dws service script handles restarts while a job is in SCHED
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws4.out --error=dws4.err \
-		python ${DWS_MODULE_PATH} -vvv) &&
+		${LAUNCH_DWS} -vvv) &&
 	test_must_fail flux job wait-event -vt 10 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
 	flux queue start --all &&
@@ -565,7 +566,7 @@ test_expect_success 'launch service with storage maximums and presets' '
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws5.out --error=dws5.err \
-		python ${DWS_MODULE_PATH} -vvv) &&
+		${LAUNCH_DWS} -vvv) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
 	${RPC} "dws.create"
 '
