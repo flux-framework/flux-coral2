@@ -151,4 +151,77 @@ test_expect_success 'job-manager: dws jobtap plugin works when reloaded' '
 	flux job wait-event -vt 5 ${create_jobid} clean
 '
 
+test_expect_success 'job-manager: dws jobtap plugin adds new constraints when not present' '
+	create_jobid=$(flux submit -t 8 --output=dws7.out --error=dws7.out \
+		flux python ${DWS_SCRIPT} --exclude=foobar) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-remove &&
+	flux job wait-event -t 5 -fjson ${jobid} jobspec-update | \
+		jq -e ".context.\"attributes.system.constraints\".not" &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 1 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 5 ${create_jobid} clean
+'
+
+test_expect_success 'job-manager: dws jobtap plugin updates existing constraints' '
+	create_jobid=$(flux submit -t 8 --output=dws8.out --error=dws8.out \
+		flux python ${DWS_SCRIPT} --exclude=badrabbit) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	jobid=$(flux submit --setattr=system.dw="foo" \
+		--requires="-foo and hosts:$(hostname)" hostname) &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-remove &&
+	flux job wait-event -t 5 -fjson ${jobid} jobspec-update | \
+		jq -e ".context.\"attributes.system.constraints\".and" &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 1 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 5 ${create_jobid} clean
+'
+
+test_expect_success 'job-manager: dws jobtap plugin handles --requires=^property' '
+	create_jobid=$(flux submit -t 8 --output=dws9.out --error=dws9.out \
+		flux python ${DWS_SCRIPT} --exclude=foobar) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	jobid=$(flux submit --setattr=system.dw="foo" --requires=^barbaz hostname) &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-remove &&
+	flux job wait-event -t 5 -fjson ${jobid} jobspec-update | \
+		jq -e ".context.\"attributes.system.constraints\".and" &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 1 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 5 ${create_jobid} clean
+'
+
 test_done

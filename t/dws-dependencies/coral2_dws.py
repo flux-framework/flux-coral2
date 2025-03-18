@@ -12,6 +12,7 @@ parser.add_argument("--setup-fail", action="store_true")
 parser.add_argument("--setup-hang", action="store_true")
 parser.add_argument("--post-run-fail", action="store_true")
 parser.add_argument("--teardown-hang", action="store_true")
+parser.add_argument("--exclude", default="")
 
 args = parser.parse_args()
 
@@ -32,7 +33,7 @@ def create_cb(fh, t, msg, arg):
             "id": msg.payload["jobid"],
             "resources": msg.payload["resources"],
             "copy-offload": False,
-            "exclude": "",
+            "exclude": args.exclude,
         },
     )
 
