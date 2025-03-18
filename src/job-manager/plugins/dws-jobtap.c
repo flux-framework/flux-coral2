@@ -754,9 +754,18 @@ static void epilog_remove_msg_cb (flux_t *h,
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
     const char *errmsg = "";
+    flux_plugin_arg_t *job;
+    int state;
 
     if (flux_msg_unpack (msg, "{s:I}", "id", &jobid) < 0) {
         errmsg = "received malformed dws.epilog-remove RPC";
+        goto error;
+    }
+    if (!(job = flux_jobtap_job_lookup (p, jobid))
+        || flux_plugin_arg_unpack (job, FLUX_PLUGIN_ARG_IN, "{s:i}", "state", &state) < 0
+        || state != FLUX_JOB_STATE_CLEANUP) {
+        errmsg = "job not found in CLEANUP state";
+        flux_plugin_arg_destroy (job);
         goto error;
     }
     if (dws_epilog_finish (h, p, jobid, 1, "success!") < 0) {

@@ -242,6 +242,24 @@ def setup_cb(handle, _t, msg, k8s_api):
     WorkflowInfo.get(jobid).move_desiredstate("Setup", k8s_api)
 
 
+def check_existence_and_move_to_teardown(handle, k8s_api, winfo):
+    """Check that a workflow exists and move it to Teardown if so."""
+    jobid = winfo.jobid
+    try:
+        workflow = k8s_api.get_namespaced_custom_object(*crd.WORKFLOW_CRD, winfo.name)
+    except ApiException as api_err:
+        if api_err.status != 404:
+            raise
+        # workflow doesn't exist, presumably it was never created
+        WorkflowInfo.remove(jobid)
+        handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
+            log_rpc_response, jobid
+        )
+    else:
+        # workflow does exist
+        winfo.move_to_teardown(handle, k8s_api, workflow)
+
+
 @message_callback_wrapper
 def post_run_cb(handle, _t, msg, k8s_api):
     """dws.post_run RPC callback.
@@ -261,21 +279,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
     if not run_started:
         # the job hit an exception before beginning to run; transition
         # the workflow immediately to 'teardown' if it exists.
-        try:
-            workflow = k8s_api.get_namespaced_custom_object(
-                *crd.WORKFLOW_CRD, winfo.name
-            )
-        except ApiException as api_err:
-            if api_err.status != 404:
-                raise
-            # workflow doesn't exist, presumably it was never created
-            WorkflowInfo.remove(jobid)
-            handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
-                log_rpc_response, jobid
-            )
-        else:
-            # workflow does exist
-            winfo.move_to_teardown(handle, k8s_api, workflow)
+        check_existence_and_move_to_teardown(handle, k8s_api, winfo)
     else:
         winfo.move_desiredstate("PostRun", k8s_api)
 
@@ -292,7 +296,7 @@ def teardown_cb(handle, _t, msg, k8s_api):
     jobid = msg.payload["jobid"]
     winfo = WorkflowInfo.get(jobid)
     if not winfo.toredown:
-        winfo.move_to_teardown(handle, k8s_api)
+        check_existence_and_move_to_teardown(handle, k8s_api, winfo)
 
 
 def state_complete(workflow, state):

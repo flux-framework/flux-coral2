@@ -384,6 +384,19 @@ test_expect_success 'dws service kills workflows in Error properly' '
 	flux job wait-event -vt 10 ${jobid} clean
 '
 
+test_expect_success 'dws service handles jobs being canceled repeatedly' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 hostname) &&
+	for i in $(seq 1 10); do flux cancel $jobid ; done &&
+	flux job wait-event -vt 10 ${jobid} clean &&
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-remove &&
+	for i in $(seq 1 10); do flux cancel $jobid ; done &&
+	flux job wait-event -vt 10 ${jobid} clean
+'
+
 test_expect_success 'exec dws service-providing script with custom config path' '
 	flux cancel ${DWS_JOBID} &&
 	cp $REAL_HOME/.kube/config ./kubeconfig
