@@ -544,8 +544,7 @@ static json_t *generate_constraints (flux_t *h,
                                      const char *exclude_str)
 {
     flux_plugin_arg_t *args = flux_jobtap_job_lookup (p, jobid);
-    json_t *constraints = NULL;
-    json_t * not ;
+    json_t *constraints = NULL, *new_constraints, *combined_constraints;
     if (!args
         || flux_plugin_arg_unpack (args,
                                    FLUX_PLUGIN_ARG_IN,
@@ -560,39 +559,22 @@ static json_t *generate_constraints (flux_t *h,
         flux_plugin_arg_destroy (args);
         return NULL;
     }
-    if (!constraints) {
-        if (!(constraints = json_pack ("{s:[{s:[s]}]}", "not", "properties", exclude_str))) {
-            flux_log_error (h, "Failed to create new constraints object for %s", idf58 (jobid));
-            flux_plugin_arg_destroy (args);
-            return NULL;
-        }
-        flux_plugin_arg_destroy (args);
-        return constraints;
-    } else {  // deep copy the constraints because we don't want to modify it in-place
-        if (!(constraints = json_deep_copy (constraints))) {
-            flux_log_error (h, "Failed to deep copy constraints object for %s", idf58 (jobid));
-            flux_plugin_arg_destroy (args);
-            return NULL;
-        }
-    }
     flux_plugin_arg_destroy (args);
-    if (!(not = json_object_get (constraints, "not"))) {
-        if (json_object_set_new (constraints,
-                                 "not",
-                                 json_pack ("[{s:[s]}]", "properties", exclude_str))
-            < 0) {
-            flux_log_error (h, "Failed to create new NOT constraints object for %s", idf58 (jobid));
-            json_decref (constraints);
-            return NULL;
-        }
-        return constraints;
-    }
-    if (json_array_append_new (not, json_pack ("{s:[s]}", "properties", exclude_str)) < 0) {
-        flux_log_error (h, "Failed to create new NOT constraints object for %s", idf58 (jobid));
-        json_decref (constraints);
+    if (!(new_constraints = json_pack ("{s:[{s:[s]}]}", "not", "properties", exclude_str))) {
+        flux_log_error (h, "Failed to create new constraints object for %s", idf58 (jobid));
         return NULL;
     }
-    return constraints;
+    if (!constraints) {
+        // job had no constraints, can set these as
+        return new_constraints;
+    } else {  // join the old constraints with the new ones with AND
+        if (!(combined_constraints = json_pack ("{s:[Oo]}", "and", constraints, new_constraints))) {
+            flux_log_error (h, "Failed to create new constraints object for %s", idf58 (jobid));
+            json_decref (new_constraints);
+            return NULL;
+        }
+        return combined_constraints;
+    }
 }
 
 static void resource_update_msg_cb (flux_t *h,
