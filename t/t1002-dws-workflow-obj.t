@@ -140,6 +140,37 @@ test_expect_success 'dws service script handles restarts while a job is in SCHED
 	flux job wait-event -vt 25 ${jobid} clean
 '
 
+test_expect_success 'rabbit jobs run even with --requires with fluxion scheduling disabled' '
+    JOBID1=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+        name=project1" --requires="not foo and not bar" -N1 -n1 hostname) &&
+    JOBID2=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+        name=project1" --requires=^foo -N1 -n1 hostname) &&
+    JOBID3=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+        name=project1" --requires=-foo -N1 -n1 hostname) &&
+    JOBID4=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+        name=project1" --requires="not (foo and bar)" -N1 -n1 hostname) &&
+    flux job wait-event -vt 10 ${JOBID1} jobspec-update &&
+    flux job wait-event -vt 10 ${JOBID2} jobspec-update &&
+    flux job wait-event -vt 10 ${JOBID3} jobspec-update &&
+    flux job wait-event -vt 10 ${JOBID4} jobspec-update &&
+    flux job wait-event -vt 10 ${JOBID1} alloc &&
+    flux job wait-event -vt 10 ${JOBID2} alloc &&
+    flux job wait-event -vt 10 ${JOBID3} alloc &&
+    flux job wait-event -vt 10 ${JOBID4} alloc &&
+    flux job wait-event -vt 10 -m status=0 ${JOBID1} finish &&
+    flux job wait-event -vt 10 -m status=0 ${JOBID2} finish &&
+    flux job wait-event -vt 10 -m status=0 ${JOBID3} finish &&
+    flux job wait-event -vt 10 -m status=0 ${JOBID4} finish &&
+    flux job wait-event -vt 20 ${JOBID1} clean &&
+    flux job wait-event -vt 20 ${JOBID2} clean &&
+    flux job wait-event -vt 20 ${JOBID3} clean &&
+    flux job wait-event -vt 20 ${JOBID4} clean &&
+    flux job attach $JOBID1 &&
+    flux job attach $JOBID2 &&
+    flux job attach $JOBID3 &&
+    flux job attach $JOBID4
+'
+
 test_expect_success 'load fluxion with rabbits' '
     flux cancel ${DWS_JOBID} &&
     flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-rabbitmapping.py > rabbits.json &&
