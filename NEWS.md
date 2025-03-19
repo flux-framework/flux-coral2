@@ -1,3 +1,36 @@
+flux-coral2 0.22.0 - 2025-04-04
+-------------------------------
+
+### New Features
+ * cray_pals: use apinfo v5 (#310)
+ * cray_pals: add libapinfo convenience library (#303)
+ * dws: update to use v1alpha3 (#328)
+ * dws: epilog timeout (#336)
+ * dws: mark nodes with `badrabbit` property if mount fails (#338)
+
+### Fixes
+ * dws: fix add-constraint logic (#327)
+ * dws: fix teardown cb (#326)
+ * testsuite: fix `python` command not found (#325)
+ * cray-pals: refactor and add test options (#324)
+ * dws2jgf: fix properties on nodes not in DWS (#312)
+ * dws: fix error logging for invalid directives (#309)
+ * readthedocs: fix imghdr not found error (#315)
+ * directivebreakdown: condense allocationCount (#333)
+
+### Build/Testsuite/Documentation
+ * modernize autotools usage and ensure required headers and libraries
+   are found (#305)
+ * github: run workflow on push to any branch (#318)
+ * doc: add man pages (#314)
+ * doc: add admin guide and glossary (#316)
+ * doc: add references, system list (#319)
+ * doc: add a rabbit ref, and improve cray-pals man page (#322)
+ * doc: add references, system list (#319)
+ * typos: fix typos (#334)
+ * ci: generate matrix (#331)
+
+
 flux-coral2 0.21.0 - 2025-03-06
 -------------------------------
 
