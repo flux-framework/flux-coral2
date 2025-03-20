@@ -8,6 +8,10 @@ DWS_GROUP = "dataworkflowservices.github.io"
 DWS_API_VERSION = "v1alpha3"
 DEFAULT_NAMESPACE = "default"
 
+NNF_GROUP = "nnf.cray.hpe.com"
+NNF_API_VERSION = "v1alpha6"
+
+
 WORKFLOW_CRD = CRD(
     group=DWS_GROUP,
     version=DWS_API_VERSION,
@@ -48,4 +52,11 @@ SYSTEMCONFIGURATION_CRD = CRD(
     version=DWS_API_VERSION,
     namespace=DEFAULT_NAMESPACE,
     plural="systemconfigurations",
+)
+
+DATAMOVEMENT_CRD = CRD(
+    group=NNF_GROUP,
+    version=NNF_API_VERSION,
+    namespace=None,
+    plural="nnfdatamovements",
 )

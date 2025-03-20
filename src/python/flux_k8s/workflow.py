@@ -89,18 +89,19 @@ class WorkflowInfo:
             return []
         try:
             api_response = k8s_api.list_cluster_custom_object(
-                group="nnf.cray.hpe.com",
-                version="v1alpha4",
-                plural="nnfdatamovements",
+                group=crd.DATAMOVEMENT_CRD.group,
+                version=crd.DATAMOVEMENT_CRD.version,
+                plural=crd.DATAMOVEMENT_CRD.plural,
                 limit=self.save_datamovements,
                 label_selector=(
-                    f"dataworkflowservices.github.io/workflow.name={self.name},"
-                    "dataworkflowservices.github.io/workflow.namespace=default"
+                    f"{crd.DWS_GROUP}/workflow.name={self.name},"
+                    f"{crd.DWS_GROUP}/workflow.namespace=default"
                 ),
             )
         except Exception as exc:
             LOGGER.warning(
-                "Failed to fetch nnfdatamovement crds for workflow '%s': %s",
+                "Failed to fetch %s crds for workflow '%s': %s",
+                crd.DATAMOVEMENT_CRD.plural,
                 self.name,
                 exc,
             )
