@@ -10,7 +10,8 @@ spec:
   name: my-lustre-storage
 status:
   ready: true
-  requiredDaemons: copy-offload
+  requires:
+  - copy-offload
   servers:
     kind: Servers
     name: job456-0
