@@ -750,6 +750,7 @@ static void epilog_remove_msg_cb (flux_t *h,
         flux_plugin_arg_destroy (job);
         goto error;
     }
+    flux_plugin_arg_destroy (job);
     if (dws_epilog_finish (h, p, jobid, 1, "success!") < 0) {
         errmsg = "could not finish epilog";
         goto error;
