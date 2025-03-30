@@ -30,11 +30,14 @@
 #define CREATE_DEP_NAME "dws-create"
 #define SETUP_PROLOG_NAME "dws-setup"
 #define DWS_EPILOG_NAME "dws-epilog"
+#define EPILOG_ABORT_EXCEPTION "dws-epilog-timeout"
 
 struct create_arg_t {
     flux_plugin_t *p;
     flux_jobid_t id;
 };
+
+static double epilog_timeout = 0.0;
 
 /*  Convenience function to convert a flux_jobid_t to F58 encoding
  *  If the encode fails (unlikely), then the decimal encoding is returned.
@@ -400,12 +403,12 @@ static int run_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args,
 static void post_run_rpc_callback (flux_future_t *f, void *arg)
 {
     flux_t *h = flux_future_get_flux (f);
-    struct create_arg_t *args;
+    struct create_arg_t *args = arg;
     int success = false;
     const char *errstr = NULL;
 
-    if (!(args = flux_future_aux_get (f, "flux::create_args"))) {
-        flux_log_error (h, "create args missing in future aux");
+    if (!args) {
+        flux_log_error (h, "create args missing in %s", __FUNCTION__);
         return;
     }
 
@@ -418,12 +421,38 @@ static void post_run_rpc_callback (flux_future_t *f, void *arg)
     }
 }
 
+static void epilog_timeout_cb (flux_reactor_t *r, flux_watcher_t *w, int revents, void *arg)
+{
+    (void)revents;
+    int state;
+    flux_plugin_arg_t *job = NULL;
+    struct create_arg_t *args = arg;
+
+    if (!(job = flux_jobtap_job_lookup (args->p, args->id))
+        || flux_plugin_arg_unpack (job, FLUX_PLUGIN_ARG_IN, "{s:i}", "state", &state) < 0
+        || state != FLUX_JOB_STATE_CLEANUP) {
+        // job no longer in cleanup state, it must have finished
+        goto cleanup;
+    }
+    flux_jobtap_raise_exception (args->p,
+                                 args->id,
+                                 EPILOG_ABORT_EXCEPTION,
+                                 0,
+                                 "DWS epilog timed out");
+
+cleanup:
+    flux_plugin_arg_destroy (job);
+    return;
+}
+
 static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
 {
     flux_jobid_t id;
     json_t *dw = NULL;
     flux_future_t *post_run_fut;
     flux_t *h = flux_jobtap_get_flux (p);
+    flux_reactor_t *r = flux_get_reactor (h);
+    flux_watcher_t *watcher = NULL;
     int dws_run_started = 0;
     struct create_arg_t *create_args;
 
@@ -443,6 +472,11 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
     }
     // check that the job has a DW attr section
     if (dw) {
+        if (!r) {
+            flux_log_error (h, "Failed to fetch reactor from handle for %s", idf58 (id));
+            current_job_exception (p, "Failed to fetch reactor from handle");
+            return -1;
+        }
         if (!(create_args = calloc (1, sizeof (struct create_arg_t)))) {
             flux_log_error (h, "error allocating arg struct for %s", idf58 (id));
             current_job_exception (p, "error allocating arg struct");
@@ -460,6 +494,25 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
             current_job_exception (p, "Failed to start jobtap epilog");
             return -1;
         }
+        if (epilog_timeout > 0.0) {
+            if (!(watcher = flux_timer_watcher_create (r,
+                                                       epilog_timeout,
+                                                       0.0,
+                                                       epilog_timeout_cb,
+                                                       create_args))
+                || flux_jobtap_job_aux_set (p,
+                                            FLUX_JOBTAP_CURRENT_JOB,
+                                            NULL,
+                                            watcher,
+                                            (flux_free_f)flux_watcher_destroy)
+                       < 0) {
+                dws_epilog_finish (h, p, id, 0, "Failed to init " DWS_EPILOG_NAME " timeout");
+                flux_log_error (h, "Failed to init " DWS_EPILOG_NAME " timeout for %s", idf58 (id));
+                flux_watcher_destroy (watcher);
+                return -1;
+            }
+            flux_watcher_start (watcher);
+        }
         if (!(post_run_fut = flux_rpc_pack (h,
                                             "dws.post_run",
                                             FLUX_NODEID_ANY,
@@ -469,8 +522,8 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
                                             id,
                                             "run_started",
                                             dws_run_started))
-            || flux_future_aux_set (post_run_fut, "flux::create_args", create_args, free) < 0
-            || flux_future_then (post_run_fut, -1., post_run_rpc_callback, NULL) < 0
+            || flux_jobtap_job_aux_set (p, FLUX_JOBTAP_CURRENT_JOB, NULL, create_args, free) < 0
+            || flux_future_then (post_run_fut, -1., post_run_rpc_callback, create_args) < 0
             || flux_jobtap_job_aux_set (p,
                                         FLUX_JOBTAP_CURRENT_JOB,
                                         NULL,
@@ -776,6 +829,16 @@ static const struct flux_plugin_handler tab[] = {
 
 int flux_plugin_init (flux_plugin_t *p)
 {
+    flux_t *h = flux_jobtap_get_flux (p);
+
+    if (flux_plugin_conf_unpack (p, "{s?f}", "epilog-timeout", &epilog_timeout) < 0 && h) {
+        flux_log (h,
+                  LOG_INFO,
+                  PLUGIN_NAME ": failed to unpack config: %s",
+                  flux_plugin_strerror (p));
+    }
+    if (h)
+        flux_log (h, LOG_INFO, PLUGIN_NAME ": epilog timeout = %.3fs", epilog_timeout);
     if (flux_plugin_register (p, PLUGIN_NAME, tab) < 0
         || flux_jobtap_service_register (p, "resource-update", resource_update_msg_cb, p) < 0
         || flux_jobtap_service_register (p, "prolog-remove", prolog_remove_msg_cb, p) < 0
