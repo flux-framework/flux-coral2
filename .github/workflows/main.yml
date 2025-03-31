@@ -32,29 +32,80 @@ jobs:
     - name: format and linting checks
       run: pre-commit run --all-files --show-diff-on-failure
 
-  ci-checks:
+  generate-matrix:
+    # https://stackoverflow.com/questions/59977364
+    name: Generate build matrix
     runs-on: ubuntu-latest
+    outputs:
+        matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 0
+    - id: set-matrix
+      run: echo "matrix=$(src/test/generate-matrix.py)" >> $GITHUB_OUTPUT
+    - run: src/test/generate-matrix.py | jq -S .
+    - run: echo "GITHUB_BRANCH=${GITHUB_REF#refs/heads}" >> $GITHUB_OUTPUT
+    - run: echo "GITHUB_TAG=${GITHUB_REF#refs/tags}" >> $GITHUB_OUTPUT
+    - run: echo "EVENT_NAME=${{github.event_name}}" >> $GITHUB_OUTPUT
+
+  ci-checks:
+    needs: [ generate-matrix ]
+    runs-on: ${{matrix.runner}}
     env:
       TAP_DRIVER_QUIET: 1
       FLUX_TEST_TIMEOUT: 300
       DOCKER_REPO: fluxrm/flux-coral2
-      FLUX_TEST_VALGRIND: t
-    timeout-minutes: 30
     strategy:
-      matrix:
-        image: ["el9", "noble"]
-        arguments: ["--distcheck", ""]
+      matrix: ${{fromJson(needs.generate-matrix.outputs.matrix)}}
       fail-fast: false
-    name: ${{ matrix.image }} ${{ matrix.arguments }}
+    name: ${{matrix.name}}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
        ref: ${{ github.event.pull_request.head.sha }}
        fetch-depth: 0
 
+    - name: fetch annotated tag
+      if: >
+        (matrix.create_release || matrix.docker_tag) &&
+        github.ref != 'refs/heads/master'
+      run: |
+        # Ensure git-describe works on a tag.
+        #  (checkout@v4 action may have left current tag as
+        #   lightweight instead of annotated. See
+        #   https://github.com/actions/checkout/issues/290)
+        #
+        echo github.ref == ${{ github.ref }} ;
+        git fetch -f origin ${{ github.ref }}:${{ github.ref }} ;
+        echo git describe now reports $(git describe --always)
+
+    - name: docker buildx
+      uses: docker/setup-buildx-action@v3
+      if: matrix.needs_buildx
+
     - name: docker-run-checks
-      run: ./src/test/docker/docker-run-checks.sh ${{ matrix.arguments }} -i ${{ matrix.image }} --
+      timeout-minutes: ${{matrix.timeout_minutes}}
+      env: ${{matrix.env}}
+      run: ${{matrix.command}}
 
     - name: annotate errors
       if: failure() || cancelled()
       run: src/test/checks-annotate.sh
+
+    - name: create release
+      id: create_release
+      if: |
+        success()
+        && matrix.create_release
+        && github.repository == 'flux-framework/flux-coral2'
+      env: ${{matrix.env}}
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ matrix.tag }}
+        name: flux-coral2 ${{ matrix.tag }}
+        prerelease: true
+        files: flux-coral2*.tar.gz
+        body: |
+          View [Release Notes](https://github.com/${{ github.repository }}/blob/${{ matrix.tag }}/NEWS.md) for flux-coral2 ${{ matrix.tag }}
