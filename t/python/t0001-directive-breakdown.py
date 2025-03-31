@@ -17,6 +17,7 @@ import yaml
 
 from pycotap import TAPTestRunner
 from flux_k8s import directivebreakdown
+from flux_k8s.directivebreakdown import ResourceLimits
 
 YAMLDIR = Path(__file__).resolve().parent.parent / "data" / "breakdown"
 
@@ -27,6 +28,65 @@ def read_yaml_breakdown(*paths):
         with open(path) as fd:
             breakdowns.append(yaml.safe_load(fd))
     return breakdowns
+
+
+class TestResourceLimits(unittest.TestCase):
+    def setUp(self):
+        ResourceLimits.lustre = None
+        ResourceLimits.xfs = None
+        ResourceLimits.xfs2 = None
+        ResourceLimits.raw = None
+
+    def test_lustre(self):
+        limits = ResourceLimits()
+        ResourceLimits.lustre = 100
+        limits.increment("mdt", 200)
+        limits.increment("xfs", 200)
+        limits.validate(1)
+        limits.increment("ost", 200)
+        with self.assertRaisesRegex(ValueError, "max is 100 GiB per node"):
+            limits.validate(1)
+        limits.validate(3)
+        limits.increment("ost", 200)
+        with self.assertRaisesRegex(ValueError, "max is 100 GiB per node"):
+            limits.validate(3)
+
+    def test_xfs(self):
+        limits = ResourceLimits()
+        ResourceLimits.xfs = 50
+        limits.increment("ost", 200)
+        limits.increment("gfs2", 200)
+        limits.validate(1)
+        limits.increment("xfs", 51)
+        with self.assertRaisesRegex(ValueError, "max is 50 GiB per node"):
+            limits.validate(1)
+        with self.assertRaisesRegex(ValueError, "max is 50 GiB per node"):
+            limits.validate(500)
+
+    def test_unrecognized_type(self):
+        limits = ResourceLimits()
+        with self.assertRaises(AttributeError):
+            limits.increment("foo", 5)
+
+    def test_combined(self):
+        limits = ResourceLimits()
+        ResourceLimits.lustre = 300
+        ResourceLimits.xfs = 400
+        limits.increment("mdt", 200)
+        limits.increment("xfs", 200)
+        limits.validate(1)
+        limits.increment("ost", 200)
+        limits.validate(1)
+        limits.increment("ost", 200)
+        with self.assertRaisesRegex(ValueError, "max is 300 GiB per node"):
+            limits.validate(1)
+        limits.validate(3)
+        limits.increment("ost", 600)
+        with self.assertRaisesRegex(ValueError, "max is 300 GiB per node"):
+            limits.validate(3)
+        limits.increment("xfs", 600)
+        with self.assertRaisesRegex(ValueError, "max is 400 GiB per node"):
+            limits.validate(500)
 
 
 class TestDirectiveBreakdowns(unittest.TestCase):
