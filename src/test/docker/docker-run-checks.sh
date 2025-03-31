@@ -159,6 +159,7 @@ export DISTCHECK
 export RECHECK
 export BUILD_DIR
 export chain_lint
+export COVERAGE
 
 if [[ "$INSTALL_ONLY" == "t" ]]; then
     docker run --rm \
