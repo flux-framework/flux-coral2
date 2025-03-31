@@ -93,3 +93,19 @@ jobs:
     - name: annotate errors
       if: failure() || cancelled()
       run: src/test/checks-annotate.sh
+
+    - name: create release
+      id: create_release
+      if: |
+        success()
+        && matrix.create_release
+        && github.repository == 'flux-framework/flux-coral2'
+      env: ${{matrix.env}}
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ matrix.tag }}
+        name: flux-coral2 ${{ matrix.tag }}
+        prerelease: true
+        files: flux-coral2*.tar.gz
+        body: |
+          View [Release Notes](https://github.com/${{ github.repository }}/blob/${{ matrix.tag }}/NEWS.md) for flux-coral2 ${{ matrix.tag }}
