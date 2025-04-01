@@ -16,6 +16,7 @@ import argparse
 import logging
 import pwd
 import time
+import re
 
 from kubernetes.client.rest import ApiException
 import urllib3
@@ -42,6 +43,7 @@ LOGGER = logging.getLogger(__name__)
 WORKFLOWS_IN_TC = {}  # tc for TransientCondition
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
 _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
+CLIENTMOUNT_NAME = re.compile(r"-computes$")
 
 
 class UserError(Exception):
@@ -306,12 +308,97 @@ def abort_cb(handle, _t, msg, k8s_api):
     The dws.abort RPC is sent if a job hits a special exception during the
     dws-epilog action.
 
-    Move the workflow directly to Teardown.
+    Move the workflow directly to Teardown, and look for nodes with active
+    mounts and drain any that are found.
     """
     jobid = msg.payload["jobid"]
     winfo = WorkflowInfo.get(jobid)
     if not winfo.toredown:
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
+    # get all clientmounts for the job that aren't unmounted
+    to_drain = get_clientmounts_not_in_state(k8s_api, winfo.name, "unmounted")
+    if to_drain:
+        encoded_hostlist = Hostlist(to_drain).uniq().encode()
+        LOGGER.debug(
+            "Draining nodes %s with active mounts for workflow %s",
+            encoded_hostlist,
+            winfo.name,
+        )
+        handle.rpc(
+            "resource.drain",
+            payload={
+                "targets": encoded_hostlist,
+                "mode": "update",
+                "reason": "failed to unmount rabbit",
+            },
+            nodeid=0,
+        ).then(log_rpc_response)
+
+
+def get_clientmounts_not_in_state(k8s_api, workflow_name, desired_state):
+    """Return all nodes in a job with mounts that don't match a specified state.
+
+    The job is specified by the name of the workflow.
+    """
+    try:
+        clientmounts = k8s_api.list_cluster_custom_object(
+            group=crd.CLIENTMOUNT_CRD.group,
+            version=crd.CLIENTMOUNT_CRD.version,
+            plural=crd.CLIENTMOUNT_CRD.plural,
+            label_selector=(f"{crd.DWS_GROUP}/workflow.name={workflow_name}"),
+        )["items"]
+    except Exception as exc:
+        LOGGER.warning(
+            "Failed to fetch %s crds for workflow '%s': %s",
+            crd.CLIENTMOUNT_CRD.plural,
+            workflow_name,
+            exc,
+        )
+        return []
+    to_drain = []
+    for resource in clientmounts:
+        try:
+            node = resource["spec"]["node"]
+        except KeyError:
+            # can't tell what node to drain, nothing to do
+            LOGGER.warning(
+                "%s resource found for workflow %s without '.spec.node': %s",
+                crd.CLIENTMOUNT_CRD.plural,
+                workflow_name,
+                resource,
+            )
+            continue
+        try:
+            resource_name = resource["metadata"]["name"]
+            mounts = resource["status"]["mounts"]
+        except KeyError as exc:
+            LOGGER.warning(
+                "%s resource found for workflow %s without expected field: %s",
+                crd.CLIENTMOUNT_CRD.plural,
+                workflow_name,
+                exc,
+            )
+            # assume node bad
+            to_drain.append(node)
+            continue
+        if re.search(CLIENTMOUNT_NAME, resource_name) is None:
+            # not a clientmount we care about because not a compute node, skip
+            continue
+        try:
+            for mount in mounts:
+                if mount["state"] != desired_state or not mount["ready"]:
+                    to_drain.append(node)
+                    break
+        except (KeyError, TypeError) as exc:
+            LOGGER.warning(
+                "error inspecting mounts for %s resource found for workflow %s: %s",
+                crd.CLIENTMOUNT_CRD.plural,
+                workflow_name,
+                exc,
+            )
+            # assume node bad
+            to_drain.append(node)
+    return to_drain
 
 
 def state_complete(workflow, state):
