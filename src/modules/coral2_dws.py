@@ -17,6 +17,7 @@ import logging
 import pwd
 import time
 import re
+from datetime import datetime
 
 from kubernetes.client.rest import ApiException
 import urllib3
@@ -309,7 +310,8 @@ def abort_cb(handle, _t, msg, k8s_api):
     dws-epilog action.
 
     Move the workflow directly to Teardown, and look for nodes with active
-    mounts and drain any that are found.
+    mounts and drain any that are found. Also, look for rabbits with
+    active allocations and disable them.
     """
     jobid = msg.payload["jobid"]
     winfo = WorkflowInfo.get(jobid)
@@ -333,6 +335,24 @@ def abort_cb(handle, _t, msg, k8s_api):
             },
             nodeid=0,
         ).then(log_rpc_response)
+    # get all rabbits with active allocations and disable them.
+    for rabbit_to_disable in get_servers_with_active_allocations(k8s_api, winfo.name):
+        k8s_api.patch_namespaced_custom_object(
+            *crd.RABBIT_CRD,
+            rabbit_to_disable,
+            {
+                "metadata": {
+                    "annotations": {
+                        "disable_reason": (
+                            f"workflow {winfo.name} timed out "
+                            "with an active allocation on this rabbit"
+                        ),
+                        "disable_date": str(datetime.now()),
+                    }
+                },
+                "spec": {"state": "Disabled"},
+            },
+        )
 
 
 def get_clientmounts_not_in_state(k8s_api, workflow_name, desired_state):
@@ -399,6 +419,47 @@ def get_clientmounts_not_in_state(k8s_api, workflow_name, desired_state):
             # assume node bad
             to_drain.append(node)
     return to_drain
+
+
+def get_servers_with_active_allocations(k8s_api, workflow_name):
+    """Return all rabbits in a job that have active allocations.
+
+    The job is specified by the name of the workflow.
+    """
+    try:
+        servers = k8s_api.list_cluster_custom_object(
+            group=crd.SERVER_CRD.group,
+            version=crd.SERVER_CRD.version,
+            plural=crd.SERVER_CRD.plural,
+            label_selector=(f"{crd.DWS_GROUP}/workflow.name={workflow_name}"),
+        )["items"]
+    except Exception as exc:
+        LOGGER.warning(
+            "Failed to fetch %s crds for workflow '%s': %s",
+            crd.SERVER_CRD.plural,
+            workflow_name,
+            exc,
+        )
+        return []
+    with_allocations = set()
+    for resource in servers:
+        try:
+            allocation_sets = resource["status"]["allocationSets"]
+            for alloc_set in allocation_sets:
+                for rabbit_name, alloc_info in alloc_set["storage"].items():
+                    if alloc_info["allocationSize"] > 0:
+                        with_allocations.add(rabbit_name)
+        except (KeyError, TypeError) as exc:
+            # can't tell what node to drain, nothing to do
+            LOGGER.warning(
+                "%s resource found for workflow %s did not have expected "
+                "'allocationSets' layout: %s: %s",
+                crd.SERVER_CRD.plural,
+                workflow_name,
+                exc,
+                resource,
+            )
+    return with_allocations
 
 
 def state_complete(workflow, state):
