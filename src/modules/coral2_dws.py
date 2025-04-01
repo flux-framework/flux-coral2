@@ -299,6 +299,21 @@ def teardown_cb(handle, _t, msg, k8s_api):
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
 
 
+@message_callback_wrapper
+def abort_cb(handle, _t, msg, k8s_api):
+    """dws.abort RPC callback.
+
+    The dws.abort RPC is sent if a job hits a special exception during the
+    dws-epilog action.
+
+    Move the workflow directly to Teardown.
+    """
+    jobid = msg.payload["jobid"]
+    winfo = WorkflowInfo.get(jobid)
+    if not winfo.toredown:
+        check_existence_and_move_to_teardown(handle, k8s_api, winfo)
+
+
 def state_complete(workflow, state):
     """Helper function for checking whether a workflow has completed a given state."""
     return (
@@ -583,8 +598,12 @@ def register_services(handle, k8s_api, restrict_persistent):
         teardown_cb, FLUX_MSGTYPE_REQUEST, "dws.teardown", args=k8s_api
     )
     teardown_watcher.start()
+    abort_watcher = handle.msg_watcher_create(
+        abort_cb, FLUX_MSGTYPE_REQUEST, "dws.abort", args=k8s_api
+    )
+    abort_watcher.start()
     serv_reg_fut.get()
-    return (create_watcher, setup_watcher, post_run_watcher)
+    return (create_watcher, setup_watcher, post_run_watcher, abort_watcher)
 
 
 def raise_self_exception(handle):

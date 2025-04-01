@@ -549,16 +549,19 @@ static int exception_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t 
     flux_t *h = flux_jobtap_get_flux (p);
     int *prolog_active, severity;
     flux_future_t *teardown_fut;
+    const char *type = NULL;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:I s:{s:{s:i}}}",
+                                "{s:I s:{s:{s:i s?s}}}",
                                 "id",
                                 &id,
                                 "entry",
                                 "context",
                                 "severity",
-                                &severity)
+                                &severity,
+                                "type",
+                                &type)
         < 0) {
         flux_log_error (h, "Failed to unpack args");
         return -1;
@@ -577,12 +580,34 @@ static int exception_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t 
         }
         *prolog_active = 0;
     } else if (flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_epilog_active") > 0) {
-        if (!(teardown_fut =
-                  flux_rpc_pack (h, "dws.teardown", FLUX_NODEID_ANY, 0, "{s:I}", "jobid", id))) {
-            flux_log_error (h, "Failed to send dws.teardown RPC for job %s", idf58 (id));
-            return -1;
+        if (type && (strcmp (type, EPILOG_ABORT_EXCEPTION) == 0)) {
+            // response is expected but ignored
+            if (!(teardown_fut =
+                      flux_rpc_pack (h, "dws.abort", FLUX_NODEID_ANY, 0, "{s:I}", "jobid", id))) {
+                flux_log_error (h, "Failed to send dws.abort RPC for job %s", idf58 (id));
+                return -1;
+            }
+            flux_future_destroy (teardown_fut);
+            if (flux_jobtap_epilog_finish (p, id, DWS_EPILOG_NAME, 1) < 0) {
+                flux_log_error (h,
+                                "could not finish epilog for %s after " EPILOG_ABORT_EXCEPTION,
+                                idf58 (id));
+                return -1;
+            }
+        } else {
+            // response is expected but ignored
+            if (!(teardown_fut = flux_rpc_pack (h,
+                                                "dws.teardown",
+                                                FLUX_NODEID_ANY,
+                                                0,
+                                                "{s:I}",
+                                                "jobid",
+                                                id))) {
+                flux_log_error (h, "Failed to send dws.teardown RPC for job %s", idf58 (id));
+                return -1;
+            }
+            flux_future_destroy (teardown_fut);
         }
-        flux_future_destroy (teardown_fut);
     }
     return 0;
 }
