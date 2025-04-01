@@ -16,13 +16,20 @@ jobs:
     - run: git fetch origin master
     - uses: flux-framework/pr-validator@master
 
+  spelling:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Check Spelling
+      uses: crate-ci/typos@bcafd462cb07ef7ba57e34abf458fe20767e808b # v1.19.0
+
   python-format:
     name: code formatting
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/setup-python@v5
       with:
-        python-version: 3.8
+        python-version: "3.10"
     - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}

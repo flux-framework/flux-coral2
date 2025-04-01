@@ -420,7 +420,7 @@ static int libpals_init (flux_plugin_t *p, const char *topic, flux_plugin_arg_t 
      * - the job is single node only
      * - the user set -ocray-pals.pmi-bootstrap=off
      * - the user set -ocray-pals.pmi-bootstrap=[port1,port2,secret]
-     * get_pmi_boostrap() populates ctx->pmi, seting ctx->pmi.valid upon success.
+     * get_pmi_bootstrap() populates ctx->pmi, setting ctx->pmi.valid upon success.
      */
     if (ctx->shell_size > 1 && !ctx->pmi.disabled && !ctx->pmi.valid) {
         if (get_pmi_bootstrap (ctx) < 0)
