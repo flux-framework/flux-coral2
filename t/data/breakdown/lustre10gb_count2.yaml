@@ -1,0 +1,57 @@
+apiVersion: dataworkflowservices.github.io/v1alpha3
+kind: DirectiveBreakdown
+metadata:
+  finalizers:
+  - nnf.cray.hpe.com/directiveBreakdown
+  generation: 1
+  labels:
+    dataworkflowservices.github.io/owner.kind: Workflow
+  name: fluxjob-399639606020015104-0
+  namespace: default
+spec:
+  directive: '#DW jobdw type=lustre capacity=10GiB name=project1 profile=osts-count-2'
+  userID: 31193
+status:
+  compute:
+    constraints:
+      location:
+      - access:
+        - priority: mandatory
+          type: network
+        - priority: bestEffort
+          type: physical
+        reference:
+          fieldPath: servers.spec.allocationSets[0]
+          kind: Servers
+          name: fluxjob-399639606020015104-0
+          namespace: default
+      - access:
+        - priority: mandatory
+          type: network
+        reference:
+          fieldPath: servers.spec.allocationSets[1]
+          kind: Servers
+          name: fluxjob-399639606020015104-0
+          namespace: default
+  ready: true
+  storage:
+    allocationSets:
+    - allocationStrategy: AllocateAcrossServers
+      constraints:
+        count: 2
+        labels:
+        - dataworkflowservices.github.io/storage=Rabbit
+      label: ost
+      minimumCapacity: 10737418240
+    - allocationStrategy: AllocateAcrossServers
+      constraints:
+        count: 1
+        labels:
+        - dataworkflowservices.github.io/storage=Rabbit
+      label: mdt
+      minimumCapacity: 274877906944
+    lifetime: job
+    reference:
+      kind: Servers
+      name: fluxjob-399639606020015104-0
+      namespace: default
