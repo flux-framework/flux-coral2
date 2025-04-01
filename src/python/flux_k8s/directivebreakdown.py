@@ -102,21 +102,24 @@ def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_
                 )
                 # place the allocations on the rabbits with the most nodes allocated
                 # to this job (and therefore the largest storage allocations)
+                counts_per_rabbit = {}
                 while count > 0:
                     # count may be greater than the rabbits available, so we may need
                     # to place multiple on a single rabbit (hence the outer while-loop)
                     for name, _ in collections.Counter(nodes_per_nnf).most_common(
                         count
                     ):
-                        storage_field.append(
-                            {
-                                "allocationCount": 1,
-                                "name": name,
-                            }
-                        )
+                        counts_per_rabbit[name] = counts_per_rabbit.get(name, 0) + 1
                         count -= 1
                         if count == 0:
                             break
+                for name, val in counts_per_rabbit.items():
+                    storage_field.append(
+                        {
+                            "allocationCount": val,
+                            "name": name,
+                        }
+                    )
             else:
                 nodecount_gcd = functools.reduce(math.gcd, nodes_per_nnf.values())
                 server_alloc_set["allocationSize"] = math.ceil(

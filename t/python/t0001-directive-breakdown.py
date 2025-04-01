@@ -12,11 +12,13 @@
 import unittest
 import unittest.mock
 from pathlib import Path
+import math
 
 import yaml
 
 from pycotap import TAPTestRunner
 from flux_k8s import directivebreakdown
+from flux_k8s.directivebreakdown import ResourceLimits
 
 YAMLDIR = Path(__file__).resolve().parent.parent / "data" / "breakdown"
 
@@ -27,6 +29,65 @@ def read_yaml_breakdown(*paths):
         with open(path) as fd:
             breakdowns.append(yaml.safe_load(fd))
     return breakdowns
+
+
+class TestResourceLimits(unittest.TestCase):
+    def setUp(self):
+        ResourceLimits.lustre = None
+        ResourceLimits.xfs = None
+        ResourceLimits.xfs2 = None
+        ResourceLimits.raw = None
+
+    def test_lustre(self):
+        limits = ResourceLimits()
+        ResourceLimits.lustre = 100
+        limits.increment("mdt", 200)
+        limits.increment("xfs", 200)
+        limits.validate(1)
+        limits.increment("ost", 200)
+        with self.assertRaisesRegex(ValueError, "max is 100 GiB per node"):
+            limits.validate(1)
+        limits.validate(3)
+        limits.increment("ost", 200)
+        with self.assertRaisesRegex(ValueError, "max is 100 GiB per node"):
+            limits.validate(3)
+
+    def test_xfs(self):
+        limits = ResourceLimits()
+        ResourceLimits.xfs = 50
+        limits.increment("ost", 200)
+        limits.increment("gfs2", 200)
+        limits.validate(1)
+        limits.increment("xfs", 51)
+        with self.assertRaisesRegex(ValueError, "max is 50 GiB per node"):
+            limits.validate(1)
+        with self.assertRaisesRegex(ValueError, "max is 50 GiB per node"):
+            limits.validate(500)
+
+    def test_unrecognized_type(self):
+        limits = ResourceLimits()
+        with self.assertRaises(AttributeError):
+            limits.increment("foo", 5)
+
+    def test_combined(self):
+        limits = ResourceLimits()
+        ResourceLimits.lustre = 300
+        ResourceLimits.xfs = 400
+        limits.increment("mdt", 200)
+        limits.increment("xfs", 200)
+        limits.validate(1)
+        limits.increment("ost", 200)
+        limits.validate(1)
+        limits.increment("ost", 200)
+        with self.assertRaisesRegex(ValueError, "max is 300 GiB per node"):
+            limits.validate(1)
+        limits.validate(3)
+        limits.increment("ost", 600)
+        with self.assertRaisesRegex(ValueError, "max is 300 GiB per node"):
+            limits.validate(3)
+        limits.increment("xfs", 600)
+        with self.assertRaisesRegex(ValueError, "max is 400 GiB per node"):
+            limits.validate(500)
 
 
 class TestDirectiveBreakdowns(unittest.TestCase):
@@ -208,6 +269,137 @@ class TestDirectiveBreakdowns(unittest.TestCase):
                 ssds = slot["with"][1]
                 self.assertEqual(ssds["type"], "ssd")
                 self.assertEqual(ssds["count"], min_size)
+
+
+class TestBuildAllocSets(unittest.TestCase):
+    nodes_per_nnf_1 = {"rabbit1": 1}
+    nodes_per_nnf_2 = {"rabbit1": 1, "rabbit2": 1}
+    nodes_per_nnf_3 = {"rabbit1": 6, "rabbit2": 3}
+    nodes_per_nnf_4 = {"rabbit1": 4, "rabbit2": 3}
+
+    def test_xfs_10gb(self):
+        breakdown = read_yaml_breakdown(YAMLDIR / "xfs10gb.yaml")[0]["status"][
+            "storage"
+        ]["allocationSets"]
+        alloc_sets = directivebreakdown.build_allocation_sets(
+            breakdown, self.nodes_per_nnf_1, range(1), 0
+        )
+        self.assertEqual(
+            alloc_sets[0],
+            {
+                "allocationSize": 10737418240,
+                "label": "xfs",
+                "storage": [{"allocationCount": 1, "name": "rabbit1"}],
+            },
+        )
+        alloc_sets = directivebreakdown.build_allocation_sets(
+            breakdown, self.nodes_per_nnf_4, range(7), 0
+        )
+        self.assertEqual(
+            alloc_sets[0],
+            {
+                "allocationSize": 10737418240,
+                "label": "xfs",
+                "storage": [
+                    {"allocationCount": 4, "name": "rabbit1"},
+                    {"allocationCount": 3, "name": "rabbit2"},
+                ],
+            },
+        )
+
+    def test_lustre_10gb_count2(self):
+        breakdown = read_yaml_breakdown(YAMLDIR / "lustre10gb_count2.yaml")[0][
+            "status"
+        ]["storage"]["allocationSets"]
+        alloc_sets = directivebreakdown.build_allocation_sets(
+            breakdown, self.nodes_per_nnf_1, range(1), 0
+        )
+        self.assertEqual(
+            alloc_sets[0],
+            {
+                "allocationSize": 5368709120,
+                "label": "ost",
+                "storage": [{"allocationCount": 2, "name": "rabbit1"}],
+            },
+        )
+        alloc_sets = directivebreakdown.build_allocation_sets(
+            breakdown, self.nodes_per_nnf_2, range(2), 0
+        )
+        self.assertEqual(
+            alloc_sets[0],
+            {
+                "allocationSize": 5368709120,
+                "label": "ost",
+                "storage": [
+                    {"allocationCount": 1, "name": "rabbit1"},
+                    {"allocationCount": 1, "name": "rabbit2"},
+                ],
+            },
+        )
+        alloc_sets = directivebreakdown.build_allocation_sets(
+            breakdown, self.nodes_per_nnf_3, range(9), 0
+        )
+        self.assertEqual(
+            alloc_sets[0],
+            {
+                "allocationSize": 5368709120,
+                "label": "ost",
+                "storage": [
+                    {"allocationCount": 1, "name": "rabbit1"},
+                    {"allocationCount": 1, "name": "rabbit2"},
+                ],
+            },
+        )
+
+    def test_lustre_10tb(self):
+        breakdown = read_yaml_breakdown(YAMLDIR / "lustre10tb.yaml")[0]["status"][
+            "storage"
+        ]["allocationSets"]
+        capacity = breakdown[1]["minimumCapacity"]
+        alloc_sets = directivebreakdown.build_allocation_sets(
+            breakdown, self.nodes_per_nnf_2, range(2), 0
+        )
+        self.assertEqual(alloc_sets[0]["label"], "mgtmdt")
+        self.assertEqual(
+            alloc_sets[1],
+            {
+                "allocationSize": math.ceil(capacity / 2),
+                "label": "ost",
+                "storage": [
+                    {"allocationCount": 1, "name": "rabbit1"},
+                    {"allocationCount": 1, "name": "rabbit2"},
+                ],
+            },
+        )
+        alloc_sets = directivebreakdown.build_allocation_sets(
+            breakdown, self.nodes_per_nnf_3, range(9), 0
+        )
+        self.assertEqual(alloc_sets[0]["label"], "mgtmdt")
+        self.assertEqual(
+            alloc_sets[1],
+            {
+                "allocationSize": math.ceil(capacity / 3),
+                "label": "ost",
+                "storage": [
+                    {"allocationCount": 2, "name": "rabbit1"},
+                    {"allocationCount": 1, "name": "rabbit2"},
+                ],
+            },
+        )
+        alloc_sets = directivebreakdown.build_allocation_sets(
+            breakdown, self.nodes_per_nnf_4, range(7), 0
+        )
+        self.assertEqual(
+            alloc_sets[1],
+            {
+                "allocationSize": math.ceil(capacity / 7),
+                "label": "ost",
+                "storage": [
+                    {"allocationCount": 4, "name": "rabbit1"},
+                    {"allocationCount": 3, "name": "rabbit2"},
+                ],
+            },
+        )
 
 
 unittest.main(testRunner=TAPTestRunner())
