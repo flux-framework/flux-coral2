@@ -17,6 +17,7 @@ import logging
 import pwd
 import time
 import re
+import contextlib
 from datetime import datetime
 
 from kubernetes.client.rest import ApiException
@@ -783,7 +784,8 @@ def kubernetes_backoff(handle, orig_retry_delay):
             handle.reactor_run()
         except urllib3.exceptions.HTTPError as k8s_err:
             LOGGER.warning(
-                "Hit an exception: '%s' while contacting kubernetes, sleeping for %s seconds",
+                "Hit an exception: '%s' while contacting kubernetes, "
+                "sleeping for %s seconds",
                 k8s_err,
                 retry_delay,
             )
@@ -865,15 +867,17 @@ def main():
     # create a timer watcher for killing workflows that have been stuck in
     # the "Error" state for too long
     tc_timeout = handle.conf_get("rabbit.tc_timeout", 10)
-    handle.timer_watcher_create(
+    timer_watcher = handle.timer_watcher_create(
         tc_timeout / 2,
         kill_workflows_in_tc,
         repeat=tc_timeout / 2,
         args=tc_timeout,
-    ).start()
+    )
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
-    with Watchers(handle, watch_interval=args.watch_interval) as watchers:
+    with Watchers(
+        handle, watch_interval=args.watch_interval
+    ) as watchers, timer_watcher:
         storage.init_rabbits(
             k8s_api,
             handle,
@@ -881,25 +885,25 @@ def main():
             args.disable_fluxion,
             args.drain_queues,
         )
-        services = register_services(
-            handle, k8s_api, handle.conf_get("rabbit.restrict_persistent", True)
-        )
-        watchers.add_watch(
-            Watch(
-                k8s_api,
-                crd.WORKFLOW_CRD,
-                0,
-                workflow_state_change_cb,
-                handle,
-                k8s_api,
-                args.disable_fluxion,
+        with contextlib.ExitStack() as stack:
+            services = register_services(
+                handle, k8s_api, handle.conf_get("rabbit.restrict_persistent", True)
             )
-        )
-        raise_self_exception(handle)
-        kubernetes_backoff(handle, args.retry_delay)
-        for service in services:
-            service.stop()
-            service.destroy()
+            for service in services:
+                stack.enter_context(service)
+            watchers.add_watch(
+                Watch(
+                    k8s_api,
+                    crd.WORKFLOW_CRD,
+                    0,
+                    workflow_state_change_cb,
+                    handle,
+                    k8s_api,
+                    args.disable_fluxion,
+                )
+            )
+            raise_self_exception(handle)
+            kubernetes_backoff(handle, args.retry_delay)
 
 
 if __name__ == "__main__":
