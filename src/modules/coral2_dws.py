@@ -307,7 +307,8 @@ def abort_cb(handle, _t, msg, k8s_api):
     """dws.abort RPC callback.
 
     The dws.abort RPC is sent if a job hits a special exception during the
-    dws-epilog action.
+    dws-epilog action. The jobtap epilog will already have been removed, so
+    there is no need to send the epilog-remove RPC after this.
 
     Move the workflow directly to Teardown, and look for nodes with active
     mounts and drain any that are found. Also, look for rabbits with
@@ -315,6 +316,7 @@ def abort_cb(handle, _t, msg, k8s_api):
     """
     jobid = msg.payload["jobid"]
     winfo = WorkflowInfo.get(jobid)
+    winfo.epilog_removed = True
     if not winfo.toredown:
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
     # get all clientmounts for the job that aren't unmounted
@@ -534,9 +536,11 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         # Delete workflow object and tell DWS jobtap plugin that the job is done.
         # Attempt to remove the finalizer again in case the state transitioned
         # too quickly for it to be noticed earlier.
-        handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
-            log_rpc_response, jobid
-        )
+        if not winfo.epilog_removed:
+            # if the 'dws.abort' RPC was received, epilog already removed
+            handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
+                log_rpc_response, jobid
+            )
         save_elapsed_time_to_kvs(handle, jobid, workflow)
         cleanup.delete_workflow(workflow)
         winfo.deleted = True
