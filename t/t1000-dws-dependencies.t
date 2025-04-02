@@ -231,12 +231,45 @@ test_expect_success 'job-manager: dws jobtap plugin handles --requires=^property
 	flux job wait-event -vt 5 ${create_jobid} clean
 '
 
+test_expect_success 'job-manager: dws jobtap plugin works if epilog timeout error is posted manually' '
+	create_jobid=$(flux submit -t 8 --output=dws10.out --error=dws10.out \
+		flux python ${DWS_SCRIPT} --teardown-hang) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux post-job-event $jobid exception type=dws-epilog-timeout severity=0 &&
+	flux job wait-event -vt 5 -m type=dws-epilog-timeout ${jobid} exception &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} -m status=1 \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 5 ${create_jobid} clean &&
+	grep "Received dws.abort RPC" dws10.out &&
+	test_must_fail flux job attach ${jobid}
+'
+
 test_expect_success 'job-manager: load dws-jobtap plugin with epilog timeout > 0' '
 	flux jobtap remove dws-jobtap.so &&
 	flux dmesg --clear &&
 	flux jobtap load ${PLUGINPATH}/dws-jobtap.so epilog-timeout=0.1 &&
 	flux dmesg | grep "dws: epilog timeout = 0.1" &&
 	flux dmesg | test_must_fail grep "dws: failed to unpack config"
+'
+
+test_expect_success 'job-manager: dws jobtap plugin works when job hits epilog timeout' '
+	create_jobid=$(flux submit -t 8 --output=dws11.out --error=dws11.out \
+		flux python ${DWS_SCRIPT} --teardown-hang) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 5 -m type=dws-epilog-timeout ${jobid} exception &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} -m status=1 \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 5 ${create_jobid} clean &&
+	grep "Received dws.abort RPC" dws11.out &&
+	test_must_fail flux job attach ${jobid}
 '
 
 test_done

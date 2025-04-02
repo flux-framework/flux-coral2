@@ -77,6 +77,11 @@ def teardown_cb(fh, t, msg, arg):
     fh.reactor_stop()
 
 
+def abort_cb(fh, t, msg, arg):
+    print(f"Received dws.abort RPC with msg {msg}")
+    fh.reactor_stop()
+
+
 def register_services(handle):
     """register dws.* services."""
     serv_reg_fut = handle.service_register("dws")
@@ -85,6 +90,7 @@ def register_services(handle):
         ("setup", setup_cb),
         ("post_run", post_run_cb),
         ("teardown", teardown_cb),
+        ("abort", abort_cb),
     ):
         yield handle.msg_watcher_create(
             cb,
