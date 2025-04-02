@@ -15,7 +15,14 @@ PROLOG_NAME="dws-setup"
 EPILOG_NAME="dws-epilog"
 
 test_expect_success 'job-manager: load dws-jobtap plugin' '
-	flux jobtap load ${PLUGINPATH}/dws-jobtap.so
+	flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
+	flux dmesg | grep "dws: epilog timeout = 0.0" &&
+	flux dmesg | grep "dws: failed to unpack config" &&
+	flux jobtap remove dws-jobtap.so &&
+	flux dmesg --clear &&
+	flux jobtap load ${PLUGINPATH}/dws-jobtap.so epilog-timeout=-1.0 &&
+	flux dmesg | grep "dws: epilog timeout = -1." &&
+	flux dmesg | test_must_fail grep "dws: failed to unpack config"
 '
 
 test_expect_success 'job-manager: dws jobtap plugin works when coral2_dws is absent' '
@@ -222,6 +229,14 @@ test_expect_success 'job-manager: dws jobtap plugin handles --requires=^property
 	flux job wait-event -vt 5 ${jobid} clean &&
 	flux job wait-event -vt 1 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 5 ${create_jobid} clean
+'
+
+test_expect_success 'job-manager: load dws-jobtap plugin with epilog timeout > 0' '
+	flux jobtap remove dws-jobtap.so &&
+	flux dmesg --clear &&
+	flux jobtap load ${PLUGINPATH}/dws-jobtap.so epilog-timeout=0.1 &&
+	flux dmesg | grep "dws: epilog timeout = 0.1" &&
+	flux dmesg | test_must_fail grep "dws: failed to unpack config"
 '
 
 test_done
