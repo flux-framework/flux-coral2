@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import argparse
+import contextlib
 
 import flux
 from flux.constants import FLUX_MSGTYPE_REQUEST
-from flux.future import Future
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--create-fail", action="store_true")
@@ -77,31 +77,30 @@ def teardown_cb(fh, t, msg, arg):
     fh.reactor_stop()
 
 
+def register_services(handle):
+    """register dws.* services."""
+    serv_reg_fut = handle.service_register("dws")
+    for service_name, cb in (
+        ("create", create_cb),
+        ("setup", setup_cb),
+        ("post_run", post_run_cb),
+        ("teardown", teardown_cb),
+    ):
+        yield handle.msg_watcher_create(
+            cb,
+            FLUX_MSGTYPE_REQUEST,
+            f"dws.{service_name}",
+        )
+    serv_reg_fut.get()
+
+
 def main():
     fh = flux.Flux()
-    service_reg_fut = Future(fh.service_register("dws"))
-    create_watcher = fh.msg_watcher_create(
-        create_cb, FLUX_MSGTYPE_REQUEST, "dws.create"
-    )
-    create_watcher.start()
-    setup_watcher = fh.msg_watcher_create(setup_cb, FLUX_MSGTYPE_REQUEST, "dws.setup")
-    setup_watcher.start()
-    post_run_watcher = fh.msg_watcher_create(
-        post_run_cb, FLUX_MSGTYPE_REQUEST, "dws.post_run"
-    )
-    post_run_watcher.start()
-    teardown_watcher = fh.msg_watcher_create(
-        teardown_cb, FLUX_MSGTYPE_REQUEST, "dws.teardown"
-    )
-    teardown_watcher.start()
-    service_reg_fut.get()
-    print("DWS service registered")
-
-    fh.reactor_run()
-
-    for watcher in (create_watcher, setup_watcher, post_run_watcher):
-        watcher.stop()
-        watcher.destroy()
+    with contextlib.ExitStack() as stack:
+        for service in register_services(fh):
+            stack.enter_context(service)
+        print("DWS service registered")
+        fh.reactor_run()
 
 
 if __name__ == "__main__":

@@ -123,12 +123,11 @@ def owner_uid(handle):
 
 
 @message_callback_wrapper
-def create_cb(handle, _t, msg, arg):
+def create_cb(handle, _t, msg, k8s_api):
     """dws.create RPC callback. Creates a k8s Workflow object for a job.
 
     Triggered when a new job with a jobdw directive is submitted.
     """
-    api_instance, restrict_persistent = arg
     dw_directives = msg.payload["dw_directives"]
     jobid = msg.payload["jobid"]
     userid = msg.payload["userid"]
@@ -149,7 +148,9 @@ def create_cb(handle, _t, msg, arg):
     for i, directive in enumerate(dw_directives):
         if directive.strip() in presets:
             dw_directives[i] = presets[directive.strip()]
-        if restrict_persistent and "create_persistent" in directive:
+        if "create_persistent" in directive and handle.conf_get(
+            "rabbit.restrict_persistent", True
+        ):
             if userid != owner_uid(handle):
                 raise UserError(
                     "only the instance owner can create persistent file systems"
@@ -174,7 +175,7 @@ def create_cb(handle, _t, msg, arg):
         },
     }
     try:
-        api_instance.create_namespaced_custom_object(
+        k8s_api.create_namespaced_custom_object(
             *crd.WORKFLOW_CRD,
             body,
         )
@@ -729,34 +730,23 @@ def config_logging(args):
     logging.getLogger(flux_k8s.__name__).setLevel(log_level)
 
 
-def register_services(handle, k8s_api, restrict_persistent):
+def register_services(handle, k8s_api):
     """register dws.create, dws.setup, and dws.post_run services."""
     serv_reg_fut = handle.service_register("dws")
-    create_watcher = handle.msg_watcher_create(
-        create_cb,
-        FLUX_MSGTYPE_REQUEST,
-        "dws.create",
-        args=(k8s_api, restrict_persistent),
-    )
-    create_watcher.start()
-    setup_watcher = handle.msg_watcher_create(
-        setup_cb, FLUX_MSGTYPE_REQUEST, "dws.setup", args=k8s_api
-    )
-    setup_watcher.start()
-    post_run_watcher = handle.msg_watcher_create(
-        post_run_cb, FLUX_MSGTYPE_REQUEST, "dws.post_run", args=k8s_api
-    )
-    post_run_watcher.start()
-    teardown_watcher = handle.msg_watcher_create(
-        teardown_cb, FLUX_MSGTYPE_REQUEST, "dws.teardown", args=k8s_api
-    )
-    teardown_watcher.start()
-    abort_watcher = handle.msg_watcher_create(
-        abort_cb, FLUX_MSGTYPE_REQUEST, "dws.abort", args=k8s_api
-    )
-    abort_watcher.start()
+    for service_name, cb in (
+        ("create", create_cb),
+        ("setup", setup_cb),
+        ("post_run", post_run_cb),
+        ("teardown", teardown_cb),
+        ("abort", abort_cb),
+    ):
+        yield handle.msg_watcher_create(
+            cb,
+            FLUX_MSGTYPE_REQUEST,
+            f"dws.{service_name}",
+            args=k8s_api,
+        )
     serv_reg_fut.get()
-    return (create_watcher, setup_watcher, post_run_watcher, abort_watcher)
 
 
 def raise_self_exception(handle):
@@ -886,10 +876,7 @@ def main():
             args.drain_queues,
         )
         with contextlib.ExitStack() as stack:
-            services = register_services(
-                handle, k8s_api, handle.conf_get("rabbit.restrict_persistent", True)
-            )
-            for service in services:
+            for service in register_services(handle, k8s_api):
                 stack.enter_context(service)
             watchers.add_watch(
                 Watch(
