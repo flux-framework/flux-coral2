@@ -16,6 +16,9 @@ import argparse
 import logging
 import pwd
 import time
+import re
+import contextlib
+from datetime import datetime
 
 from kubernetes.client.rest import ApiException
 import urllib3
@@ -42,6 +45,7 @@ LOGGER = logging.getLogger(__name__)
 WORKFLOWS_IN_TC = {}  # tc for TransientCondition
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
 _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
+CLIENTMOUNT_NAME = re.compile(r"-computes$")
 
 
 class UserError(Exception):
@@ -119,12 +123,11 @@ def owner_uid(handle):
 
 
 @message_callback_wrapper
-def create_cb(handle, _t, msg, arg):
+def create_cb(handle, _t, msg, k8s_api):
     """dws.create RPC callback. Creates a k8s Workflow object for a job.
 
     Triggered when a new job with a jobdw directive is submitted.
     """
-    api_instance, restrict_persistent = arg
     dw_directives = msg.payload["dw_directives"]
     jobid = msg.payload["jobid"]
     userid = msg.payload["userid"]
@@ -145,7 +148,9 @@ def create_cb(handle, _t, msg, arg):
     for i, directive in enumerate(dw_directives):
         if directive.strip() in presets:
             dw_directives[i] = presets[directive.strip()]
-        if restrict_persistent and "create_persistent" in directive:
+        if "create_persistent" in directive and handle.conf_get(
+            "rabbit.restrict_persistent", True
+        ):
             if userid != owner_uid(handle):
                 raise UserError(
                     "only the instance owner can create persistent file systems"
@@ -170,7 +175,7 @@ def create_cb(handle, _t, msg, arg):
         },
     }
     try:
-        api_instance.create_namespaced_custom_object(
+        k8s_api.create_namespaced_custom_object(
             *crd.WORKFLOW_CRD,
             body,
         )
@@ -299,6 +304,168 @@ def teardown_cb(handle, _t, msg, k8s_api):
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
 
 
+@message_callback_wrapper
+def abort_cb(handle, _t, msg, k8s_api):
+    """dws.abort RPC callback.
+
+    The dws.abort RPC is sent if a job hits a special exception during the
+    dws-epilog action. The jobtap epilog will already have been removed, so
+    there is no need to send the epilog-remove RPC after this.
+
+    Move the workflow directly to Teardown, and look for nodes with active
+    mounts and drain any that are found. Also, look for rabbits with
+    active allocations and disable them.
+    """
+    jobid = msg.payload["jobid"]
+    winfo = WorkflowInfo.get(jobid)
+    winfo.epilog_removed = True
+    if not winfo.toredown:
+        check_existence_and_move_to_teardown(handle, k8s_api, winfo)
+    # get all clientmounts for the job that aren't unmounted
+    to_drain = get_clientmounts_not_in_state(k8s_api, winfo.name, "unmounted")
+    if to_drain:
+        encoded_hostlist = Hostlist(to_drain).uniq().encode()
+        LOGGER.debug(
+            "Draining nodes %s with active mounts for workflow %s",
+            encoded_hostlist,
+            winfo.name,
+        )
+        handle.rpc(
+            "resource.drain",
+            payload={
+                "targets": encoded_hostlist,
+                "mode": "update",
+                "reason": "failed to unmount rabbit",
+            },
+            nodeid=0,
+        ).then(log_rpc_response)
+    # get all rabbits with active allocations and disable them.
+    for rabbit_to_disable in get_servers_with_active_allocations(k8s_api, winfo.name):
+        k8s_api.patch_namespaced_custom_object(
+            *crd.RABBIT_CRD,
+            rabbit_to_disable,
+            {
+                "metadata": {
+                    "annotations": {
+                        "disable_reason": (
+                            f"workflow {winfo.name} timed out "
+                            "with an active allocation on this rabbit"
+                        ),
+                        "disable_date": str(datetime.now()),
+                    }
+                },
+                "spec": {"state": "Disabled"},
+            },
+        )
+
+
+def get_clientmounts_not_in_state(k8s_api, workflow_name, desired_state):
+    """Return all nodes in a job with mounts that don't match a specified state.
+
+    The job is specified by the name of the workflow.
+    """
+    try:
+        clientmounts = k8s_api.list_cluster_custom_object(
+            group=crd.CLIENTMOUNT_CRD.group,
+            version=crd.CLIENTMOUNT_CRD.version,
+            plural=crd.CLIENTMOUNT_CRD.plural,
+            label_selector=(f"{crd.DWS_GROUP}/workflow.name={workflow_name}"),
+        )["items"]
+    except Exception as exc:
+        LOGGER.warning(
+            "Failed to fetch %s crds for workflow '%s': %s",
+            crd.CLIENTMOUNT_CRD.plural,
+            workflow_name,
+            exc,
+        )
+        return []
+    to_drain = []
+    for resource in clientmounts:
+        try:
+            node = resource["spec"]["node"]
+        except KeyError:
+            # can't tell what node to drain, nothing to do
+            LOGGER.warning(
+                "%s resource found for workflow %s without '.spec.node': %s",
+                crd.CLIENTMOUNT_CRD.plural,
+                workflow_name,
+                resource,
+            )
+            continue
+        try:
+            resource_name = resource["metadata"]["name"]
+            mounts = resource["status"]["mounts"]
+        except KeyError as exc:
+            LOGGER.warning(
+                "%s resource found for workflow %s without expected field: %s",
+                crd.CLIENTMOUNT_CRD.plural,
+                workflow_name,
+                exc,
+            )
+            # assume node bad
+            to_drain.append(node)
+            continue
+        if re.search(CLIENTMOUNT_NAME, resource_name) is None:
+            # not a clientmount we care about because not a compute node, skip
+            continue
+        try:
+            for mount in mounts:
+                if mount["state"] != desired_state or not mount["ready"]:
+                    to_drain.append(node)
+                    break
+        except (KeyError, TypeError) as exc:
+            LOGGER.warning(
+                "error inspecting mounts for %s resource found for workflow %s: %s",
+                crd.CLIENTMOUNT_CRD.plural,
+                workflow_name,
+                exc,
+            )
+            # assume node bad
+            to_drain.append(node)
+    return to_drain
+
+
+def get_servers_with_active_allocations(k8s_api, workflow_name):
+    """Return all rabbits in a job that have active allocations.
+
+    The job is specified by the name of the workflow.
+    """
+    try:
+        servers = k8s_api.list_cluster_custom_object(
+            group=crd.SERVER_CRD.group,
+            version=crd.SERVER_CRD.version,
+            plural=crd.SERVER_CRD.plural,
+            label_selector=(f"{crd.DWS_GROUP}/workflow.name={workflow_name}"),
+        )["items"]
+    except Exception as exc:
+        LOGGER.warning(
+            "Failed to fetch %s crds for workflow '%s': %s",
+            crd.SERVER_CRD.plural,
+            workflow_name,
+            exc,
+        )
+        return []
+    with_allocations = set()
+    for resource in servers:
+        try:
+            allocation_sets = resource["status"]["allocationSets"]
+            for alloc_set in allocation_sets:
+                for rabbit_name, alloc_info in alloc_set["storage"].items():
+                    if alloc_info["allocationSize"] > 0:
+                        with_allocations.add(rabbit_name)
+        except (KeyError, TypeError) as exc:
+            # can't tell what node to drain, nothing to do
+            LOGGER.warning(
+                "%s resource found for workflow %s did not have expected "
+                "'allocationSets' layout: %s: %s",
+                crd.SERVER_CRD.plural,
+                workflow_name,
+                exc,
+                resource,
+            )
+    return with_allocations
+
+
 def state_complete(workflow, state):
     """Helper function for checking whether a workflow has completed a given state."""
     return (
@@ -371,9 +538,11 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         # Delete workflow object and tell DWS jobtap plugin that the job is done.
         # Attempt to remove the finalizer again in case the state transitioned
         # too quickly for it to be noticed earlier.
-        handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
-            log_rpc_response, jobid
-        )
+        if not winfo.epilog_removed:
+            # if the 'dws.abort' RPC was received, epilog already removed
+            handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
+                log_rpc_response, jobid
+            )
         save_elapsed_time_to_kvs(handle, jobid, workflow)
         cleanup.delete_workflow(workflow)
         winfo.deleted = True
@@ -561,30 +730,23 @@ def config_logging(args):
     logging.getLogger(flux_k8s.__name__).setLevel(log_level)
 
 
-def register_services(handle, k8s_api, restrict_persistent):
+def register_services(handle, k8s_api):
     """register dws.create, dws.setup, and dws.post_run services."""
     serv_reg_fut = handle.service_register("dws")
-    create_watcher = handle.msg_watcher_create(
-        create_cb,
-        FLUX_MSGTYPE_REQUEST,
-        "dws.create",
-        args=(k8s_api, restrict_persistent),
-    )
-    create_watcher.start()
-    setup_watcher = handle.msg_watcher_create(
-        setup_cb, FLUX_MSGTYPE_REQUEST, "dws.setup", args=k8s_api
-    )
-    setup_watcher.start()
-    post_run_watcher = handle.msg_watcher_create(
-        post_run_cb, FLUX_MSGTYPE_REQUEST, "dws.post_run", args=k8s_api
-    )
-    post_run_watcher.start()
-    teardown_watcher = handle.msg_watcher_create(
-        teardown_cb, FLUX_MSGTYPE_REQUEST, "dws.teardown", args=k8s_api
-    )
-    teardown_watcher.start()
+    for service_name, cb in (
+        ("create", create_cb),
+        ("setup", setup_cb),
+        ("post_run", post_run_cb),
+        ("teardown", teardown_cb),
+        ("abort", abort_cb),
+    ):
+        yield handle.msg_watcher_create(
+            cb,
+            FLUX_MSGTYPE_REQUEST,
+            f"dws.{service_name}",
+            args=k8s_api,
+        )
     serv_reg_fut.get()
-    return (create_watcher, setup_watcher, post_run_watcher)
 
 
 def raise_self_exception(handle):
@@ -612,7 +774,8 @@ def kubernetes_backoff(handle, orig_retry_delay):
             handle.reactor_run()
         except urllib3.exceptions.HTTPError as k8s_err:
             LOGGER.warning(
-                "Hit an exception: '%s' while contacting kubernetes, sleeping for %s seconds",
+                "Hit an exception: '%s' while contacting kubernetes, "
+                "sleeping for %s seconds",
                 k8s_err,
                 retry_delay,
             )
@@ -694,15 +857,17 @@ def main():
     # create a timer watcher for killing workflows that have been stuck in
     # the "Error" state for too long
     tc_timeout = handle.conf_get("rabbit.tc_timeout", 10)
-    handle.timer_watcher_create(
+    timer_watcher = handle.timer_watcher_create(
         tc_timeout / 2,
         kill_workflows_in_tc,
         repeat=tc_timeout / 2,
         args=tc_timeout,
-    ).start()
+    )
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
-    with Watchers(handle, watch_interval=args.watch_interval) as watchers:
+    with Watchers(
+        handle, watch_interval=args.watch_interval
+    ) as watchers, timer_watcher:
         storage.init_rabbits(
             k8s_api,
             handle,
@@ -710,25 +875,22 @@ def main():
             args.disable_fluxion,
             args.drain_queues,
         )
-        services = register_services(
-            handle, k8s_api, handle.conf_get("rabbit.restrict_persistent", True)
-        )
-        watchers.add_watch(
-            Watch(
-                k8s_api,
-                crd.WORKFLOW_CRD,
-                0,
-                workflow_state_change_cb,
-                handle,
-                k8s_api,
-                args.disable_fluxion,
+        with contextlib.ExitStack() as stack:
+            for service in register_services(handle, k8s_api):
+                stack.enter_context(service)
+            watchers.add_watch(
+                Watch(
+                    k8s_api,
+                    crd.WORKFLOW_CRD,
+                    0,
+                    workflow_state_change_cb,
+                    handle,
+                    k8s_api,
+                    args.disable_fluxion,
+                )
             )
-        )
-        raise_self_exception(handle)
-        kubernetes_backoff(handle, args.retry_delay)
-        for service in services:
-            service.stop()
-            service.destroy()
+            raise_self_exception(handle)
+            kubernetes_backoff(handle, args.retry_delay)
 
 
 if __name__ == "__main__":

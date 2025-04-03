@@ -60,3 +60,10 @@ DATAMOVEMENT_CRD = CRD(
     namespace=None,
     plural="nnfdatamovements",
 )
+
+CLIENTMOUNT_CRD = CRD(
+    group=DWS_GROUP,
+    version=DWS_API_VERSION,
+    namespace=None,
+    plural="clientmounts",
+)

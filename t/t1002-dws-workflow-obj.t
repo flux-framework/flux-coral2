@@ -110,6 +110,26 @@ test_expect_success 'job submission with valid DW string works with fluxion-rabb
     flux job wait-event -vt 15 ${jobid} clean
 '
 
+test_expect_success 'inspection of resources while job running passes' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 -t200 sleep 30) &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job id $jobid &&
+	kubectl get clientmounts -A &&
+	kubectl get clientmounts -A -oyaml &&
+	flux python ${SHARNESS_TEST_SRCDIR}/scripts/coral2_inspection.py $jobid $DWS_MODULE_PATH &&
+	flux cancel $jobid &&
+	flux job wait-event -t 3 ${jobid} exception &&
+	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 65 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 10 ${jobid} clean
+'
+
 test_expect_success 'dws service script handles restarts while a job is in SCHED with fluxion disabled' '
 	flux queue stop --all &&
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \

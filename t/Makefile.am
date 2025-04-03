@@ -48,6 +48,7 @@ dist_check_SCRIPTS = \
 	scripts/apinfo_checker.py \
 	scripts/set_status.py \
 	scripts/sign-as.py \
+	scripts/coral2_inspection.py \
 	rc/rc1-job \
 	rc/rc3-job \
 	python/pycotap \
