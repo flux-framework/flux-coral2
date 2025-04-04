@@ -633,14 +633,17 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         if workflow["spec"]["desiredState"] in ("PostRun", "DataOut"):
             winfo.move_to_teardown(handle, k8s_api, workflow)
     elif workflow["status"].get("status") == "TransientCondition":
+        prerun = workflow["status"]["state"] == "PreRun"
         # a potentially fatal error has occurred, but may resolve itself
         message = workflow["status"].get("message", "")
         if winfo.jobid not in WORKFLOWS_IN_TC:
-            WORKFLOWS_IN_TC[winfo.jobid] = TransientConditionInfo(time.time(), message)
+            WORKFLOWS_IN_TC[winfo.jobid] = TransientConditionInfo(
+                time.time(), message, prerun
+            )
         else:
             # grab the old time field and keep it, but replace the message
             new_tc = TransientConditionInfo(
-                WORKFLOWS_IN_TC[winfo.jobid].last_time, message
+                WORKFLOWS_IN_TC[winfo.jobid].last_time, message, prerun
             )
             WORKFLOWS_IN_TC[winfo.jobid] = new_tc
     else:
@@ -648,12 +651,13 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
             del WORKFLOWS_IN_TC[winfo.jobid]
 
 
-def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
+def kill_workflows_in_tc(_reactor, watcher, _r, args):
     """Callback firing every (tc_timeout / 2) seconds.
 
     Raise exceptions on jobs stuck in TransientCondition for more than
     tc_timeout seconds.
     """
+    tc_timeout, k8s_api, manager = args
     curr_time = time.time()
     # iterate over a copy of the set
     # otherwise an exception occurs because we modify the set as we
@@ -668,6 +672,14 @@ def kill_workflows_in_tc(_reactor, watcher, _r, tc_timeout):
                 f"state too long: {trans_cond.last_message}",
             )
             del WORKFLOWS_IN_TC[jobid]
+            if trans_cond.prerun:
+                # if a job is in prerun, a mount is probably failing
+                # in this case check what nodes have failed to mount and set
+                # a property on them
+                not_mounted = get_clientmounts_not_in_state(
+                    k8s_api, WorkflowInfo.get_name(jobid), "mounted"
+                )
+                manager.set_property(not_mounted, f"{jobid} timed out in PreRun")
 
 
 def setup_parsing():
@@ -854,28 +866,27 @@ def main():
         sys.exit(_EXITCODE_NORESTART)
     cleanup.setup_cleanup_thread(handle.conf_get("rabbit.kubeconfig"))
     storage.populate_rabbits_dict(k8s_api)
-    # create a timer watcher for killing workflows that have been stuck in
-    # the "Error" state for too long
-    tc_timeout = handle.conf_get("rabbit.tc_timeout", 10)
-    timer_watcher = handle.timer_watcher_create(
-        tc_timeout / 2,
-        kill_workflows_in_tc,
-        repeat=tc_timeout / 2,
-        args=tc_timeout,
-    )
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
-    with Watchers(
-        handle, watch_interval=args.watch_interval
-    ) as watchers, timer_watcher:
-        storage.init_rabbits(
+    with Watchers(handle, watch_interval=args.watch_interval) as watchers:
+        manager = storage.init_rabbits(
             k8s_api,
             handle,
             watchers,
             args.disable_fluxion,
             args.drain_queues,
         )
+        # create a timer watcher for killing workflows that have been stuck in
+        # the "Error" state for too long
+        tc_timeout = handle.conf_get("rabbit.tc_timeout", 10)
+        timer_watcher = handle.timer_watcher_create(
+            tc_timeout / 2,
+            kill_workflows_in_tc,
+            repeat=tc_timeout / 2,
+            args=(tc_timeout, k8s_api, manager),
+        )
         with contextlib.ExitStack() as stack:
+            stack.enter_context(timer_watcher)
             for service in register_services(handle, k8s_api):
                 stack.enter_context(service)
             watchers.add_watch(

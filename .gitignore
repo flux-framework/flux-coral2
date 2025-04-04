@@ -5,6 +5,7 @@ Makefile.in
 autom4te.cache
 compile
 configure
+configure~
 aclocal.m4
 stamp-h1
 aclocal.m4

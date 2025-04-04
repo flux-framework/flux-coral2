@@ -12,6 +12,246 @@ LOGGER = logging.getLogger(__name__)
 EXCLUDE_PROPERTY = "badrabbit"
 HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 _RABBITS_TO_HOSTLISTS = {}  # maps rabbits to hostlists
+_READY_STATUS = "Ready"
+
+
+def _get_status(rabbit, default):
+    """Get a rabbit's status or return `default` if not found."""
+    try:
+        return rabbit["status"]["status"]
+    except KeyError:
+        return default
+
+
+def _get_offline_nodes(rabbit):
+    """Return the set of all nodes marked as Offline by a rabbit."""
+    offline_nodes = set()
+    try:
+        # rabbits don't have a 'status' field until they boot, in which case
+        # there is nothing to do
+        nodelist = rabbit["status"]["access"]["computes"]
+    except KeyError:
+        return offline_nodes
+    for compute_node in nodelist:
+        if compute_node["status"] != _READY_STATUS:
+            offline_nodes.add(compute_node["name"])
+    return offline_nodes
+
+
+class RabbitManager:
+    """Class for interfacing with k8s Storage resources.
+
+    Offers methods for setting the `badrabbit` property on compute nodes, and for
+    handling updates to Storage resources.
+    """
+
+    def __init__(self, handle, allowlist):
+        if not HOSTNAMES_TO_RABBITS or not _RABBITS_TO_HOSTLISTS:
+            raise RuntimeError("populate_rabbits_dict must be called first")
+        self.handle = handle  # flux.Flux() handle to use
+        self.allowlist = allowlist  # `set` of nodes to allow draining for, or None
+        self._compute_rpaths = {}  # mapping from hostnames to fluxion paths
+        self._get_rpaths()
+
+    def _get_rpaths(self):
+        """Map compute nodes to Fluxion resource paths."""
+        self._compute_rpaths = {
+            hostname: f"/cluster0/{hostname}" for hostname in HOSTNAMES_TO_RABBITS
+        }
+
+    def rabbit_state_change_cb(self, event):
+        """Callback firing when a Storage object changes.
+
+        Marks a rabbit as up or down.
+        """
+        rabbit = event["object"]
+        if self.handle.conf_get("rabbit.drain_compute_nodes", True):
+            # only drain compute nodes if allowed, admins may find it obnoxious
+            self._drain_offline_nodes(rabbit)
+        self._set_or_remove_property(rabbit)
+
+    def _drain_offline_nodes(self, rabbit):
+        """Drain nodes listed as offline in a given Storage resource.
+
+        Drain all the nodes in the rabbit that are Offline, provided they are
+        in `allowlist`.
+
+        If draining is disabled in the rabbit config table, do nothing.
+        """
+        offline_nodes = _get_offline_nodes(rabbit)
+        if isinstance(self.allowlist, set):
+            offline_nodes &= self.allowlist
+        if offline_nodes:
+            encoded_hostlist = Hostlist(offline_nodes).encode()
+            LOGGER.debug("Draining nodes %s", encoded_hostlist)
+            self.handle.rpc(
+                "resource.drain",
+                payload={
+                    "targets": encoded_hostlist,
+                    "mode": "update",
+                    "reason": "rabbit lost PCIe connection",
+                },
+                nodeid=0,
+            ).then(log_rpc_response)
+
+    def _set_or_remove_property(self, rabbit):
+        """Set or remove properties on compute nodes so rabbit jobs can avoid them.
+
+        This provides a mechanism for handling both down rabbits AND
+        down rabbit-to-compute-node links. If the rabbit as a whole is down,
+        all nodes should be marked with the property. If individual PCIe
+        links are down, just the affected nodes should be marked.
+        """
+        name = rabbit["metadata"]["name"]
+        all_nodes = set(_RABBITS_TO_HOSTLISTS[name])
+        down_nodes = set()
+        status = _get_status(rabbit, "Disabled")
+        if status != _READY_STATUS:
+            # all nodes should be marked with the property
+            down_nodes = all_nodes
+        elif not self.handle.conf_get(
+            "rabbit.drain_compute_nodes", True
+        ) and self.handle.conf_get("rabbit.soft_drain", True):
+            # rabbit is up, draining disabled, individual nodes may be marked with property
+            down_nodes = _get_offline_nodes(rabbit)
+        up_nodes = all_nodes - down_nodes
+        self.remove_property(up_nodes, f"marked as up by Storage {name}")
+        self.set_property(down_nodes, f"marked as down by Storage {name}")
+
+    def remove_property(self, up_nodes, reason=None):
+        """Send RPCs to remove property from all `up_nodes`."""
+        if up_nodes:
+            LOGGER.debug(
+                "Removing property %s from nodes %s%s",
+                EXCLUDE_PROPERTY,
+                Hostlist(up_nodes).uniq().encode(),
+                f": {reason}" if reason is not None else "",
+            )
+        for hostname in up_nodes:
+            if hostname in self._compute_rpaths:
+                payload = {
+                    "resource_path": self._compute_rpaths[hostname],
+                    "key": EXCLUDE_PROPERTY,
+                }
+                self.handle.rpc("sched-fluxion-resource.remove_property", payload).then(
+                    log_rpc_response
+                )
+
+    def set_property(self, down_nodes, reason=None):
+        """Send RPCs to set property on all `down_nodes`."""
+        if down_nodes:
+            LOGGER.debug(
+                "Adding property %s to nodes %s%s",
+                EXCLUDE_PROPERTY,
+                Hostlist(down_nodes).uniq().encode(),
+                f": {reason}" if reason is not None else "",
+            )
+        for hostname in down_nodes:
+            if hostname in self._compute_rpaths:
+                self.handle.rpc(
+                    "sched-fluxion-resource.set_property",
+                    {
+                        "sp_resource_path": self._compute_rpaths[hostname],
+                        "sp_keyval": f"{EXCLUDE_PROPERTY}=bad",
+                    },
+                ).then(log_rpc_response)
+
+
+class FluxionRabbitManager(RabbitManager):
+    """Class for interfacing with k8s Storage resources.
+
+    Assumes Fluxion has been augmented to use a resource graph with `rack` and
+    `ssd` vertices as produced by `flux dws2jgf`.
+
+    Offers methods for setting the `badrabbit` property on compute nodes, and for
+    handling updates to Storage resources.
+    """
+
+    def __init__(self, handle, allowlist):
+        self._rabbit_rpaths = {}  # maps rabbit hostnames to Fluxion rack paths
+        super().__init__(handle, allowlist)
+
+    def _get_rpaths(self):
+        """Read the fluxion resource graph and map rabbit hostnames to resource paths."""
+        try:
+            nodes = flux.kvs.get(self.handle, "resource.R")["scheduling"]["graph"][
+                "nodes"
+            ]
+        except Exception as exc:
+            raise ValueError(
+                "Could not load rabbit resource graph data from KVS's resource.R"
+            ) from exc
+        for vertex in nodes:
+            metadata = vertex["metadata"]
+            if metadata["type"] == "rack" and "rabbit" in metadata["properties"]:
+                self._rabbit_rpaths[metadata["properties"]["rabbit"]] = (
+                    metadata["paths"]["containment"],
+                    int(metadata["properties"].get("ssdcount", 36)),
+                )
+            if metadata["type"] == "node":
+                self._compute_rpaths[metadata["name"]] = metadata["paths"][
+                    "containment"
+                ]
+
+    def rabbit_state_change_cb(self, event):
+        """Callback firing when a Storage object changes.
+
+        Runs superclass's method and also marks a rabbit as up or down.
+        """
+        super().rabbit_state_change_cb(event)
+        rabbit = event["object"]
+        name = rabbit["metadata"]["name"]
+        if name not in self._rabbit_rpaths:
+            LOGGER.error(
+                "Encountered an unknown Storage object '%s' in the event stream", name
+            )
+            return
+        status = _get_status(rabbit, "Down")
+        self._mark_rabbit(status, name)
+        # TODO: add some check for whether rabbit capacity has changed
+        # TODO: update capacity of rabbit in resource graph (mark some slices down?)
+
+    def _mark_rabbit(self, status, name):
+        """Send RPCs to mark ssd vertices as up or down."""
+        resource_path, ssdcount = self._rabbit_rpaths[name]
+        if status == _READY_STATUS:
+            LOGGER.debug("Marking rabbit %s as up", name)
+            status = "up"
+        else:
+            LOGGER.debug("Marking rabbit %s as down, status is %s", name, status)
+            status = "down"
+        for ssdnum in range(ssdcount):
+            payload = {
+                "resource_path": resource_path + f"/ssd{ssdnum}",
+                "status": status,
+            }
+            self.handle.rpc("sched-fluxion-resource.set_status", payload).then(
+                log_rpc_response
+            )
+
+    def _set_or_remove_property(self, rabbit):
+        """Set properties on compute nodes so that rabbit jobs can avoid them.
+
+        Overrides superclass's method of the same name.
+
+        If the rabbit as a whole is down, there should be no need to set properties
+        because all SSD vertices will have been marked down. If however individual PCIe
+        links are down but the rabbit is up, the affected nodes should be marked.
+        """
+        name = rabbit["metadata"]["name"]
+        all_nodes = set(_RABBITS_TO_HOSTLISTS[name])
+        down_nodes = set()
+        status = _get_status(rabbit, "Disabled")
+        if (
+            status == _READY_STATUS
+            and not self.handle.conf_get("rabbit.drain_compute_nodes", True)
+            and self.handle.conf_get("rabbit.soft_drain", True)
+        ):
+            # rabbit is up, draining disabled, individual nodes may be marked with prop
+            down_nodes = _get_offline_nodes(rabbit)
+        up_nodes = all_nodes - down_nodes
+        self.remove_property(up_nodes, name)
+        self.set_property(down_nodes, name)
 
 
 def log_rpc_response(rpc):
@@ -52,19 +292,13 @@ def populate_rabbits_dict(k8s_api):
 def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
     """Watch every rabbit ('Storage' resources in k8s) known to k8s.
 
-    Whenever a Storage resource changes, mark it as 'up' or 'down' in Fluxion.
+    Return a `RabbitManager` instance for managing the rabbits, after adding
+    a watch on Storage resources.
 
-    Also, to initialize, check the status of all rabbits and mark each one as up or
+    To initialize, check the status of all rabbits and mark each one as up or
     down, because status may have changed while this service was inactive.
     """
     api_response = k8s_api.list_namespaced_custom_object(*crd.RABBIT_CRD)
-    if not disable_fluxion:
-        rabbit_rpaths, compute_rpaths = _map_rabbits_to_fluxion_paths(handle)
-    else:
-        rabbit_rpaths = {}
-        compute_rpaths = {
-            hostname: f"/cluster0/{hostname}" for hostname in HOSTNAMES_TO_RABBITS
-        }
     if drain_queues is not None:
         rset = flux.resource.resource_list(handle).get().all
         allowlist = set(rset.copy_constraint({"properties": drain_queues}).nodelist)
@@ -74,195 +308,19 @@ def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):
             )
     else:
         allowlist = None
+    if disable_fluxion:
+        manager = RabbitManager(handle, allowlist)
+    else:
+        manager = FluxionRabbitManager(handle, allowlist)
     resource_version = 0
     for rabbit in api_response["items"]:
-        name = rabbit["metadata"]["name"]
         resource_version = rabbit["metadata"]["resourceVersion"]
-        if disable_fluxion:
-            # don't mark the rabbit up or down but add the rabbit to the mapping
-            rabbit_rpaths[name] = (None, None)
-        _rabbit_state_change_cb(
+        manager.rabbit_state_change_cb(
             {"object": rabbit},
-            handle,
-            rabbit_rpaths,
-            disable_fluxion,
-            allowlist,
-            compute_rpaths,
         )
     watchers.add_watch(
         watch.Watch(
-            k8s_api,
-            crd.RABBIT_CRD,
-            resource_version,
-            _rabbit_state_change_cb,
-            handle,
-            rabbit_rpaths,
-            disable_fluxion,
-            allowlist,
-            compute_rpaths,
+            k8s_api, crd.RABBIT_CRD, resource_version, manager.rabbit_state_change_cb
         )
     )
-
-
-def _set_property_on_compute_nodes(handle, rabbit, disable_fluxion, compute_rpaths):
-    """Set properties on compute nodes so that rabbit jobs can avoid them
-
-    This provides a mechanism for handling both down rabbits AND
-    down rabbit-to-compute-node links. If the rabbit as a whole is down,
-    all nodes should be marked with the property. If individual PCIe
-    links are down, just the affected nodes should be marked.
-    """
-    name = rabbit["metadata"]["name"]
-    all_nodes = set(_RABBITS_TO_HOSTLISTS[name])
-    down_nodes = set()
-    try:
-        status = rabbit["status"]["status"]
-    except KeyError:
-        # if rabbit doesn't have a status, consider it down
-        status = "Disabled"
-    if status != "Ready" and disable_fluxion:
-        # all nodes should be marked with the property, we can end here
-        down_nodes = all_nodes
-    elif (
-        status == "Ready"
-        and not handle.conf_get("rabbit.drain_compute_nodes", True)
-        and handle.conf_get("rabbit.soft_drain", True)
-    ):
-        # rabbit is up, draining disabled, individual nodes may be marked with property
-        try:
-            nodelist = rabbit["status"]["access"]["computes"]
-        except KeyError:
-            nodelist = []
-        for compute_node in nodelist:
-            if compute_node["status"] != "Ready":
-                down_nodes.add(compute_node["name"])
-    up_nodes = all_nodes - down_nodes
-    if up_nodes:
-        LOGGER.debug(
-            "Removing property %s from nodes %s attached to rabbit %s",
-            EXCLUDE_PROPERTY,
-            Hostlist(up_nodes).uniq(),
-            name,
-        )
-    for hostname in up_nodes:
-        if hostname in compute_rpaths:
-            payload = {
-                "resource_path": compute_rpaths[hostname],
-                "key": EXCLUDE_PROPERTY,
-            }
-            handle.rpc("sched-fluxion-resource.remove_property", payload).then(
-                log_rpc_response
-            )
-    if down_nodes:
-        LOGGER.debug(
-            "Adding property %s to nodes %s attached to rabbit %s",
-            EXCLUDE_PROPERTY,
-            Hostlist(down_nodes).uniq(),
-            name,
-        )
-    for hostname in down_nodes:
-        if hostname in compute_rpaths:
-            handle.rpc(
-                "sched-fluxion-resource.set_property",
-                {
-                    "sp_resource_path": compute_rpaths[hostname],
-                    "sp_keyval": f"{EXCLUDE_PROPERTY}=bad",
-                },
-            ).then(log_rpc_response)
-
-
-def _drain_offline_nodes(handle, rabbit, allowlist):
-    """Drain nodes listed as offline in a given Storage resource.
-
-    Drain all the nodes in `nodelist` that are Offline, provided they are
-    in `allowlist`.
-
-    If draining is disabled in the rabbit config table, do nothing.
-    """
-    # rabbits don't have a 'status' field until they boot, in which case
-    # there is nothing to do
-    try:
-        nodelist = rabbit["status"]["access"]["computes"]
-    except KeyError:
-        return
-    offline_nodes = Hostlist()
-    for compute_node in nodelist:
-        if compute_node["status"] != "Ready":
-            if allowlist is None or compute_node["name"] in allowlist:
-                offline_nodes.append(compute_node["name"])
-    if offline_nodes:
-        encoded_hostlist = offline_nodes.encode()
-        LOGGER.debug("Draining nodes %s", encoded_hostlist)
-        handle.rpc(
-            "resource.drain",
-            payload={
-                "targets": encoded_hostlist,
-                "mode": "update",
-                "reason": "rabbit lost PCIe connection",
-            },
-            nodeid=0,
-        ).then(log_rpc_response)
-
-
-def _mark_rabbit(handle, status, resource_path, ssdcount, name):
-    """Send RPCs to mark a rabbit as up or down in Fluxion."""
-    if status == "Ready":
-        LOGGER.debug("Marking rabbit %s as up", name)
-        status = "up"
-    else:
-        LOGGER.debug("Marking rabbit %s as down, status is %s", name, status)
-        status = "down"
-    for ssdnum in range(ssdcount):
-        payload = {"resource_path": resource_path + f"/ssd{ssdnum}", "status": status}
-        handle.rpc("sched-fluxion-resource.set_status", payload).then(log_rpc_response)
-
-
-def _rabbit_state_change_cb(
-    event, handle, rabbit_rpaths, disable_fluxion, allowlist, compute_rpaths
-):
-    """Callback firing when a Storage object changes.
-
-    Marks a rabbit as up or down.
-    """
-    rabbit = event["object"]
-    name = rabbit["metadata"]["name"]
-    if name not in rabbit_rpaths:
-        LOGGER.error(
-            "Encountered an unknown Storage object '%s' in the event stream", name
-        )
-        return
-    if not disable_fluxion:
-        try:
-            status = rabbit["status"]["status"]
-        except KeyError:
-            # if rabbit doesn't have a status, consider it down
-            _mark_rabbit(handle, "Down", *rabbit_rpaths[name], name)
-        else:
-            _mark_rabbit(handle, status, *rabbit_rpaths[name], name)
-    if handle.conf_get("rabbit.drain_compute_nodes", True):
-        _drain_offline_nodes(handle, rabbit, allowlist)
-    _set_property_on_compute_nodes(handle, rabbit, disable_fluxion, compute_rpaths)
-    # TODO: add some check for whether rabbit capacity has changed
-    # TODO: update capacity of rabbit in resource graph (mark some slices down?)
-
-
-def _map_rabbits_to_fluxion_paths(handle):
-    """Read the fluxion resource graph and map rabbit hostnames to resource paths."""
-    rabbit_rpaths = {}
-    compute_rpaths = {}
-    try:
-        nodes = flux.kvs.get(handle, "resource.R")["scheduling"]["graph"]["nodes"]
-    except Exception as exc:
-        raise ValueError(
-            "Could not load rabbit resource graph data from KVS's resource.R"
-        ) from exc
-    for vertex in nodes:
-        metadata = vertex["metadata"]
-        if metadata["type"] == "rack" and "rabbit" in metadata["properties"]:
-            rabbit_rpaths[metadata["properties"]["rabbit"]] = (
-                metadata["paths"]["containment"],
-                int(metadata["properties"].get("ssdcount", 36)),
-            )
-        if metadata["type"] == "node":
-            compute_rpaths[metadata["name"]] = metadata["paths"]["containment"]
-    return rabbit_rpaths, compute_rpaths
+    return manager

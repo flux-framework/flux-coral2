@@ -14,7 +14,7 @@ LOGGER = logging.getLogger(__name__)
 
 # Represents and holds information about a TransientCondition for a workflow
 TransientConditionInfo = collections.namedtuple(
-    "TransientConditionInfo", ["last_time", "last_message"]
+    "TransientConditionInfo", ["last_time", "last_message", "prerun"]
 )
 
 
