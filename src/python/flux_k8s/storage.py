@@ -250,8 +250,8 @@ class FluxionRabbitManager(RabbitManager):
             # rabbit is up, draining disabled, individual nodes may be marked with prop
             down_nodes = _get_offline_nodes(rabbit)
         up_nodes = all_nodes - down_nodes
-        self.remove_property(up_nodes, name)
-        self.set_property(down_nodes, name)
+        self.remove_property(up_nodes, f"marked as up by Storage {name}")
+        self.set_property(down_nodes, f"marked as down by Storage {name}")
 
 
 def log_rpc_response(rpc):
