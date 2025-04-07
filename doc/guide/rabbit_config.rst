@@ -12,7 +12,7 @@ The plugin can be loaded in a config file like so:
 
     [job-manager]
     plugins = [
-      { load = "dws-jobtap.so" }
+      { load = "dws-jobtap.so", conf = { epilog-timeout = 0.0 }}
     ]
 
 Also, the ``flux-coral2-dws`` systemd service must be started
@@ -91,8 +91,30 @@ Flux's interactions with the rabbits.
   ``flux alloc -N1 -S "dw=#DW jobdw ..."`` See below for an example.
 
 
+Jobtap Plugin Config
+~~~~~~~~~~~~~~~~~~~~
+
+After a rabbit job finishes, and as it enters the cleanup state, the `dws-jobtap.so`
+plugin holds the job in an epilog action while compute nodes unmount the rabbit file
+system and data is moved off of the job's rabbits.
+
+The dws-jobtap plugin has a config option, `epilog-timeout`, that takes a
+floating-point number giving the maximum number of seconds that the epilog
+action should be allowed to run. If the timeout expires with the epilog
+action still active, an exception will be raised and the following actions
+are taken:
+
+#. Any nodes in the job that have not unmounted their file systems will be drained.
+#. Any rabbits used by the job that have not cleaned up their file systems will be marked as ``Disabled`` and will not be used by Flux until they are manually returned to service.
+
+
+If ``epilog-timeout`` is 0 or negative, no timeout is set.
+
+
 Example
 ~~~~~~~
+
+The following is an example of the config options described above.
 
 .. code-block:: TOML
 
@@ -116,3 +138,13 @@ Example
 
     small_xfs = "#DW jobdw type=xfs capacity=100GiB name=smallxfs"
     large_lustre = "#DW jobdw type=lustre capacity=50TiB name=largelustre"
+
+
+    [job-manager]
+    plugins = [
+      { load = "dws-jobtap.so", conf = { epilog-timeout = 5400.0 }}
+    ]
+
+
+    [sched-fluxion-resource]
+    match-format = "rv1"
