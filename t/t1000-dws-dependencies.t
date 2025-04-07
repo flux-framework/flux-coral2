@@ -238,7 +238,7 @@ test_expect_success 'job-manager: dws jobtap plugin works if epilog timeout erro
 	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
 	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
-	flux post-job-event $jobid exception type=dws-epilog-timeout severity=0 &&
+	flux job raise --type=dws-epilog-timeout $jobid &&
 	flux job wait-event -vt 5 -m type=dws-epilog-timeout ${jobid} exception &&
 	flux job wait-event -vt 5 -m description=${EPILOG_NAME} -m status=1 \
 		${jobid} epilog-finish &&
