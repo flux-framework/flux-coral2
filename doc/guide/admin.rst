@@ -76,3 +76,41 @@ in all Flux instances.  Edit ``/etc/flux/shell/initrc.lua`` to contain:
 The ``cray_pals_port_distributor.so`` jobtap plugin, required by the above,
 is loaded automatically via ``/etc/flux/rc1.d/01-coral2-rc``.
 
+*******
+Rabbits
+*******
+
+To configure Flux with rabbits, see :ref:`rabbitconfig`.
+
+-----------------
+Stuck Rabbit Jobs
+-----------------
+
+Rabbit jobs may sometimes become stuck in the ``CLEANUP`` state, while they
+wait for kubernetes to report that rabbit file systems have unmounted and
+cleaned up.
+
+In ``flux-coral2`` version ``0.22.0`` and greater, Flux can be configured to
+end the epilog after a timeout (see :ref:`rabbitconfig`). To remove the
+epilog manually without waiting for the timeout, run
+``flux job raise --type=dws-epilog-timeout $JOBID``.
+
+If the rabbit job is still stuck in the ``dws-epilog`` action, or if the version
+of ``flux-coral2`` is less than ``0.22.0``,
+
+.. code-block:: bash
+
+    # see what nodes still have mounts, if any, and potentially drain them
+    kubectl get clientmounts -A -l "dataworkflowservices.github.io/workflow.name=
+      fluxjob-$(flux job id $JOBID)" | grep Mounted
+    # see what rabbits still have allocations, if any, and potentially disable
+    # them.
+    kubectl get servers -A -l "dataworkflowservices.github.io/workflow.name=
+      fluxjob-$(flux job id $JOBID)" -o json | jq .status.allocationSets
+    # remove the epilog action
+    flux post-job-event $JOBID epilog-finish name=dws-epilog
+
+The above assumes you have read access to certain kubernetes resources. On LC
+machines, the administrator kubeconfig is usually kept at
+``/etc/kubernetes/admin.conf``. To use it,
+``export KUBECONFIG=/etc/kubernetes/admin.conf``.
