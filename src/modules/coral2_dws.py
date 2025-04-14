@@ -338,7 +338,7 @@ def abort_cb(handle, _t, msg, k8s_api):
                 "reason": "failed to unmount rabbit",
             },
             nodeid=0,
-        ).then(log_rpc_response)
+        ).then(log_rpc_response, jobid)
     # get all rabbits with active allocations and disable them.
     for rabbit_to_disable in get_servers_with_active_allocations(k8s_api, winfo.name):
         k8s_api.patch_namespaced_custom_object(
