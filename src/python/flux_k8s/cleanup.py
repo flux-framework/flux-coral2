@@ -16,6 +16,26 @@ CLEANUP_LOOP = asyncio.get_event_loop()
 
 
 def remove_finalizer(workflow_name, k8s_api, workflow):
+    """Remove the finalizer from the workflow so it can be deleted.
+
+    If an outdated version of the workflow is being used, in particular
+    a version of the workflow that has more finalizers than the current version,
+    the call to remove the flux finalizer will fail with a 422 error code, because
+    the server will interpret the patch as an attempt to *add* a finalizer.
+
+    If an ApiException is received, fetch the workflow again and then make
+    another attempt.
+    """
+    try:
+        _remove_finalizer(workflow_name, k8s_api, workflow)
+    except ApiException:
+        workflow = k8s_api.get_namespaced_custom_object(
+            *crd.WORKFLOW_CRD, workflow_name
+        )
+        _remove_finalizer(workflow_name, k8s_api, workflow)
+
+
+def _remove_finalizer(workflow_name, k8s_api, workflow):
     """Remove the finalizer from the workflow so it can be deleted."""
     try:
         workflow["metadata"]["finalizers"].remove(FINALIZER)
