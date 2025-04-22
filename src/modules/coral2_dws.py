@@ -19,7 +19,10 @@ import time
 import re
 import contextlib
 from datetime import datetime
+import base64
 
+import kubernetes
+import kubernetes.client
 from kubernetes.client.rest import ApiException
 import urllib3
 
@@ -120,6 +123,22 @@ def owner_uid(handle):
         return int(handle.attr_get("security.owner"))
     except Exception:
         return os.getuid()
+
+
+def fetch_job_environment(secrets_api, workflow):
+    """Fetch the variables to be exported to a user's job."""
+    variables = workflow["status"].get("env", {})
+    token = workflow["status"].get("workflowToken")
+    if token is None:
+        return variables
+    # if the workflow requires a secret, fetch it
+    secret = secrets_api.read_namespaced_secret(
+        token["secretName"], token["secretNamespace"]
+    )
+    variables["DW_WORKFLOW_TOKEN"] = base64.b64decode(secret.data["token"]).decode(
+        "utf8"
+    )
+    return variables
 
 
 @message_callback_wrapper
@@ -479,7 +498,7 @@ def state_active(workflow, state):
     return workflow["spec"]["desiredState"] == workflow["status"]["state"] == state
 
 
-def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
+def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion, secrets_api):
     """Exception-catching wrapper around _workflow_state_change_cb_inner."""
     try:
         workflow = event["object"]
@@ -498,7 +517,7 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
         return
     try:
         _workflow_state_change_cb_inner(
-            workflow, winfo, handle, k8s_api, disable_fluxion
+            workflow, winfo, handle, k8s_api, disable_fluxion, secrets_api
         )
     except Exception:
         LOGGER.exception(
@@ -520,7 +539,9 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion):
         handle.job_raise(jobid, "exception", 0, "DWS/Rabbit interactions failed")
 
 
-def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fluxion):
+def _workflow_state_change_cb_inner(
+    workflow, winfo, handle, k8s_api, disable_fluxion, secrets_api
+):
     """Handle workflow state transitions."""
     jobid = winfo.jobid
     if "state" not in workflow["status"]:
@@ -602,11 +623,12 @@ def _workflow_state_change_cb_inner(workflow, winfo, handle, k8s_api, disable_fl
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, "PreRun"):
         # tell DWS jobtap plugin that the job can start
+        variables = fetch_job_environment(secrets_api, workflow)
         handle.rpc(
             "job-manager.dws.prolog-remove",
             payload={
                 "id": jobid,
-                "variables": workflow["status"].get("env", {}),
+                "variables": variables,
             },
         ).then(log_rpc_response, jobid)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
@@ -864,6 +886,9 @@ def main():
             "Service cannot run without access to kubernetes, shutting down"
         )
         sys.exit(_EXITCODE_NORESTART)
+    secrets_api = kubernetes.client.CoreV1Api(
+        kubernetes.config.new_client_from_config(handle.conf_get("rabbit.kubeconfig"))
+    )
     cleanup.setup_cleanup_thread(handle.conf_get("rabbit.kubeconfig"))
     storage.populate_rabbits_dict(k8s_api)
     # start watching k8s workflow resources and operate on them when updates occur
@@ -898,6 +923,7 @@ def main():
                     handle,
                     k8s_api,
                     args.disable_fluxion,
+                    secrets_api,
                 )
             )
             raise_self_exception(handle)
