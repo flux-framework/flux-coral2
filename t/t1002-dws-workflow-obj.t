@@ -270,8 +270,12 @@ test_expect_success 'job submission with valid DW string works' '
 '
 
 test_expect_success 'job requesting copy-offload in DW string works' '
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1
-			requires=copy-offload" \
+    kubectl patch nnfcontainerprofiles -nnnf-system copy-offload-default --type=json \
+        -p "[{\"op\":\"replace\", \"path\":\"/data/storages/1/optional\", \"value\": true}]" &&
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=gfs2 name=project1
+			requires=copy-offload
+			#DW container name=copyoff-container profile=copy-offload-default
+			DW_JOB_my_storage=project1" \
 		-N1 -n1 hostname) &&
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
@@ -290,8 +294,10 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event2.json &&
 	jq -e .context.variables env-event2.json &&
 	jq -e ".context.copy_offload == true" env-event2.json &&
+	jq -e .context.variables.DW_WORKFLOW_TOKEN env-event2.json &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
+	flux cancel ${jobid} &&
 	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-finish &&
 	flux job wait-event -vt 15 ${jobid} clean &&
@@ -304,10 +310,13 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 	flux job info ${jobid} rabbit_setup_timing &&
 	flux job info ${jobid} rabbit_datain_timing &&
 	flux job info ${jobid} rabbit_prerun_timing &&
-	flux job info ${jobid} rabbit_postrun_timing &&
-	flux job info ${jobid} rabbit_dataout_timing &&
 	flux job info ${jobid} rabbit_teardown_timing &&
 	flux job info ${jobid} rabbit_datamovements | jq "length == 0"
+'
+
+test_expect_success 'revert changes to containerprofile' '
+    kubectl patch nnfcontainerprofiles -nnnf-system copy-offload-default --type=json \
+        -p "[{\"op\":\"replace\", \"path\":\"/data/storages/1/optional\", \"value\": false}]"
 '
 
 test_expect_success 'job requesting too much storage is rejected' '
