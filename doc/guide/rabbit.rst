@@ -142,6 +142,14 @@ in a batch script:
 	echo "Hello World!" > $DW_JOB_lustreproject/world.txt
 
 
+Fetching Rabbit Information
+---------------------------
+
+:man1:`flux-getrabbit` can be used to look up the rabbits used by a job,
+as well as what rabbits have PCIe links to which compute nodes and vice
+versa.
+
+
 Additional Attributes of Rabbit Jobs
 ------------------------------------
 
