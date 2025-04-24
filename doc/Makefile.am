@@ -8,7 +8,8 @@ MAN1_FILES = $(MAN1_FILES_PRIMARY)
 
 MAN1_FILES_PRIMARY = \
 	man1/flux-shell-cray-pals.1 \
-	man1/flux-rabbitmapping.1
+	man1/flux-rabbitmapping.1 \
+	man1/flux-getrabbit.1
 
 RST_FILES  = \
 	$(MAN1_FILES_PRIMARY:.1=.rst)
