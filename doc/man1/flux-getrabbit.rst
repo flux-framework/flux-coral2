@@ -38,6 +38,38 @@ OPTIONS
   If this argument is provided, positional arguments are not accepted.
 
 
+EXAMPLES
+========
+
+List all rabbits:
+
+::
+
+  $ flux getrabbit
+  rabbit[1-2]
+
+List the compute nodes attached to ``rabbit102``:
+
+::
+
+  $ flux getrabbit rabbit102
+  host[16-31]
+
+List the rabbits used by a job:
+
+::
+
+  $ flux getrabbit -j $JOBID
+  rabbit[1001,1003]
+
+List the rabbits attached to compute nodes:
+
+::
+
+  $ flux getrabbit -c host[1,3,7-15]
+  rabbit[1001,1003]
+
+
 PREREQUISITES
 =============
 
