@@ -29,5 +29,18 @@ man_pages = [
         [author],
         1,
     ),
-
+    (
+        "man1/flux-rabbitmapping",
+        "flux-rabbitmapping",
+        "flux-coral2 commands",
+        [author],
+        1,
+    ),
+    (
+        "man1/flux-getrabbit",
+        "flux-getrabbit",
+        "flux-coral2 commands",
+        [author],
+        1,
+    ),
 ]
