@@ -43,4 +43,11 @@ man_pages = [
         [author],
         1,
     ),
+    (
+        "man1/flux-dws2jgf",
+        "flux-dws2jgf",
+        "flux-coral2 commands",
+        [author],
+        1,
+    ),
 ]

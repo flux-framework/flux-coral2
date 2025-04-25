@@ -155,3 +155,7 @@ hostlist
 hostnames
 jobids
 rfc
+mv
+nnf
+stdin
+stdout

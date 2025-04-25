@@ -23,13 +23,13 @@ DWS/NNF deployment.
 OPTIONS
 =======
 
-.. option:: -k, --kubeconfig
+.. option:: -k, --kubeconfig=FILE
 
   Path to a kubeconfig file to use. If not specified, kubernetes
   default behavior is to look at the ``KUBECONFIG`` environment variable,
   or at ``~/.kube/config``.
 
-.. option:: -i, --indent
+.. option:: -i, --indent=N
 
   Number of spaces to indent output JSON document. If not specified,
   the most compact representation is chosen.
