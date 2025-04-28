@@ -5,7 +5,7 @@ from collections import namedtuple
 CRD = namedtuple("CRD", ["group", "version", "namespace", "plural"])
 
 DWS_GROUP = "dataworkflowservices.github.io"
-DWS_API_VERSION = "v1alpha3"
+DWS_API_VERSION = "v1alpha4"
 DEFAULT_NAMESPACE = "default"
 
 NNF_GROUP = "nnf.cray.hpe.com"
@@ -70,7 +70,7 @@ CLIENTMOUNT_CRD = CRD(
 
 SYSTEMSTATUS_CRD = CRD(
     group=DWS_GROUP,
-    version="v1alpha4",
+    version=DWS_API_VERSION,
     namespace=DEFAULT_NAMESPACE,
     plural="systemstatuses",
 )
