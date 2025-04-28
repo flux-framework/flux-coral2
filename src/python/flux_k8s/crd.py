@@ -67,3 +67,10 @@ CLIENTMOUNT_CRD = CRD(
     namespace=None,
     plural="clientmounts",
 )
+
+SYSTEMSTATUS_CRD = CRD(
+    group=DWS_GROUP,
+    version="v1alpha4",
+    namespace=DEFAULT_NAMESPACE,
+    plural="systemstatuses",
+)
