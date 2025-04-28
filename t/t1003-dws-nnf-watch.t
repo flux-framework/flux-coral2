@@ -396,10 +396,19 @@ test_expect_success 'revert the changes to the Storage' '
     sleep 1
 '
 
-test_expect_success 'unload fluxion' '
+test_expect_success 'systemstatus watch and update works' '
+    kubectl get systemstatus default -ojson | test_must_fail jq -e .data.nodes.\"$(hostname)\"
+    kill $(flux exec -r1 flux getattr broker.pid) &&
+    sleep 2 &&
+    kubectl get systemstatus default -ojson | jq -e .data.nodes.\"$(hostname)\"
+'
+
+test_expect_success 'unload fluxion and revert systemstatus' '
     flux cancel ${jobid}; flux job wait-event -vt 1 ${jobid} clean &&
     flux module remove sched-fluxion-qmanager &&
-    flux module remove sched-fluxion-resource
+    flux module remove sched-fluxion-resource &&
+    kubectl patch systemstatus default --type=json \
+        -p "[{\"op\":\"replace\", \"path\":\"/data/nodes\", \"value\": {}}]"
 '
 
 test_done

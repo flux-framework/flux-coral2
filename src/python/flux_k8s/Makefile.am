@@ -5,7 +5,8 @@ nobase_fluxk8spy_PYTHON = \
 	watch.py \
 	cleanup.py \
 	workflow.py \
-	storage.py
+	storage.py \
+	systemstatus.py
 
 
 clean-local:
