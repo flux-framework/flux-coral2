@@ -345,6 +345,57 @@ test_expect_success 'rabbits now marked as up and can be allocated' '
     test_must_fail flux ion-resource get-property /cluster0/compute-01 badrabbit
 '
 
+test_expect_success 'exec Storage watching script with resources excluded' '
+    flux cancel ${jobid} &&
+    echo "
+[resource]
+exclude = \"$(hostname)\"
+[rabbit]
+drain_compute_nodes = false
+    " | flux config load &&
+    jobid=$(flux submit \
+            --setattr=system.alloc-bypass.R="$(flux R encode -r0)" --output=dws7.out \
+            --error=dws7.err -o per-resource.type=node flux python ${DWS_MODULE_PATH} \
+            -vvv --disable-fluxion) &&
+    flux job wait-event -vt 15 -p guest.exec.eventlog ${jobid} shell.start &&
+    flux job wait-event -vt 15 -m "note=dws watchers setup" ${jobid} exception &&
+    ${RPC} "dws.watch_test" &&
+    test_must_fail flux ion-resource get-property /cluster0/$(hostname) badrabbit
+'
+
+test_expect_success 'update to the Storage status is caught by the watch' '
+    kubectl patch storages kind-worker2 \
+        --type merge --patch-file ${DATA_DIR}/down.yaml &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".spec.state == \"Disabled\"" &&
+    sleep 0.2 &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.status == \"Disabled\"" &&
+    kubectl patch storages kind-worker3 \
+        --type merge --patch-file ${DATA_DIR}/down.yaml &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".spec.state == \"Disabled\"" &&
+    sleep 0.2 &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".status.status == \"Disabled\"" &&
+    sleep 3
+'
+
+test_expect_success 'excluded nodes are not tagged with property' '
+    test_must_fail flux ion-resource get-property /cluster0/$(hostname) badrabbit &&
+    test_must_fail grep "RPC error" dws7.err
+'
+
+test_expect_success 'revert the changes to the Storage' '
+    kubectl patch storages kind-worker2 \
+        --type merge --patch-file ${DATA_DIR}/up.yaml &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".spec.state == \"Enabled\"" &&
+    sleep 0.2 &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.status == \"Ready\"" &&
+    kubectl patch storages kind-worker3 \
+        --type merge --patch-file ${DATA_DIR}/up.yaml &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".spec.state == \"Enabled\"" &&
+    sleep 0.2 &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".status.status == \"Ready\"" &&
+    sleep 1
+'
+
 test_expect_success 'unload fluxion' '
     flux cancel ${jobid}; flux job wait-event -vt 1 ${jobid} clean &&
     flux module remove sched-fluxion-qmanager &&

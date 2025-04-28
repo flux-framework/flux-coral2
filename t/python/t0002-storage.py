@@ -71,6 +71,8 @@ class TestRabbitManager(unittest.TestCase):
 
     def test_nodes_not_recognized(self):
         mock_flux = unittest.mock.Mock()
+        mock_flux.attr_get.return_value = list(storage.HOSTNAMES_TO_RABBITS.keys())
+        mock_flux.conf_get.return_value = ""
         manager = storage.RabbitManager(mock_flux, None)
         manager.set_property({"foo", "bar"})
         mock_flux.rpc.assert_not_called()
@@ -79,12 +81,25 @@ class TestRabbitManager(unittest.TestCase):
 
     def test_set_remove_property(self):
         mock_flux = unittest.mock.Mock()
+        mock_flux.attr_get.return_value = list(storage.HOSTNAMES_TO_RABBITS.keys())
+        mock_flux.conf_get.return_value = ""
         manager = storage.RabbitManager(mock_flux, None)
         manager.set_property({"compute1"})
         mock_flux.rpc.assert_called_once()
         mock_flux.rpc.reset_mock()
         manager.remove_property({"compute1"})
         mock_flux.rpc.assert_called_once()
+
+    def test_excluded_nodes(self):
+        mock_flux = unittest.mock.Mock()
+        mock_flux.attr_get.return_value = list(storage.HOSTNAMES_TO_RABBITS.keys())
+        mock_flux.conf_get.return_value = "compute1"
+        manager = storage.RabbitManager(mock_flux, None)
+        manager.set_property({"compute1"})
+        mock_flux.rpc.assert_not_called()
+        mock_flux.rpc.reset_mock()
+        manager.remove_property({"compute1"})
+        mock_flux.rpc.assert_not_called()
 
 
 class TestFluxionRabbitManager(TestRabbitManager):

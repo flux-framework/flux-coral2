@@ -5,6 +5,7 @@ import logging
 import flux
 import flux.kvs
 from flux.hostlist import Hostlist
+from flux.idset import IDset
 from flux_k8s import watch
 from flux_k8s import crd
 
@@ -55,9 +56,32 @@ class RabbitManager:
 
     def _get_rpaths(self):
         """Map compute nodes to Fluxion resource paths."""
+        instance_nodes = Hostlist(self.handle.attr_get("hostlist"))
         self._compute_rpaths = {
-            hostname: f"/cluster0/{hostname}" for hostname in HOSTNAMES_TO_RABBITS
+            hostname: f"/cluster0/{hostname}"
+            for hostname in HOSTNAMES_TO_RABBITS
+            if hostname in instance_nodes
         }
+        # Do not attempt to send RPCs to Fluxion about any nodes in `resource.exclude`
+        # because Fluxion will raise an error, since it doesn't know the nodes exist.
+        exclude_str = self.handle.conf_get("resource.exclude")
+        exclude = ()
+        if not exclude_str:
+            return
+        try:
+            idset = IDset(exclude_str)
+        except Exception:
+            try:
+                exclude = Hostlist(exclude_str)
+            except Exception:
+                LOGGER.warning(
+                    "`resource.exclude` (%s) is neither IDset nor hostlist", exclude_str
+                )
+                return
+        else:
+            exclude = instance_nodes[idset]
+        for host in exclude:
+            self._compute_rpaths.pop(host, None)
 
     def rabbit_state_change_cb(self, event):
         """Callback firing when a Storage object changes.
