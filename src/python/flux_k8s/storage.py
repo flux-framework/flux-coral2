@@ -1,4 +1,4 @@
-"""Module defining cleanup routines for the coral2_dws service."""
+"""Module defining routines for handling k8s Storage resources."""
 
 import logging
 
