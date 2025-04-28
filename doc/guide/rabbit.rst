@@ -145,9 +145,16 @@ in a batch script:
 Fetching Rabbit Information
 ---------------------------
 
-:man1:`flux-getrabbit` can be used to look up the rabbits used by a job,
-as well as what rabbits have PCIe links to which compute nodes and vice
+The :man1:`flux-getrabbit` command can be used to look up the rabbits used by
+a job, as well as what rabbits have PCIe links to which compute nodes and vice
 versa.
+
+For example, to list the rabbits used by a job:
+
+::
+
+  $ flux getrabbit -j $JOBID
+  rabbit[1001,1003]
 
 
 Additional Attributes of Rabbit Jobs
