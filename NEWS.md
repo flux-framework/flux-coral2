@@ -1,3 +1,22 @@
+flux-coral2 0.23.0 - 2025-04-29
+-------------------------------
+
+### New Features
+ * dws: update dws systemstatus resource (#351)
+ * dws: secret token for copy-offload (#347)
+
+### Fixes
+ * dws: reduce fluxion 'resource not found' warnings (#350)
+ * dws: catch remove-finalizer exception and retry (#346)
+ * dws: fix missing argument to `log_rpc_response` (#345)
+ * dws: fix storage log message (#339)
+
+### Build/Testsuite/Documentation
+ * doc: `dws2jgf` man page (#349)
+ * docs: rabbit man pages (#348)
+ * docs: rabbit administration (#340)
+
+
 flux-coral2 0.22.0 - 2025-04-04
 -------------------------------
 
