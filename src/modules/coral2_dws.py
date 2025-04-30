@@ -285,6 +285,20 @@ def check_existence_and_move_to_teardown(handle, k8s_api, winfo):
         winfo.move_to_teardown(handle, k8s_api, workflow)
 
 
+def teardown_after_timer_cb(reactor, watcher, _r, args):
+    """Tear down a workflow."""
+    try:
+        handle, k8s_api, winfo = args
+        check_existence_and_move_to_teardown(handle, k8s_api, winfo)
+    except Exception:
+        LOGGER.exception("Failed to move workflow to teardown after timeout:")
+    finally:
+        watcher.stop()
+    handle.job_raise(
+        winfo.jobid, "teardown-timeout", 1, "skipping rabbit data movement"
+    )
+
+
 @message_callback_wrapper
 def post_run_cb(handle, _t, msg, k8s_api):
     """dws.post_run RPC callback.
@@ -307,6 +321,12 @@ def post_run_cb(handle, _t, msg, k8s_api):
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
     else:
         winfo.move_desiredstate("PostRun", k8s_api)
+        teardown_after = handle.conf_get("rabbit.teardown_after", 0.0)
+        # create a timer watcher to move the workflow to teardown
+        if teardown_after > 0:
+            handle.timer_watcher_create(
+                teardown_after, teardown_after_timer_cb, args=(handle, k8s_api, winfo)
+            ).start()
 
 
 @message_callback_wrapper
@@ -831,6 +851,7 @@ def validate_config(config):
         "presets",
         "mapping",
         "soft_drain",
+        "teardown_after",
     }
     keys = set(config.keys())
     if not keys <= accepted_keys:
