@@ -649,12 +649,6 @@ def _workflow_state_change_cb_inner(
             "DWS/Rabbit interactions failed: workflow hit an error: "
             f"{workflow['status'].get('message', '')}",
         )
-        # for most states, raising an exception should be enough to trigger other logic
-        # that eventually moves the workflow to Teardown. However, if the
-        # workflow is in PostRun or DataOut, the exception won't affect the dws-epilog
-        # action holding the job, so the workflow should be moved to Teardown now.
-        if workflow["spec"]["desiredState"] in ("PostRun", "DataOut"):
-            winfo.move_to_teardown(handle, k8s_api, workflow)
     elif workflow["status"].get("status") == "TransientCondition":
         prerun = workflow["status"]["state"] == "PreRun"
         # a potentially fatal error has occurred, but may resolve itself

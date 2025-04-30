@@ -454,7 +454,7 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
     flux_reactor_t *r = flux_get_reactor (h);
     flux_watcher_t *watcher = NULL;
     int dws_run_started = 0;
-    struct create_arg_t *create_args;
+    struct create_arg_t *create_args = NULL;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -477,8 +477,10 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
             current_job_exception (p, "Failed to fetch reactor from handle");
             return -1;
         }
-        if (!(create_args = calloc (1, sizeof (struct create_arg_t)))) {
-            flux_log_error (h, "error allocating arg struct for %s", idf58 (id));
+        if (!(create_args = calloc (1, sizeof (struct create_arg_t)))
+            || flux_jobtap_job_aux_set (p, FLUX_JOBTAP_CURRENT_JOB, NULL, create_args, free) < 0) {
+            free (create_args);
+            flux_log_error (h, "error allocating arg struct for %s: %s", idf58 (id), __FUNCTION__);
             current_job_exception (p, "error allocating arg struct");
             return -1;
         }
@@ -522,7 +524,6 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
                                             id,
                                             "run_started",
                                             dws_run_started))
-            || flux_jobtap_job_aux_set (p, FLUX_JOBTAP_CURRENT_JOB, NULL, create_args, free) < 0
             || flux_future_then (post_run_fut, -1., post_run_rpc_callback, create_args) < 0
             || flux_jobtap_job_aux_set (p,
                                         FLUX_JOBTAP_CURRENT_JOB,
