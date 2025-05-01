@@ -742,6 +742,48 @@ test_expect_success 'job submission with preset lustre storage beyond max fails'
 	flux job wait-event -t 1 ${jobid} exception | grep "max is 100 GiB per node"
 '
 
+test_expect_success 'launch service with teardown_after' '
+	flux cancel $DWS_JOBID &&
+	echo "
+[rabbit]
+teardown_after = 0.0001
+"   | flux config load &&
+	DWS_JOBID=$(flux submit \
+		--setattr=system.alloc-bypass.R="$R" \
+		-o per-resource.type=node --output=dws7.out --error=dws7.err \
+		${LAUNCH_DWS} -vvv) &&
+	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
+	${RPC} "dws.create"
+'
+
+test_expect_success 'job submission with valid DW string works with teardown_after' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-remove &&
+	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
+		${jobid} memo &&
+	flux job wait-event -t 5 ${jobid} jobspec-update &&
+	flux job wait-event -vt 15 ${jobid} depend &&
+	flux job wait-event -vt 15 ${jobid} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event.json &&
+	jq -e .context.variables env-event.json &&
+	jq -e ".context.copy_offload == false" env-event.json &&
+	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 15 ${jobid} clean &&
+	flux job wait-event -vt 1 -m "note=skipping rabbit data movement" ${jobid} exception
+'
+
 test_expect_success 'cleanup: unload fluxion' '
 	# all jobs must be canceled before unloading fluxion or a hang will occur during
 	# shutdown, unless another scheduler is loaded afterwards
