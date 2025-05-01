@@ -50,4 +50,11 @@ man_pages = [
         [author],
         1,
     ),
+    (
+        "man1/flux-jobtap-dws",
+        "flux-jobtap-dws",
+        "flux-coral2 commands",
+        [author],
+        1,
+    ),
 ]
