@@ -69,6 +69,15 @@ Flux's interactions with the rabbits.
   (optional) Time in seconds to tolerate a workflow stuck in TransientCondition state
   before killing the associated job. Defaults to 10 seconds.
 
+**teardown_after** (float)
+  (optional) Maximum time for a workflow to be in either `PostRun` or `DataOut` state
+  before it is moved to Teardown. If unset or negative, allow the workflow to stay
+  in those states indefinitely. See also the ``epilog-timeout`` option to
+  :man7:`dws-jobtap.so`, which is similar but takes more drastic action. It may be
+  useful to set the ``teardown_after`` timeout to something smaller than the
+  ``epilog-timeout``, to give the NNF software time to clean up before the
+  ``epilog-timeout`` takes effect.
+
 **drain_compute_nodes** (boolean)
   (optional) Whether to automatically drain compute nodes that lose PCIe connection
   with their rabbit. Defaults to ``true``.
@@ -105,6 +114,7 @@ The following is an example of the config options described above.
     drain_compute_nodes = true
     save_datamovements = 5
     restrict_persistent_creation = true
+    teardown_after = 4800.0
 
     # maximum filesystem capacity per node, in GiB
     [rabbit.policy.maximums]
