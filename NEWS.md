@@ -1,3 +1,15 @@
+flux-coral2 0.23.1 - 2025-05-13
+-------------------------------
+
+### New Features
+ * dws: teardown timeout (#354)
+ * dws: postrun timeout (#358)
+
+### Fixes
+ * dws: fix memory leak in callback (#353)
+ * dws: rabbit presets fixes (#357)
+
+
 flux-coral2 0.23.0 - 2025-04-29
 -------------------------------
 
