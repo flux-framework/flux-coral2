@@ -62,6 +62,10 @@ domainrefs = {
         "text": "%s(5)",
         "url": "https://flux-framework.readthedocs.io/projects/flux-core/en/latest/man5/%s.html",
     },
+    "core:man7": {
+        "text": "%s(7)",
+        "url": "https://flux-framework.readthedocs.io/projects/flux-core/en/latest/man7/%s.html",
+    },
 }
 
 # Disable "smartquotes" to avoid things such as turning long-options
