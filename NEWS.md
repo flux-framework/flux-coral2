@@ -1,3 +1,13 @@
+flux-coral2 0.23.1 - 2025-05-01
+-------------------------------
+
+### New Features
+ * dws: teardown timeout (#354)
+
+### Fixes
+ * dws: fix memory leak in callback (#353)
+
+
 flux-coral2 0.23.0 - 2025-04-29
 -------------------------------
 
