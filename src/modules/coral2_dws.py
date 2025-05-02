@@ -143,32 +143,54 @@ def fetch_job_environment(secrets_api, workflow):
     return variables
 
 
+def expand_str_directive(directive, presets):
+    """Expand a directive string into a list of one or more individual directives.
+
+    Check if the string is one of the presets, and if so replace it.
+    """
+    if directive.strip() in presets:
+        preset = presets[directive.strip()]
+        if isinstance(preset, list):
+            # if a preset is a list, the entries must be individual #DW strings
+            return preset
+        if not isinstance(preset, str):
+            raise TypeError(
+                f"presets must be list or str but preset {directive} is {type(preset)}"
+            )
+        directive = preset
+    # the string may contain multiple #DW directives
+    dw_directives = directive.split("#DW ")
+    # remove any blank entries that resulted and add back "#DW "
+    return ["#DW " + dw.strip() for dw in dw_directives if dw.strip()]
+
+
+def parse_dw_directives(dw_directives, presets):
+    """Convert potentially composite DW directives into a list of singletons."""
+    if isinstance(dw_directives, str):
+        expanded_directives = expand_str_directive(dw_directives, presets)
+    elif isinstance(dw_directives, list):
+        expanded_directives = []
+        for directive in dw_directives:
+            expanded_directives.extend(expand_str_directive(directive, presets))
+    else:
+        raise UserError(
+            f"Malformed #DW directives, not list or string: {dw_directives!r}"
+        )
+    return expanded_directives
+
+
 @message_callback_wrapper
 def create_cb(handle, _t, msg, k8s_api):
     """dws.create RPC callback. Creates a k8s Workflow object for a job.
 
     Triggered when a new job with a jobdw directive is submitted.
     """
-    dw_directives = msg.payload["dw_directives"]
     jobid = msg.payload["jobid"]
     userid = msg.payload["userid"]
-    presets = handle.conf_get("rabbit.presets", {})
-    if isinstance(dw_directives, str):
-        # check if the string is one of the presets, and if so replace it
-        if dw_directives.strip() in presets:
-            dw_directives = [presets[dw_directives.strip()]]
-        else:
-            # the string may contain multiple #DW directives
-            dw_directives = dw_directives.split("#DW ")
-            # remove any blank entries that resulted and add back "#DW "
-            dw_directives = ["#DW " + dw.strip() for dw in dw_directives if dw.strip()]
-    if not isinstance(dw_directives, list):
-        raise UserError(
-            f"Malformed #DW directives, not list or string: {dw_directives!r}"
-        )
-    for i, directive in enumerate(dw_directives):
-        if directive.strip() in presets:
-            dw_directives[i] = presets[directive.strip()]
+    dw_directives = parse_dw_directives(
+        msg.payload["dw_directives"], handle.conf_get("rabbit.presets", {})
+    )
+    for directive in dw_directives:
         if "create_persistent" in directive and handle.conf_get(
             "rabbit.restrict_persistent", True
         ):
