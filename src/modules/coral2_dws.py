@@ -509,10 +509,7 @@ def get_servers_with_active_allocations(k8s_api, workflow_name):
 
 def state_complete(workflow, state):
     """Helper function for checking whether a workflow has completed a given state."""
-    return (
-        workflow["spec"]["desiredState"] == workflow["status"]["state"] == state
-        and workflow["status"]["ready"]
-    )
+    return state_active(workflow, state) and workflow["status"]["ready"]
 
 
 def state_active(workflow, state):
@@ -598,45 +595,7 @@ def _workflow_state_change_cb_inner(
         # 'teardown' update is still in the k8s update queue.
         return
     elif state_complete(workflow, WorkflowState.PROPOSAL):
-        resources = winfo.resources
-        copy_offload = False
-        if resources is None:
-            resources = flux.job.kvslookup.job_kvs_lookup(handle, jobid)["jobspec"][
-                "resources"
-            ]
-        try:
-            if not disable_fluxion:
-                resources, copy_offload = directivebreakdown.apply_breakdowns(
-                    k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
-                )
-            else:
-                _, copy_offload = directivebreakdown.apply_breakdowns(
-                    k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
-                )
-        except ValueError as exc:
-            errmsg = repr(exc.args[0])
-        else:
-            errmsg = None
-        payload = {
-            "id": jobid,
-            "resources": resources,
-            "copy-offload": copy_offload,
-            "exclude": (
-                storage.EXCLUDE_PROPERTY
-                if disable_fluxion
-                or not handle.conf_get("rabbit.drain_compute_nodes", True)
-                else ""
-            ),
-        }
-        if errmsg is not None:
-            payload["errmsg"] = errmsg
-        if resources is not None or copy_offload is not None:
-            # both are None if the resource-update has already been applied
-            handle.rpc(
-                "job-manager.dws.resource-update",
-                payload=payload,
-            ).then(log_rpc_response, jobid)
-            save_workflow_to_kvs(handle, jobid, workflow)
+        handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion)
     elif state_complete(workflow, WorkflowState.SETUP):
         # move workflow to next stage, DataIn
         winfo.move_desiredstate(WorkflowState.DATAIN, k8s_api)
@@ -663,10 +622,61 @@ def _workflow_state_change_cb_inner(
     elif state_complete(workflow, WorkflowState.DATAOUT):
         # move workflow to next stage, teardown
         winfo.move_to_teardown(handle, k8s_api, workflow)
+    handle_workflow_errors(workflow, winfo, handle)
+
+
+def handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion):
+    """Handle a completed proposal state, updating a job's resources.
+
+    Look at directivebreakdown object to see how to modify the job's jobspec.
+    """
+    resources = winfo.resources
+    copy_offload = False
+    if resources is None:
+        resources = flux.job.kvslookup.job_kvs_lookup(handle, winfo.jobid)["jobspec"][
+            "resources"
+        ]
+    try:
+        if not disable_fluxion:
+            resources, copy_offload = directivebreakdown.apply_breakdowns(
+                k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
+            )
+        else:
+            _, copy_offload = directivebreakdown.apply_breakdowns(
+                k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
+            )
+    except ValueError as exc:
+        errmsg = repr(exc.args[0])
+    else:
+        errmsg = None
+    payload = {
+        "id": winfo.jobid,
+        "resources": resources,
+        "copy-offload": copy_offload,
+        "exclude": (
+            storage.EXCLUDE_PROPERTY
+            if disable_fluxion
+            or not handle.conf_get("rabbit.drain_compute_nodes", True)
+            else ""
+        ),
+    }
+    if errmsg is not None:
+        payload["errmsg"] = errmsg
+    if resources is not None or copy_offload is not None:
+        # both are None if the resource-update has already been applied
+        handle.rpc(
+            "job-manager.dws.resource-update",
+            payload=payload,
+        ).then(log_rpc_response, winfo.jobid)
+        save_workflow_to_kvs(handle, winfo.jobid, workflow)
+
+
+def handle_workflow_errors(workflow, winfo, handle):
+    """Handle a workflow in Error or TransientCondition."""
     if workflow["status"].get("status") == "Error":
         # a fatal error has occurred in the workflows, raise a job exception
         handle.job_raise(
-            jobid,
+            winfo.jobid,
             "exception",
             0,
             "DWS/Rabbit interactions failed: workflow hit an error: "
