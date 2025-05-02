@@ -2,6 +2,7 @@
 
 import collections
 import logging
+import enum
 
 import flux
 import flux.job
@@ -10,6 +11,19 @@ from flux_k8s import cleanup, crd
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+class WorkflowState(str, enum.Enum):
+    """Enum for possible Workflow States."""
+
+    PROPOSAL = "Proposal"
+    SETUP = "Setup"
+    DATAIN = "DataIn"
+    PRERUN = "PreRun"
+    POSTRUN = "PostRun"
+    DATAOUT = "DataOut"
+    TEARDOWN = "Teardown"
+    TRANSIENTCONDITION = "TransientCondition"
 
 
 # Represents and holds information about a TransientCondition for a workflow

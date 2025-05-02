@@ -42,6 +42,7 @@ from flux_k8s.workflow import (
     TransientConditionInfo,
     WorkflowInfo,
     save_workflow_to_kvs,
+    WorkflowState,
 )
 
 
@@ -177,7 +178,7 @@ def create_cb(handle, _t, msg, k8s_api):
                 )
     workflow_name = WorkflowInfo.get_name(jobid)
     spec = {
-        "desiredState": "Proposal",
+        "desiredState": WorkflowState.PROPOSAL,
         "dwDirectives": dw_directives,
         "jobID": flux.job.JobID(jobid).f58plain,
         "userID": userid,
@@ -264,7 +265,7 @@ def setup_cb(handle, _t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    WorkflowInfo.get(jobid).move_desiredstate("Setup", k8s_api)
+    WorkflowInfo.get(jobid).move_desiredstate(WorkflowState.SETUP, k8s_api)
 
 
 def check_existence_and_move_to_teardown(handle, k8s_api, winfo):
@@ -320,7 +321,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
         # the workflow immediately to 'teardown' if it exists.
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
     else:
-        winfo.move_desiredstate("PostRun", k8s_api)
+        winfo.move_desiredstate(WorkflowState.POSTRUN, k8s_api)
         teardown_after = handle.conf_get("rabbit.teardown_after", 0.0)
         # create a timer watcher to move the workflow to teardown
         if teardown_after > 0:
@@ -572,11 +573,13 @@ def _workflow_state_change_cb_inner(
     if winfo.deleted:
         # deletion request has been submitted, nothing to do
         return
-    if state_active(workflow, "Teardown") and not state_complete(workflow, "Teardown"):
+    if state_active(workflow, WorkflowState.TEARDOWN) and not state_complete(
+        workflow, WorkflowState.TEARDOWN
+    ):
         # Remove the finalizer as soon as the workflow begins working on its
         # teardown state.
         cleanup.remove_finalizer(winfo.name, k8s_api, workflow)
-    elif state_complete(workflow, "Teardown"):
+    elif state_complete(workflow, WorkflowState.TEARDOWN):
         # Delete workflow object and tell DWS jobtap plugin that the job is done.
         # Attempt to remove the finalizer again in case the state transitioned
         # too quickly for it to be noticed earlier.
@@ -594,7 +597,7 @@ def _workflow_state_change_cb_inner(
         # move a 'teardown' workflow to an earlier state because the
         # 'teardown' update is still in the k8s update queue.
         return
-    elif state_complete(workflow, "Proposal"):
+    elif state_complete(workflow, WorkflowState.PROPOSAL):
         resources = winfo.resources
         copy_offload = False
         if resources is None:
@@ -634,15 +637,15 @@ def _workflow_state_change_cb_inner(
                 payload=payload,
             ).then(log_rpc_response, jobid)
             save_workflow_to_kvs(handle, jobid, workflow)
-    elif state_complete(workflow, "Setup"):
+    elif state_complete(workflow, WorkflowState.SETUP):
         # move workflow to next stage, DataIn
-        winfo.move_desiredstate("DataIn", k8s_api)
+        winfo.move_desiredstate(WorkflowState.DATAIN, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
-    elif state_complete(workflow, "DataIn"):
+    elif state_complete(workflow, WorkflowState.DATAIN):
         # move workflow to next stage, PreRun
-        winfo.move_desiredstate("PreRun", k8s_api)
+        winfo.move_desiredstate(WorkflowState.PRERUN, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
-    elif state_complete(workflow, "PreRun"):
+    elif state_complete(workflow, WorkflowState.PRERUN):
         # tell DWS jobtap plugin that the job can start
         variables = fetch_job_environment(secrets_api, workflow)
         handle.rpc(
@@ -653,11 +656,11 @@ def _workflow_state_change_cb_inner(
             },
         ).then(log_rpc_response, jobid)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
-    elif state_complete(workflow, "PostRun"):
+    elif state_complete(workflow, WorkflowState.POSTRUN):
         # move workflow to next stage, DataOut
-        winfo.move_desiredstate("DataOut", k8s_api)
+        winfo.move_desiredstate(WorkflowState.DATAOUT, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
-    elif state_complete(workflow, "DataOut"):
+    elif state_complete(workflow, WorkflowState.DATAOUT):
         # move workflow to next stage, teardown
         winfo.move_to_teardown(handle, k8s_api, workflow)
     if workflow["status"].get("status") == "Error":
@@ -669,8 +672,8 @@ def _workflow_state_change_cb_inner(
             "DWS/Rabbit interactions failed: workflow hit an error: "
             f"{workflow['status'].get('message', '')}",
         )
-    elif workflow["status"].get("status") == "TransientCondition":
-        prerun = workflow["status"]["state"] == "PreRun"
+    elif workflow["status"].get("status") == WorkflowState.TRANSIENTCONDITION:
+        prerun = workflow["status"]["state"] == WorkflowState.PRERUN
         # a potentially fatal error has occurred, but may resolve itself
         message = workflow["status"].get("message", "")
         if winfo.jobid not in WORKFLOWS_IN_TC:
