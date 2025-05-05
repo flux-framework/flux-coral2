@@ -9,6 +9,7 @@ from kubernetes.client.rest import ApiException
 from kubernetes.config.config_exception import ConfigException
 
 from flux_k8s import crd
+import flux_k8s.workflow
 
 LOGGER = logging.getLogger(__name__)
 FINALIZER = "flux-framework.readthedocs.io/workflow"
@@ -128,7 +129,7 @@ async def teardown_workflow_coro(workflow):
                 *crd.WORKFLOW_CRD,
                 name,
                 {
-                    "spec": {"desiredState": "Teardown"},
+                    "spec": {"desiredState": flux_k8s.workflow.WorkflowState.TEARDOWN},
                     "metadata": {"finalizers": workflow["metadata"]["finalizers"]},
                 },
             )

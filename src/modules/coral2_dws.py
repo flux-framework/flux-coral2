@@ -42,6 +42,7 @@ from flux_k8s.workflow import (
     TransientConditionInfo,
     WorkflowInfo,
     save_workflow_to_kvs,
+    WorkflowState,
 )
 
 
@@ -142,32 +143,54 @@ def fetch_job_environment(secrets_api, workflow):
     return variables
 
 
+def expand_str_directive(directive, presets):
+    """Expand a directive string into a list of one or more individual directives.
+
+    Check if the string is one of the presets, and if so replace it.
+    """
+    if directive.strip() in presets:
+        preset = presets[directive.strip()]
+        if isinstance(preset, list):
+            # if a preset is a list, the entries must be individual #DW strings
+            return preset
+        if not isinstance(preset, str):
+            raise TypeError(
+                f"presets must be list or str but preset {directive} is {type(preset)}"
+            )
+        directive = preset
+    # the string may contain multiple #DW directives
+    dw_directives = directive.split("#DW ")
+    # remove any blank entries that resulted and add back "#DW "
+    return ["#DW " + dw.strip() for dw in dw_directives if dw.strip()]
+
+
+def parse_dw_directives(dw_directives, presets):
+    """Convert potentially composite DW directives into a list of singletons."""
+    if isinstance(dw_directives, str):
+        expanded_directives = expand_str_directive(dw_directives, presets)
+    elif isinstance(dw_directives, list):
+        expanded_directives = []
+        for directive in dw_directives:
+            expanded_directives.extend(expand_str_directive(directive, presets))
+    else:
+        raise UserError(
+            f"Malformed #DW directives, not list or string: {dw_directives!r}"
+        )
+    return expanded_directives
+
+
 @message_callback_wrapper
 def create_cb(handle, _t, msg, k8s_api):
     """dws.create RPC callback. Creates a k8s Workflow object for a job.
 
     Triggered when a new job with a jobdw directive is submitted.
     """
-    dw_directives = msg.payload["dw_directives"]
     jobid = msg.payload["jobid"]
     userid = msg.payload["userid"]
-    presets = handle.conf_get("rabbit.presets", {})
-    if isinstance(dw_directives, str):
-        # check if the string is one of the presets, and if so replace it
-        if dw_directives.strip() in presets:
-            dw_directives = [presets[dw_directives.strip()]]
-        else:
-            # the string may contain multiple #DW directives
-            dw_directives = dw_directives.split("#DW ")
-            # remove any blank entries that resulted and add back "#DW "
-            dw_directives = ["#DW " + dw.strip() for dw in dw_directives if dw.strip()]
-    if not isinstance(dw_directives, list):
-        raise UserError(
-            f"Malformed #DW directives, not list or string: {dw_directives!r}"
-        )
-    for i, directive in enumerate(dw_directives):
-        if directive.strip() in presets:
-            dw_directives[i] = presets[directive.strip()]
+    dw_directives = parse_dw_directives(
+        msg.payload["dw_directives"], handle.conf_get("rabbit.presets", {})
+    )
+    for directive in dw_directives:
         if "create_persistent" in directive and handle.conf_get(
             "rabbit.restrict_persistent", True
         ):
@@ -177,7 +200,7 @@ def create_cb(handle, _t, msg, k8s_api):
                 )
     workflow_name = WorkflowInfo.get_name(jobid)
     spec = {
-        "desiredState": "Proposal",
+        "desiredState": WorkflowState.PROPOSAL,
         "dwDirectives": dw_directives,
         "jobID": flux.job.JobID(jobid).f58plain,
         "userID": userid,
@@ -264,7 +287,7 @@ def setup_cb(handle, _t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    WorkflowInfo.get(jobid).move_desiredstate("Setup", k8s_api)
+    WorkflowInfo.get(jobid).move_desiredstate(WorkflowState.SETUP, k8s_api)
 
 
 def check_existence_and_move_to_teardown(handle, k8s_api, winfo):
@@ -320,7 +343,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
         # the workflow immediately to 'teardown' if it exists.
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
     else:
-        winfo.move_desiredstate("PostRun", k8s_api)
+        winfo.move_desiredstate(WorkflowState.POSTRUN, k8s_api)
         teardown_after = handle.conf_get("rabbit.teardown_after", 0.0)
         # create a timer watcher to move the workflow to teardown
         if teardown_after > 0:
@@ -508,10 +531,7 @@ def get_servers_with_active_allocations(k8s_api, workflow_name):
 
 def state_complete(workflow, state):
     """Helper function for checking whether a workflow has completed a given state."""
-    return (
-        workflow["spec"]["desiredState"] == workflow["status"]["state"] == state
-        and workflow["status"]["ready"]
-    )
+    return state_active(workflow, state) and workflow["status"]["ready"]
 
 
 def state_active(workflow, state):
@@ -572,11 +592,13 @@ def _workflow_state_change_cb_inner(
     if winfo.deleted:
         # deletion request has been submitted, nothing to do
         return
-    if state_active(workflow, "Teardown") and not state_complete(workflow, "Teardown"):
+    if state_active(workflow, WorkflowState.TEARDOWN) and not state_complete(
+        workflow, WorkflowState.TEARDOWN
+    ):
         # Remove the finalizer as soon as the workflow begins working on its
         # teardown state.
         cleanup.remove_finalizer(winfo.name, k8s_api, workflow)
-    elif state_complete(workflow, "Teardown"):
+    elif state_complete(workflow, WorkflowState.TEARDOWN):
         # Delete workflow object and tell DWS jobtap plugin that the job is done.
         # Attempt to remove the finalizer again in case the state transitioned
         # too quickly for it to be noticed earlier.
@@ -594,55 +616,17 @@ def _workflow_state_change_cb_inner(
         # move a 'teardown' workflow to an earlier state because the
         # 'teardown' update is still in the k8s update queue.
         return
-    elif state_complete(workflow, "Proposal"):
-        resources = winfo.resources
-        copy_offload = False
-        if resources is None:
-            resources = flux.job.kvslookup.job_kvs_lookup(handle, jobid)["jobspec"][
-                "resources"
-            ]
-        try:
-            if not disable_fluxion:
-                resources, copy_offload = directivebreakdown.apply_breakdowns(
-                    k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
-                )
-            else:
-                _, copy_offload = directivebreakdown.apply_breakdowns(
-                    k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
-                )
-        except ValueError as exc:
-            errmsg = repr(exc.args[0])
-        else:
-            errmsg = None
-        payload = {
-            "id": jobid,
-            "resources": resources,
-            "copy-offload": copy_offload,
-            "exclude": (
-                storage.EXCLUDE_PROPERTY
-                if disable_fluxion
-                or not handle.conf_get("rabbit.drain_compute_nodes", True)
-                else ""
-            ),
-        }
-        if errmsg is not None:
-            payload["errmsg"] = errmsg
-        if resources is not None or copy_offload is not None:
-            # both are None if the resource-update has already been applied
-            handle.rpc(
-                "job-manager.dws.resource-update",
-                payload=payload,
-            ).then(log_rpc_response, jobid)
-            save_workflow_to_kvs(handle, jobid, workflow)
-    elif state_complete(workflow, "Setup"):
+    elif state_complete(workflow, WorkflowState.PROPOSAL):
+        handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion)
+    elif state_complete(workflow, WorkflowState.SETUP):
         # move workflow to next stage, DataIn
-        winfo.move_desiredstate("DataIn", k8s_api)
+        winfo.move_desiredstate(WorkflowState.DATAIN, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
-    elif state_complete(workflow, "DataIn"):
+    elif state_complete(workflow, WorkflowState.DATAIN):
         # move workflow to next stage, PreRun
-        winfo.move_desiredstate("PreRun", k8s_api)
+        winfo.move_desiredstate(WorkflowState.PRERUN, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
-    elif state_complete(workflow, "PreRun"):
+    elif state_complete(workflow, WorkflowState.PRERUN):
         # tell DWS jobtap plugin that the job can start
         variables = fetch_job_environment(secrets_api, workflow)
         handle.rpc(
@@ -653,24 +637,75 @@ def _workflow_state_change_cb_inner(
             },
         ).then(log_rpc_response, jobid)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
-    elif state_complete(workflow, "PostRun"):
+    elif state_complete(workflow, WorkflowState.POSTRUN):
         # move workflow to next stage, DataOut
-        winfo.move_desiredstate("DataOut", k8s_api)
+        winfo.move_desiredstate(WorkflowState.DATAOUT, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
-    elif state_complete(workflow, "DataOut"):
+    elif state_complete(workflow, WorkflowState.DATAOUT):
         # move workflow to next stage, teardown
         winfo.move_to_teardown(handle, k8s_api, workflow)
+    handle_workflow_errors(workflow, winfo, handle)
+
+
+def handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion):
+    """Handle a completed proposal state, updating a job's resources.
+
+    Look at directivebreakdown object to see how to modify the job's jobspec.
+    """
+    resources = winfo.resources
+    copy_offload = False
+    if resources is None:
+        resources = flux.job.kvslookup.job_kvs_lookup(handle, winfo.jobid)["jobspec"][
+            "resources"
+        ]
+    try:
+        if not disable_fluxion:
+            resources, copy_offload = directivebreakdown.apply_breakdowns(
+                k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
+            )
+        else:
+            _, copy_offload = directivebreakdown.apply_breakdowns(
+                k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
+            )
+    except ValueError as exc:
+        errmsg = repr(exc.args[0])
+    else:
+        errmsg = None
+    payload = {
+        "id": winfo.jobid,
+        "resources": resources,
+        "copy-offload": copy_offload,
+        "exclude": (
+            storage.EXCLUDE_PROPERTY
+            if disable_fluxion
+            or not handle.conf_get("rabbit.drain_compute_nodes", True)
+            else ""
+        ),
+    }
+    if errmsg is not None:
+        payload["errmsg"] = errmsg
+    if resources is not None or copy_offload is not None:
+        # both are None if the resource-update has already been applied
+        handle.rpc(
+            "job-manager.dws.resource-update",
+            payload=payload,
+        ).then(log_rpc_response, winfo.jobid)
+        save_workflow_to_kvs(handle, winfo.jobid, workflow)
+
+
+def handle_workflow_errors(workflow, winfo, handle):
+    """Handle a workflow in Error or TransientCondition."""
     if workflow["status"].get("status") == "Error":
         # a fatal error has occurred in the workflows, raise a job exception
         handle.job_raise(
-            jobid,
+            winfo.jobid,
             "exception",
             0,
             "DWS/Rabbit interactions failed: workflow hit an error: "
             f"{workflow['status'].get('message', '')}",
         )
-    elif workflow["status"].get("status") == "TransientCondition":
-        prerun = workflow["status"]["state"] == "PreRun"
+    elif workflow["status"].get("status") == WorkflowState.TRANSIENTCONDITION:
+        prerun = workflow["status"]["state"] == WorkflowState.PRERUN
         # a potentially fatal error has occurred, but may resolve itself
         message = workflow["status"].get("message", "")
         if winfo.jobid not in WORKFLOWS_IN_TC:
