@@ -1,6 +1,8 @@
 """Module defining routines for handling k8s SystemStatus resources."""
 
+import itertools
 import logging
+import time
 
 from kubernetes.client.rest import ApiException
 
@@ -29,6 +31,13 @@ class SystemStatusManager:
         self._hlist = Hostlist(handle.attr_get("hostlist"))  # instance hostlist
         self._idset = IDset(f"0-{len(self._hlist) - 1}")  # instance IDset
         self._last_online = IDset("")  # nodes most recently listed as online
+        self._drained = set()  # nodes most recently drained for unmount failures
+        self._event_journal = flux.resource.ResourceJournalConsumer(
+            handle,
+            since=time.time() - 20,
+            # only start processing events starting from 20 seconds ago
+        )
+        self._event_journal.set_callback(self._journal_callback)
 
     def start(self):
         """Begin updating the systemstatus resource."""
@@ -38,7 +47,29 @@ class SystemStatusManager:
             nodeid=0,
             flags=flux.constants.FLUX_RPC_STREAMING,
         ).then(self._rpc_callback)
+        self._event_journal.start()
         return self
+
+    def disable_until_undrained(self, nodes):
+        """Tell k8s that a node is Disabled."""
+        for hostname in nodes:
+            self._drained.add(hostname)
+        self._patch_resource()
+
+    def _journal_callback(self, event):
+        """Whenever a node is undrained, remove it from self._drained."""
+        undrained = set()
+        try:
+            if event.name == "undrain":
+                for hostname in Hostlist(event.context["nodelist"]):
+                    if hostname in self._drained:
+                        undrained.add(hostname)
+                        self._drained.remove(hostname)
+        except Exception:
+            LOGGER.exception("Exception in systemstatus resource journal watch")
+        else:
+            if undrained:
+                self._patch_resource(undrained)
 
     def _rpc_callback(self, rpc):
         """Wrap _update_offline in try/finally."""
@@ -63,7 +94,7 @@ class SystemStatusManager:
         A disabled node is one that either has an offline broker or a failed unmount.
         """
         nodes = {node_name: "Enabled" for node_name in newly_online}
-        for node_name in newly_offline:
+        for node_name in itertools.chain(newly_offline, self._drained):
             nodes[node_name] = "Disabled"
         try:
             self.k8s_api.patch_namespaced_custom_object(
