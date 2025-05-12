@@ -948,7 +948,7 @@ def main():
     )
     cleanup.setup_cleanup_thread(handle.conf_get("rabbit.kubeconfig"))
     storage.populate_rabbits_dict(k8s_api)
-    systemstatus.start_watch(k8s_api, handle)
+    systemstatus.SystemStatusManager(handle, k8s_api).start()
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
     with Watchers(handle, watch_interval=args.watch_interval) as watchers:
