@@ -397,10 +397,10 @@ test_expect_success 'revert the changes to the Storage' '
 '
 
 test_expect_success 'systemstatus watch and update works' '
-    kubectl get systemstatus default -ojson | test_must_fail jq -e .data.nodes.\"$(hostname)\"
+    kubectl get systemstatus default -ojson | jq -e ".data.nodes.\"$(hostname)\" == \"Enabled\"" &&
     kill $(flux exec -r1 flux getattr broker.pid) &&
     sleep 2 &&
-    kubectl get systemstatus default -ojson | jq -e .data.nodes.\"$(hostname)\"
+    kubectl get systemstatus default -ojson | jq -e ".data.nodes.\"$(hostname)\" == \"Disabled\""
 '
 
 test_expect_success 'unload fluxion and revert systemstatus' '
