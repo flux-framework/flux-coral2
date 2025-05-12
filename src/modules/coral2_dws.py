@@ -290,6 +290,28 @@ def setup_cb(handle, _t, msg, k8s_api):
     WorkflowInfo.get(jobid).move_desiredstate(WorkflowState.SETUP, k8s_api)
 
 
+def drain_nodes_with_mounts(handle, k8s_api, winfo):
+    """Drain all nodes that have not yet unmounted."""
+    to_drain = get_clientmounts_not_in_state(k8s_api, winfo.name, "unmounted")
+    if to_drain:
+        encoded_hostlist = Hostlist(to_drain).uniq().encode()
+        LOGGER.debug(
+            "Draining nodes %s with active mounts for workflow %s",
+            encoded_hostlist,
+            winfo.name,
+        )
+        handle.rpc(
+            "resource.drain",
+            payload={
+                "targets": encoded_hostlist,
+                "mode": "update",
+                "reason": "failed to unmount rabbit",
+            },
+            nodeid=0,
+        ).then(log_rpc_response, winfo.jobid)
+    return to_drain
+
+
 def check_existence_and_move_to_teardown(handle, k8s_api, winfo):
     """Check that a workflow exists and move it to Teardown if so."""
     jobid = winfo.jobid
@@ -385,23 +407,7 @@ def abort_cb(handle, _t, msg, k8s_api):
     if not winfo.toredown:
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
     # get all clientmounts for the job that aren't unmounted
-    to_drain = get_clientmounts_not_in_state(k8s_api, winfo.name, "unmounted")
-    if to_drain:
-        encoded_hostlist = Hostlist(to_drain).uniq().encode()
-        LOGGER.debug(
-            "Draining nodes %s with active mounts for workflow %s",
-            encoded_hostlist,
-            winfo.name,
-        )
-        handle.rpc(
-            "resource.drain",
-            payload={
-                "targets": encoded_hostlist,
-                "mode": "update",
-                "reason": "failed to unmount rabbit",
-            },
-            nodeid=0,
-        ).then(log_rpc_response, jobid)
+    drain_nodes_with_mounts(handle, k8s_api, winfo)
     # get all rabbits with active allocations and disable them.
     for rabbit_to_disable in get_servers_with_active_allocations(k8s_api, winfo.name):
         k8s_api.patch_namespaced_custom_object(
