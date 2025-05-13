@@ -20,6 +20,9 @@ import re
 import contextlib
 from datetime import datetime
 import base64
+import cProfile
+import pstats
+import io
 
 import kubernetes
 import kubernetes.client
@@ -785,6 +788,25 @@ def kill_workflows_in_tc(_reactor, watcher, _r, args):
                 manager.set_property(not_mounted, f"{jobid} timed out in PreRun")
 
 
+def heartbeat_cb(_reactor, watcher, _r, profiler):
+    """Callback firing every hour, emitting heartbeat message and profile data."""
+    LOGGER.info("Service is still alive")
+    known_workflows = list(WorkflowInfo.known_workflows())
+    LOGGER.debug(
+        "There are %s known workflows, including %s",
+        len(known_workflows),
+        known_workflows[:3],
+    )
+    stream = io.StringIO()
+    profiler.disable()
+    ps = pstats.Stats(profiler, stream=stream).sort_stats(pstats.SortKey.CUMULATIVE)
+    ps.print_stats(20)
+    LOGGER.debug(
+        "Profiling stats below\n%s\n%s\n%s", "=" * 30, stream.getvalue(), "=" * 30
+    )
+    profiler.enable()
+
+
 def setup_parsing():
     """Set up argument parsing."""
     parser = argparse.ArgumentParser()
@@ -946,6 +968,8 @@ def main():
     """Init script, begin processing of services."""
     global _systemstatus
 
+    profiler = cProfile.Profile()
+    profiler.enable()
     args = setup_parsing().parse_args()
     _MIN_ALLOCATION_SIZE = args.min_allocation_size
     config_logging(args)
@@ -996,8 +1020,15 @@ def main():
             repeat=tc_timeout / 2,
             args=(tc_timeout, k8s_api, manager),
         )
+        heartbeat_watcher = handle.timer_watcher_create(
+            3600,
+            heartbeat_cb,
+            repeat=3600,
+            args=profiler,
+        )
         with contextlib.ExitStack() as stack:
-            stack.enter_context(timer_watcher)
+            for watcher in (timer_watcher, heartbeat_watcher):
+                stack.enter_context(watcher)
             for service in register_services(handle, k8s_api):
                 stack.enter_context(service)
             watchers.add_watch(

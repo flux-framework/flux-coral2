@@ -71,6 +71,10 @@ class WorkflowInfo:
         """Return True if the given workflow name is consistent with the scheme."""
         return name.startswith(cls._WORKFLOW_NAME_PREFIX)
 
+    @classmethod
+    def known_workflows(cls):
+        return cls._WORKFLOWINFO_CACHE.keys()
+
     def __init__(self, jobid, name=None, resources=None):
         self.jobid = jobid
         if name is None:
