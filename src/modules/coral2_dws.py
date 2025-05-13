@@ -51,6 +51,7 @@ WORKFLOWS_IN_TC = {}  # tc for TransientCondition
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
 _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
 CLIENTMOUNT_NAME = re.compile(r"-computes$")
+_systemstatus = None
 
 
 class UserError(Exception):
@@ -290,6 +291,28 @@ def setup_cb(handle, _t, msg, k8s_api):
     WorkflowInfo.get(jobid).move_desiredstate(WorkflowState.SETUP, k8s_api)
 
 
+def drain_nodes_with_mounts(handle, k8s_api, winfo):
+    """Drain all nodes that have not yet unmounted."""
+    to_drain = get_clientmounts_not_in_state(k8s_api, winfo.name, "unmounted")
+    if to_drain:
+        encoded_hostlist = Hostlist(to_drain).uniq().encode()
+        LOGGER.debug(
+            "Draining nodes %s with active mounts for workflow %s",
+            encoded_hostlist,
+            winfo.name,
+        )
+        handle.rpc(
+            "resource.drain",
+            payload={
+                "targets": encoded_hostlist,
+                "mode": "update",
+                "reason": "failed to unmount rabbit",
+            },
+            nodeid=0,
+        ).then(log_rpc_response, winfo.jobid)
+    return to_drain
+
+
 def check_existence_and_move_to_teardown(handle, k8s_api, winfo):
     """Check that a workflow exists and move it to Teardown if so."""
     jobid = winfo.jobid
@@ -322,6 +345,22 @@ def teardown_after_timer_cb(reactor, watcher, _r, args):
     )
 
 
+def postrun_timeout_cb(reactor, watcher, _r, args):
+    """Tear down a workflow."""
+    try:
+        handle, k8s_api, winfo = args
+        check_existence_and_move_to_teardown(handle, k8s_api, winfo)
+    except Exception:
+        LOGGER.exception("Failed to move workflow to teardown after timeout:")
+    finally:
+        watcher.stop()
+    handle.job_raise(
+        winfo.jobid, "rabbit-timeout", 0, "unmounts timed out, skipping data movement"
+    )
+    drained = drain_nodes_with_mounts(handle, k8s_api, winfo)
+    _systemstatus.disable_until_undrained(drained)
+
+
 @message_callback_wrapper
 def post_run_cb(handle, _t, msg, k8s_api):
     """dws.post_run RPC callback.
@@ -349,6 +388,12 @@ def post_run_cb(handle, _t, msg, k8s_api):
         if teardown_after > 0:
             handle.timer_watcher_create(
                 teardown_after, teardown_after_timer_cb, args=(handle, k8s_api, winfo)
+            ).start()
+        postrun_timeout = handle.conf_get("rabbit.postrun_timeout", 0.0)
+        # create a timer watcher to abandon mounts and move to teardown
+        if postrun_timeout > 0:
+            winfo.postrun_watcher = handle.timer_watcher_create(
+                postrun_timeout, postrun_timeout_cb, args=(handle, k8s_api, winfo)
             ).start()
 
 
@@ -385,23 +430,7 @@ def abort_cb(handle, _t, msg, k8s_api):
     if not winfo.toredown:
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
     # get all clientmounts for the job that aren't unmounted
-    to_drain = get_clientmounts_not_in_state(k8s_api, winfo.name, "unmounted")
-    if to_drain:
-        encoded_hostlist = Hostlist(to_drain).uniq().encode()
-        LOGGER.debug(
-            "Draining nodes %s with active mounts for workflow %s",
-            encoded_hostlist,
-            winfo.name,
-        )
-        handle.rpc(
-            "resource.drain",
-            payload={
-                "targets": encoded_hostlist,
-                "mode": "update",
-                "reason": "failed to unmount rabbit",
-            },
-            nodeid=0,
-        ).then(log_rpc_response, jobid)
+    drain_nodes_with_mounts(handle, k8s_api, winfo)
     # get all rabbits with active allocations and disable them.
     for rabbit_to_disable in get_servers_with_active_allocations(k8s_api, winfo.name):
         k8s_api.patch_namespaced_custom_object(
@@ -639,6 +668,8 @@ def _workflow_state_change_cb_inner(
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, WorkflowState.POSTRUN):
         # move workflow to next stage, DataOut
+        if winfo.postrun_watcher is not None:
+            winfo.postrun_watcher.stop()  # stop the postrun timer
         winfo.move_desiredstate(WorkflowState.DATAOUT, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, WorkflowState.DATAOUT):
@@ -886,6 +917,7 @@ def validate_config(config):
         "presets",
         "mapping",
         "soft_drain",
+        "postrun_timeout",
         "teardown_after",
     }
     keys = set(config.keys())
@@ -912,6 +944,8 @@ def validate_config(config):
 
 def main():
     """Init script, begin processing of services."""
+    global _systemstatus
+
     args = setup_parsing().parse_args()
     _MIN_ALLOCATION_SIZE = args.min_allocation_size
     config_logging(args)
@@ -942,7 +976,7 @@ def main():
     )
     cleanup.setup_cleanup_thread(handle.conf_get("rabbit.kubeconfig"))
     storage.populate_rabbits_dict(k8s_api)
-    systemstatus.start_watch(k8s_api, handle)
+    _systemstatus = systemstatus.SystemStatusManager(handle, k8s_api).start()
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
     with Watchers(handle, watch_interval=args.watch_interval) as watchers:

@@ -81,6 +81,7 @@ class WorkflowInfo:
         self.toredown = False  # True if workflows has been moved to teardown
         self.deleted = False  # True if delete request has been sent to k8s
         self.epilog_removed = False  # True if jobtap epilog was already removed
+        self.postrun_watcher = None  # Flux timer-watcher for the PostRun state
 
     def move_to_teardown(self, handle, k8s_api, workflow=None):
         """Move a workflow to the 'Teardown' desiredState."""

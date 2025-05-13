@@ -78,6 +78,12 @@ Flux's interactions with the rabbits.
   ``epilog-timeout``, to give the NNF software time to clean up before the
   ``epilog-timeout`` takes effect.
 
+**postrun_timeout** (float)
+  (optional) Maximum time for a workflow to be in the `PostRun` state
+  before it is moved to Teardown. If unset or negative, do not set a timer.
+  If both ``postrun_timeout`` and ``teardown_after`` are set, ``postrun_timeout``
+  should be set to a smaller number.
+
 **drain_compute_nodes** (boolean)
   (optional) Whether to automatically drain compute nodes that lose PCIe connection
   with their rabbit. Defaults to ``true``.
