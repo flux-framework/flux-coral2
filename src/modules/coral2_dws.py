@@ -454,6 +454,17 @@ def abort_cb(handle, _t, msg, k8s_api):
         )
 
 
+def status_cb(handle, _arg, msg, _k8s_api):
+    """dws.status RPC callback. Returns some status info."""
+    try:
+        workflows = list(WorkflowInfo.known_workflows())
+    except Exception as exc:
+        handle.respond(msg, {"success": False, "errstr": repr(exc)})
+        LOGGER.exception("Error in responding to dws.status RPC:")
+    else:
+        handle.respond(msg, {"success": True, "workflows": workflows})
+
+
 def get_clientmounts_not_in_state(k8s_api, workflow_name, desired_state):
     """Return all nodes in a job with mounts that don't match a specified state.
 
@@ -876,6 +887,7 @@ def register_services(handle, k8s_api):
         ("post_run", post_run_cb),
         ("teardown", teardown_cb),
         ("abort", abort_cb),
+        ("status", status_cb),
     ):
         yield handle.msg_watcher_create(
             cb,
