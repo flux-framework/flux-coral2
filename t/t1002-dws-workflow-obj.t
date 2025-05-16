@@ -76,7 +76,7 @@ test_expect_success 'exec dws service-providing script with fluxion scheduling d
             -vvv --disable-fluxion) &&
     flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start &&
     flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-    ${RPC} "dws.create"
+    ${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'job submission without DW string works with fluxion-rabbit scheduling disabled' '
@@ -95,6 +95,7 @@ test_expect_success 'job submission with valid DW string works with fluxion-rabb
         ${jobid} dependency-remove &&
     flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
         ${jobid} memo &&
+    ${RPC} "dws.status" | jq -e ".workflows | length == 1" &&
 	flux job wait-event -t 5 ${jobid} jobspec-update &&
     flux job wait-event -vt 15 ${jobid} depend &&
     flux job wait-event -vt 15 ${jobid} priority &&
@@ -188,7 +189,10 @@ test_expect_success 'rabbit jobs run even with --requires with fluxion schedulin
     flux job attach $JOBID1 &&
     flux job attach $JOBID2 &&
     flux job attach $JOBID3 &&
-    flux job attach $JOBID4
+    flux job attach $JOBID4 &&
+    sleep 2 &&
+    ${RPC} "dws.status" | jq -e .workflows &&
+    ${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'load fluxion with rabbits' '
@@ -218,7 +222,7 @@ test_expect_success 'exec dws service-providing script' '
 # is implemented/closed, this can be replaced with that solution.
 test_expect_success 'wait for service to register and send test RPC' '
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.create" 
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'job submission without DW string works' '
@@ -454,7 +458,8 @@ test_expect_success 'dws service handles jobs being canceled repeatedly' '
 	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
 	for i in $(seq 1 10); do flux cancel $jobid ; done &&
-	flux job wait-event -vt 10 ${jobid} clean
+	flux job wait-event -vt 10 ${jobid} clean &&
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'exec dws service-providing script with custom config path' '
@@ -470,7 +475,7 @@ kubeconfig = \"$PWD/kubeconfig\"
 		-o per-resource.type=node --output=dws2.out --error=dws2.err \
 		${LAUNCH_DWS} -vvv) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.create"
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'job submission with valid DW string works after config change' '
@@ -630,7 +635,8 @@ test_expect_success 'back-to-back job submissions with 10TiB file systems works'
 		${jobid2} epilog-finish &&
 	flux job wait-event -vt 15 ${jobid1} clean &&
 	flux job wait-event -vt 15 ${jobid2} clean &&
-	flux job wait-event -vt 15 ${jobid3} clean
+	flux job wait-event -vt 15 ${jobid3} clean &&
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'launch service with storage maximums and presets' '
@@ -641,7 +647,7 @@ test_expect_success 'launch service with storage maximums and presets' '
 		-o per-resource.type=node --output=dws5.out --error=dws5.err \
 		${LAUNCH_DWS} -vvv) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.create"
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'job submission with storage within max works' '
@@ -739,7 +745,8 @@ test_expect_success 'job submission with preset lustre storage beyond max fails'
 		${jobid} dependency-add &&
 	flux job wait-event -vt 10 ${jobid} exception &&
 	flux job wait-event -vt 15 ${jobid} clean &&
-	flux job wait-event -t 1 ${jobid} exception | grep "max is 100 GiB per node"
+	flux job wait-event -t 1 ${jobid} exception | grep "max is 100 GiB per node" &&
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'launch service with teardown_after' '
@@ -753,7 +760,7 @@ teardown_after = 0.0001
 		-o per-resource.type=node --output=dws7.out --error=dws7.err \
 		${LAUNCH_DWS} -vvv) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.create"
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'job submission with valid DW string works with teardown_after' '
@@ -795,7 +802,7 @@ postrun_timeout = 0.0001
 		-o per-resource.type=node --output=dws8.out --error=dws8.err \
 		${LAUNCH_DWS} -vvv) &&
 	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.create"
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'job submission with valid DW string works with postrun_timeout' '
