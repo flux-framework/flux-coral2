@@ -33,6 +33,7 @@ int main (int argc, char *argv[])
     flux_t *h;
     flux_future_t *f;
     const char *topic;
+    const char *result;
     int expected_errno = -1;
     int ch;
     bool raw = false;
@@ -60,7 +61,7 @@ int main (int argc, char *argv[])
         fprintf (stderr, "flux_rpc %s\n", topic);
         exit (1);
     }
-    if (flux_rpc_get (f, NULL) < 0) {
+    if (flux_rpc_get (f, &result) < 0) {
         if (expected_errno > 0) {
             if (errno != expected_errno) {
                 fprintf (stderr,
@@ -82,6 +83,7 @@ int main (int argc, char *argv[])
                      expected_errno);
             exit (1);
         }
+        fprintf (stdout, "%s\n", result);
     }
     flux_future_destroy (f);
     flux_close (h);
