@@ -5,8 +5,8 @@ test_description='Test DWS Workflow Objection Creation'
 . $(dirname $0)/sharness.sh
 
 if test_have_prereq NO_DWS_K8S; then
-    skip_all='skipping DWS workflow tests due to no DWS K8s'
-    test_done
+	skip_all='skipping DWS workflow tests due to no DWS K8s'
+	test_done
 fi
 
 flux version | grep -q libflux-security && test_set_prereq FLUX_SECURITY
@@ -28,12 +28,12 @@ DATADIR=${SHARNESS_TEST_SRCDIR}/data/workflow-obj
 
 submit_as_alternate_user()
 {
-    FAKE_USERID=42
-    flux run --dry-run "$@" | \
-      flux python ${SHARNESS_TEST_SRCDIR}/scripts/sign-as.py $FAKE_USERID \
-        >job.signed
-    FLUX_HANDLE_USERID=$FAKE_USERID \
-      flux job submit --flags=signed job.signed
+	FAKE_USERID=42
+	flux run --dry-run "$@" | \
+	  flux python ${SHARNESS_TEST_SRCDIR}/scripts/sign-as.py $FAKE_USERID \
+		>job.signed
+	FLUX_HANDLE_USERID=$FAKE_USERID \
+	  flux job submit --flags=signed job.signed
 }
 
 test_expect_success 'job-manager: load dws-jobtap and alloc-bypass plugin' '
@@ -42,73 +42,73 @@ test_expect_success 'job-manager: load dws-jobtap and alloc-bypass plugin' '
 '
 
 test_expect_success 'exec dws service-providing script with bad arguments' '
-    KUBECONFIG=/dev/null test_expect_code 3 ${LAUNCH_DWS} \
-        -v &&
-    echo "
+	KUBECONFIG=/dev/null test_expect_code 3 ${LAUNCH_DWS} \
+		-v &&
+	echo "
 [rabbit]
 kubeconfig = \"/dev/null\"
-    " | flux config load &&
-    test_expect_code 3 ${LAUNCH_DWS} -v &&
-    test_expect_code 2 ${LAUNCH_DWS} \
-        -v --foobar
+	" | flux config load &&
+	test_expect_code 3 ${LAUNCH_DWS} -v &&
+	test_expect_code 2 ${LAUNCH_DWS} \
+		-v --foobar
 '
 
 test_expect_success 'exec dws service-providing script with bad config' '
-    echo "
+	echo "
 [rabbit]
 foobar = false
-    " | flux config load &&
-    test_must_fail ${LAUNCH_DWS} -v &&
-    echo "
+	" | flux config load &&
+	test_must_fail ${LAUNCH_DWS} -v &&
+	echo "
 [rabbit.policy.maximums]
 fake = 1
-    " | flux config load &&
-    test_must_fail ${LAUNCH_DWS} -v
+	" | flux config load &&
+	test_must_fail ${LAUNCH_DWS} -v
 '
 
 test_expect_success 'exec dws service-providing script with fluxion scheduling disabled' '
-    flux config reload &&
-    R=$(flux R encode -r 0) &&
-    DWS_JOBID=$(flux submit \
-            --setattr=system.alloc-bypass.R="$R" \
-            -o per-resource.type=node --output=dws-fluxion-disabled.out \
-            --error=dws-fluxion-disabled.err ${LAUNCH_DWS} \
-            -vvv --disable-fluxion) &&
-    flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start &&
-    flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-    ${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	flux config reload &&
+	R=$(flux R encode -r 0) &&
+	DWS_JOBID=$(flux submit \
+			--setattr=system.alloc-bypass.R="$R" \
+			-o per-resource.type=node --output=dws-fluxion-disabled.out \
+			--error=dws-fluxion-disabled.err ${LAUNCH_DWS} \
+			-vvv --disable-fluxion) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start &&
+	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'job submission without DW string works with fluxion-rabbit scheduling disabled' '
-    jobid=$(flux submit -n1 /bin/true) &&
-    flux job wait-event -vt 25 -m status=0 ${jobid} finish &&
-    test_must_fail flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
-        ${jobid} dependency-add
+	jobid=$(flux submit -n1 /bin/true) &&
+	flux job wait-event -vt 25 -m status=0 ${jobid} finish &&
+	test_must_fail flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add
 '
 
 test_expect_success 'job submission with valid DW string works with fluxion-rabbit scheduling disabled' '
-    jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
-        -N1 -n1 hostname) &&
-    flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-        ${jobid} dependency-add &&
-    flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-        ${jobid} dependency-remove &&
-    flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-        ${jobid} memo &&
-    ${RPC} "dws.status" | jq -e ".workflows | length == 1" &&
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-remove &&
+	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
+		${jobid} memo &&
+	${RPC} "dws.status" | jq -e ".workflows | length == 1" &&
 	flux job wait-event -t 5 ${jobid} jobspec-update &&
-    flux job wait-event -vt 15 ${jobid} depend &&
-    flux job wait-event -vt 15 ${jobid} priority &&
-    flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-        ${jobid} prolog-start &&
-    flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-        ${jobid} prolog-finish &&
-    flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
-    flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-        ${jobid} epilog-start &&
-    flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
-        ${jobid} epilog-finish &&
-    flux job wait-event -vt 15 ${jobid} clean
+	flux job wait-event -vt 15 ${jobid} depend &&
+	flux job wait-event -vt 15 ${jobid} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 15 ${jobid} clean
 '
 
 test_expect_success 'inspection of resources while job running passes' '
@@ -162,42 +162,42 @@ test_expect_success 'dws service script handles restarts while a job is in SCHED
 '
 
 test_expect_success 'rabbit jobs run even with --requires with fluxion scheduling disabled' '
-    JOBID1=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
-        name=project1" --requires="not foo and not bar" -N1 -n1 hostname) &&
-    JOBID2=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
-        name=project1" --requires=^foo -N1 -n1 hostname) &&
-    JOBID3=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
-        name=project1" --requires=-foo -N1 -n1 hostname) &&
-    JOBID4=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
-        name=project1" --requires="not (foo and bar)" -N1 -n1 hostname) &&
-    flux job wait-event -vt 10 ${JOBID1} jobspec-update &&
-    flux job wait-event -vt 10 ${JOBID2} jobspec-update &&
-    flux job wait-event -vt 10 ${JOBID3} jobspec-update &&
-    flux job wait-event -vt 10 ${JOBID4} jobspec-update &&
-    flux job wait-event -vt 10 ${JOBID1} alloc &&
-    flux job wait-event -vt 10 ${JOBID2} alloc &&
-    flux job wait-event -vt 10 ${JOBID3} alloc &&
-    flux job wait-event -vt 10 ${JOBID4} alloc &&
-    flux job wait-event -vt 10 -m status=0 ${JOBID1} finish &&
-    flux job wait-event -vt 10 -m status=0 ${JOBID2} finish &&
-    flux job wait-event -vt 10 -m status=0 ${JOBID3} finish &&
-    flux job wait-event -vt 10 -m status=0 ${JOBID4} finish &&
-    flux job wait-event -vt 20 ${JOBID1} clean &&
-    flux job wait-event -vt 20 ${JOBID2} clean &&
-    flux job wait-event -vt 20 ${JOBID3} clean &&
-    flux job wait-event -vt 20 ${JOBID4} clean &&
-    flux job attach $JOBID1 &&
-    flux job attach $JOBID2 &&
-    flux job attach $JOBID3 &&
-    flux job attach $JOBID4 &&
-    sleep 2 &&
-    ${RPC} "dws.status" | jq -e .workflows &&
-    ${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	JOBID1=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+		name=project1" --requires="not foo and not bar" -N1 -n1 hostname) &&
+	JOBID2=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+		name=project1" --requires=^foo -N1 -n1 hostname) &&
+	JOBID3=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+		name=project1" --requires=-foo -N1 -n1 hostname) &&
+	JOBID4=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+		name=project1" --requires="not (foo and bar)" -N1 -n1 hostname) &&
+	flux job wait-event -vt 10 ${JOBID1} jobspec-update &&
+	flux job wait-event -vt 10 ${JOBID2} jobspec-update &&
+	flux job wait-event -vt 10 ${JOBID3} jobspec-update &&
+	flux job wait-event -vt 10 ${JOBID4} jobspec-update &&
+	flux job wait-event -vt 10 ${JOBID1} alloc &&
+	flux job wait-event -vt 10 ${JOBID2} alloc &&
+	flux job wait-event -vt 10 ${JOBID3} alloc &&
+	flux job wait-event -vt 10 ${JOBID4} alloc &&
+	flux job wait-event -vt 10 -m status=0 ${JOBID1} finish &&
+	flux job wait-event -vt 10 -m status=0 ${JOBID2} finish &&
+	flux job wait-event -vt 10 -m status=0 ${JOBID3} finish &&
+	flux job wait-event -vt 10 -m status=0 ${JOBID4} finish &&
+	flux job wait-event -vt 20 ${JOBID1} clean &&
+	flux job wait-event -vt 20 ${JOBID2} clean &&
+	flux job wait-event -vt 20 ${JOBID3} clean &&
+	flux job wait-event -vt 20 ${JOBID4} clean &&
+	flux job attach $JOBID1 &&
+	flux job attach $JOBID2 &&
+	flux job attach $JOBID3 &&
+	flux job attach $JOBID4 &&
+	sleep 2 &&
+	${RPC} "dws.status" | jq -e .workflows &&
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'load fluxion with rabbits' '
-    flux cancel ${DWS_JOBID} &&
-    flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-rabbitmapping.py > rabbits.json &&
+	flux cancel ${DWS_JOBID} &&
+	flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-rabbitmapping.py > rabbits.json &&
 	flux R encode -l | flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-dws2jgf.py \
 	--no-validate rabbits.json | jq . > R.local &&
 	flux kvs put resource.R="$(cat R.local)" &&
@@ -211,9 +211,9 @@ test_expect_success 'load fluxion with rabbits' '
 test_expect_success 'exec dws service-providing script' '
 	R=$(flux R encode -r 0) &&
 	DWS_JOBID=$(flux submit \
-	        --setattr=system.alloc-bypass.R="$R" \
-	        -o per-resource.type=node --output=dws1.out --error=dws1.err \
-	        ${LAUNCH_DWS} -vvv) &&
+			--setattr=system.alloc-bypass.R="$R" \
+			-o per-resource.type=node --output=dws1.out --error=dws1.err \
+			${LAUNCH_DWS} -vvv) &&
 	flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start
 '
 
@@ -274,8 +274,8 @@ test_expect_success 'job submission with valid DW string works' '
 '
 
 test_expect_success 'job requesting copy-offload in DW string works' '
-    kubectl patch nnfcontainerprofiles -nnnf-system copy-offload-default --type=json \
-        -p "[{\"op\":\"replace\", \"path\":\"/data/storages/1/optional\", \"value\": true}]" &&
+	kubectl patch nnfcontainerprofiles -nnnf-system copy-offload-default --type=json \
+		-p "[{\"op\":\"replace\", \"path\":\"/data/storages/1/optional\", \"value\": true}]" &&
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=gfs2 name=project1
 			requires=copy-offload
 			#DW container name=copyoff-container profile=copy-offload-default
@@ -319,8 +319,8 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 '
 
 test_expect_success 'revert changes to containerprofile' '
-    kubectl patch nnfcontainerprofiles -nnnf-system copy-offload-default --type=json \
-        -p "[{\"op\":\"replace\", \"path\":\"/data/storages/1/optional\", \"value\": false}]"
+	kubectl patch nnfcontainerprofiles -nnnf-system copy-offload-default --type=json \
+		-p "[{\"op\":\"replace\", \"path\":\"/data/storages/1/optional\", \"value\": false}]"
 '
 
 test_expect_success 'job requesting too much storage is rejected' '
@@ -340,7 +340,7 @@ test_expect_success 'job submission with multiple valid DW strings on different 
 											 #DW jobdw capacity=10GiB type=xfs name=project1
 
 											 #DW jobdw capacity=20GiB type=gfs2 name=project2" \
-		    -N1 -n1 hostname) &&
+			-N1 -n1 hostname) &&
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
 	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
@@ -388,7 +388,7 @@ test_expect_success 'job submission with multiple valid DW strings on the same l
 
 test_expect_success 'job submission with multiple valid DW strings in a JSON file works' '
 	jobid=$(flux submit --setattr=^system.dw="${DATADIR}/two_directives.json" \
-		    -N1 -n1 hostname) &&
+			-N1 -n1 hostname) &&
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-add &&
 	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
@@ -466,10 +466,10 @@ test_expect_success 'exec dws service-providing script with custom config path' 
 	flux cancel ${DWS_JOBID} &&
 	cp $REAL_HOME/.kube/config ./kubeconfig
 	R=$(flux R encode -r 0) &&
-    echo "
+	echo "
 [rabbit]
 kubeconfig = \"$PWD/kubeconfig\"
-    " | flux config load &&
+	" | flux config load &&
 	DWS_JOBID=$(flux submit \
 		--setattr=system.alloc-bypass.R="$R" \
 		-o per-resource.type=node --output=dws2.out --error=dws2.err \
