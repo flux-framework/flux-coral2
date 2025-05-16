@@ -90,6 +90,13 @@ Rabbit jobs may sometimes become stuck in the ``CLEANUP`` state, while they
 wait for kubernetes to report that rabbit file systems have unmounted and
 cleaned up.
 
+The first thing to do is always to cancel the job and wait a short while to see
+if the job cleans up. There is a chance that a job may be stuck while moving
+data, and an exception (such as a `cancel` exception) occurring during the
+``CLEANUP`` state will tell the Flux plugins to abandon data movement. However,
+if the reason the job is stuck is a hung unmount or a rabbit file system that
+won't clean up, canceling the job will not help.
+
 In ``flux-coral2`` version ``0.22.0`` and greater, Flux can be configured to
 end the epilog after a timeout (see :ref:`rabbitconfig`). To remove the
 epilog manually without waiting for the timeout, run
