@@ -251,7 +251,6 @@ test_expect_success 'job submission with valid DW string works' '
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event.json &&
 	jq -e .context.variables env-event.json &&
-	jq -e ".context.copy_offload == false" env-event.json &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
 	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
@@ -297,7 +296,6 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event2.json &&
 	jq -e .context.variables env-event2.json &&
-	jq -e ".context.copy_offload == true" env-event2.json &&
 	jq -e .context.variables.DW_WORKFLOW_TOKEN env-event2.json &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -782,7 +780,6 @@ test_expect_success 'job submission with valid DW string works with teardown_aft
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event.json &&
 	jq -e .context.variables env-event.json &&
-	jq -e ".context.copy_offload == false" env-event.json &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
 	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \

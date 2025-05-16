@@ -32,7 +32,6 @@ def create_cb(fh, t, msg, arg):
         payload={
             "id": msg.payload["jobid"],
             "resources": msg.payload["resources"],
-            "copy-offload": False,
             "exclude": args.exclude,
         },
     )
