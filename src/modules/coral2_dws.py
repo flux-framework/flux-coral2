@@ -595,7 +595,7 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion, secrets_ap
         LOGGER.warning("unrecognized workflow '%s' in event stream", workflow_name)
         return
     winfo = WorkflowInfo.get(jobid)
-    if event.get("TYPE") == "DELETED":
+    if event.get("TYPE") == "DELETED" or event.get("type") == "DELETED":
         # the workflow has been deleted, we can forget about it
         WorkflowInfo.remove(jobid)
         return
