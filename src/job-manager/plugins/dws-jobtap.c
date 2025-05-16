@@ -664,18 +664,16 @@ static void resource_update_msg_cb (flux_t *h,
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
     json_t *resources = NULL, *constraints = NULL;
-    int copy_offload, state;
+    int state;
     const char *errmsg = NULL, *exclude_str;
     flux_plugin_arg_t *job;
 
     if (flux_msg_unpack (msg,
-                         "{s:I, s:o, s:b, s?s, s:s}",
+                         "{s:I, s:o, s?s, s:s}",
                          "id",
                          &jobid,
                          "resources",
                          &resources,
-                         "copy-offload",
-                         &copy_offload,
                          "errmsg",
                          &errmsg,
                          "exclude",
@@ -707,20 +705,14 @@ static void resource_update_msg_cb (flux_t *h,
             goto error;
         }
     }
-    if (flux_jobtap_job_aux_set (p,
-                                 jobid,
-                                 "flux::dws-copy-offload",
-                                 copy_offload ? (void *)1 : (void *)0,
-                                 NULL)
-            < 0
-        || flux_jobtap_jobspec_update_id_pack (p,
-                                               (flux_jobid_t)jobid,
-                                               "{s:O, s:o*}",
-                                               "resources",
-                                               resources,
-                                               "attributes.system.constraints",
-                                               constraints)
-               < 0) {
+    if (flux_jobtap_jobspec_update_id_pack (p,
+                                            (flux_jobid_t)jobid,
+                                            "{s:O, s:o*}",
+                                            "resources",
+                                            resources,
+                                            "attributes.system.constraints",
+                                            constraints)
+        < 0) {
         errmsg = "could not update jobspec with new constraints and resources";
         flux_log_error (h, "%s: %s", idf58 (jobid), errmsg);
         raise_job_exception (p, jobid, PLUGIN_NAME, "Internal error: failed to update jobspec");
@@ -757,15 +749,11 @@ static void prolog_remove_msg_cb (flux_t *h,
     json_int_t jobid;
     json_t *env = NULL;
     int *prolog_active, junk_prolog_active = 1;
-    int copy_offload = 0;
     const char *errmsg = "";
 
     if (flux_msg_unpack (msg, "{s:I, s:o}", "id", &jobid, "variables", &env) < 0) {
         errmsg = "received malformed dws.prolog-remove RPC";
         goto error;
-    }
-    if (flux_jobtap_job_aux_get (p, (flux_jobid_t)jobid, "flux::dws-copy-offload")) {
-        copy_offload = 1;
     }
     if (!(prolog_active = flux_jobtap_job_aux_get (p, (flux_jobid_t)jobid, "dws_prolog_active"))) {
         // if we can't fetch the aux, proceed as normal.
@@ -774,15 +762,7 @@ static void prolog_remove_msg_cb (flux_t *h,
         prolog_active = &junk_prolog_active;  // at least it's a valid address
         flux_log_error (h, "failed to fetch 'dws_prolog_active' aux for %s", idf58 (jobid));
     }
-    if (flux_jobtap_event_post_pack (p,
-                                     jobid,
-                                     "dws_environment",
-                                     "{s:O, s:b}",
-                                     "variables",
-                                     env,
-                                     "copy_offload",
-                                     copy_offload)
-            < 0
+    if (flux_jobtap_event_post_pack (p, jobid, "dws_environment", "{s:O}", "variables", env) < 0
         || flux_jobtap_job_aux_set (p, jobid, "flux::dws_run_started", (void *)1, NULL) < 0) {
         errmsg = "failed to post dws_environment event";
         dws_prolog_finish (h, p, jobid, 0, errmsg, prolog_active);

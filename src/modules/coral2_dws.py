@@ -698,18 +698,13 @@ def handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion):
     Look at directivebreakdown object to see how to modify the job's jobspec.
     """
     resources = winfo.resources
-    copy_offload = False
     if resources is None:
         resources = flux.job.kvslookup.job_kvs_lookup(handle, winfo.jobid)["jobspec"][
             "resources"
         ]
     try:
         if not disable_fluxion:
-            resources, copy_offload = directivebreakdown.apply_breakdowns(
-                k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
-            )
-        else:
-            _, copy_offload = directivebreakdown.apply_breakdowns(
+            resources = directivebreakdown.apply_breakdowns(
                 k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
             )
     except ValueError as exc:
@@ -719,7 +714,6 @@ def handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion):
     payload = {
         "id": winfo.jobid,
         "resources": resources,
-        "copy-offload": copy_offload,
         "exclude": (
             storage.EXCLUDE_PROPERTY
             if disable_fluxion
@@ -729,8 +723,8 @@ def handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion):
     }
     if errmsg is not None:
         payload["errmsg"] = errmsg
-    if resources is not None or copy_offload is not None:
-        # both are None if the resource-update has already been applied
+    if resources is not None:
+        # resources is None if the resource-update has already been applied
         handle.rpc(
             "job-manager.dws.resource-update",
             payload=payload,

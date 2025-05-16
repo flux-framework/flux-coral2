@@ -166,7 +166,7 @@ def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
                     "jobspec resources has top level 'slot' entry with "
                     f"{subresource['type']} below it"
                 )
-        return (None, None)
+        return None
     if len(resources) > 1 or resources[0]["type"] != "node":
         raise ValueError(
             "jobspec resources must have a single top-level 'node' entry, "
@@ -188,11 +188,8 @@ def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
         }
     ]
     allocation_applied = False
-    copy_offload = False
     # update ssd_resources to the right number
     for breakdown in breakdown_list:
-        if "copy-offload" in breakdown["status"].get("requires", []):
-            copy_offload = True
         if breakdown["kind"] != "DirectiveBreakdown":
             raise ValueError(f"unsupported breakdown kind {breakdown['kind']!r}")
         if not breakdown["status"]["ready"]:
@@ -205,8 +202,8 @@ def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
                 allocation_applied = True
     limits.validate(nodecount)
     if not allocation_applied:
-        return (old_resources, copy_offload)
-    return (new_resources, copy_offload)
+        return old_resources
+    return new_resources
 
 
 def fetch_breakdowns(k8s_api, workflow):
