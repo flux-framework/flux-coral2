@@ -804,7 +804,7 @@ def heartbeat_cb(_reactor, watcher, _r, profiler):
     )
     stream = io.StringIO()
     profiler.disable()
-    ps = pstats.Stats(profiler, stream=stream).sort_stats(pstats.SortKey.CUMULATIVE)
+    ps = pstats.Stats(profiler, stream=stream).sort_stats("cumulative")
     ps.print_stats(20)
     LOGGER.debug(
         "Profiling stats below\n%s\n%s\n%s", "=" * 30, stream.getvalue(), "=" * 30
