@@ -70,16 +70,16 @@ Flux's interactions with the rabbits.
   before killing the associated job. Defaults to 10 seconds.
 
 **teardown_after** (float)
-  (optional) Maximum time for a workflow to be in either `PostRun` or `DataOut` state
+  (optional) Maximum time for a workflow to be in either ``PostRun`` or ``DataOut`` state
   before it is moved to Teardown. If unset or negative, allow the workflow to stay
   in those states indefinitely. See also the ``epilog-timeout`` option to
-  :man7:`dws-jobtap.so`, which is similar but takes more drastic action. It may be
+  :man1:`flux-jobtap-dws`, which is similar but takes more drastic action. It may be
   useful to set the ``teardown_after`` timeout to something smaller than the
   ``epilog-timeout``, to give the NNF software time to clean up before the
   ``epilog-timeout`` takes effect.
 
 **postrun_timeout** (float)
-  (optional) Maximum time for a workflow to be in the `PostRun` state
+  (optional) Maximum time for a workflow to be in the ``PostRun`` state
   before it is moved to Teardown. If unset or negative, do not set a timer.
   If both ``postrun_timeout`` and ``teardown_after`` are set, ``postrun_timeout``
   should be set to a smaller number.
