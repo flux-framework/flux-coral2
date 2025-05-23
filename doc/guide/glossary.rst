@@ -4,32 +4,31 @@ Glossary
 .. glossary::
 
   APU
-    Acronym (general): Accelerated Processing Unit.  CPU and GPU are combined
-    on a single chip.
+    Accelerated Processing Unit.  CPU and GPU are combined on a single chip.
 
   CORAL
-    Acronym (U.S. Dept. of Energy): *Collaboration of Oak Ridge, Argonne,
-    and Livermore*.  The first CORAL procurement was awarded to IBM and
-    brought the Power-9 based Sierra system to Livermore in 2018.
+    Collaboration of Oak Ridge, Argonne, and Livermore.  The first CORAL
+    procurement was awarded to IBM and brought the Power-9 based pre-exascale
+    systems *Sierra* to Livermore and *Summit* to Oak Ridge in 2018.
 
   CORAL-2
-    The second CORAL procurement was awarded to HPE and brought the
-    Cray EX based El Capitan system to Livermore in 2024.
+    The second CORAL procurement was awarded to HPE and brought the Cray EX
+    based exascale systems *Frontier* to Oak Ridge in 2022 and *El Capitan*
+    to Livermore in 2024.
 
   CXI
-    Acronym (HPE): unknown.  The CXI library supports communication over
-    the Cray Cassini NIC, interfacing directly with its kernel device driver.
+    The Cassini 200G NIC.
 
   MPICH
     The Argonne MPI implementation.  Cray MPICH is a proprietary fork of MPICH.
 
   PALS
-    Acronym (HPE): *Parallel Application Launch Service*.  The PALS library
-    provides placement, interconnect, and debugger information to applications.
+    Parallel Application Launch Service.  The Cray PALS library provides
+    placement, interconnect, and debugger information to applications.
 
   PMI
-    Acronym (general): *Process Management Interface*. PMI is a quasi-standard
-    bootstrap API for MPI implementations.
+    Process Management Interface, a quasi-standard bootstrap API and protocol
+    for MPI implementations.
 
   Rabbit
     HPE near-node-local storage product that interfaces with nearby Cray EX
