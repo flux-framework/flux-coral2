@@ -55,6 +55,7 @@ NIC
 pes
 scalable
 VNI
+VNIs
 Capitan
 Cassini
 El
@@ -162,3 +163,11 @@ stdout
 DataOut
 PostRun
 prolog
+RDMA
+intra
+PID
+png
+exascale
+eXascale
+topologies
+pre
