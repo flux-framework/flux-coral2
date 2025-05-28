@@ -130,6 +130,27 @@ PKG_CHECK_MODULES([PALS], [libpals], [HAVE_PALS=yes], [HAVE_PALS=no])
 
 AM_CONDITIONAL([HAVE_PALS], [test "x$HAVE_PALS" = "xyes"])
 
+# libcxi is optional unless --with-cray-libcxi.
+# The cxi_service(1) utility is packaged with libcxi.
+PKG_CHECK_MODULES([CXI], [libcxi], [HAVE_CXI=yes], [HAVE_CXI=no])
+AC_PATH_PROG([CXI_SERVICE], [cxi_service])
+AC_ARG_WITH([cray-libcxi],
+    AS_HELP_STRING([--with-cray-libcxi], [Require interface for CXI service setup on the Cassini NIC])
+)
+AC_CHECK_HEADERS([libcxi/libcxi.h])
+AS_IF([test "x$with_cray_libcxi" = "xyes"], [
+    AS_IF([test "x$HAVE_CXI" = "xno"], [
+        AC_MSG_ERROR([Cray libcxi library was not found])
+    ])
+    AS_IF([test "x$CXI_SERVICE" = "x"], [
+        AC_MSG_ERROR([Cray cxi_service executable was not found])
+    ])
+])
+AM_CONDITIONAL([HAVE_CXI], [test "x$HAVE_CXI" = "xyes"])
+AS_IF([test "x$HAVE_CXI" = "xyes"], [
+    AC_DEFINE([HAVE_CXI], [1], [Have libcxi interface to Cassini NIC])
+])
+
 ##
 # Project directories
 ##
