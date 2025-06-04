@@ -200,8 +200,8 @@ def main():
         help="Do not throw an error if nodes are found in DWS but not in R",
     )
     parser.add_argument(
-        "--chunks-per-nnf",
         "-c",
+        "--chunks-per-nnf",
         help=(
             "The number of ways to split a rabbit/nnf for Flux scheduling. "
             "Higher numbers allow finer-grained scheduling at the possible cost "

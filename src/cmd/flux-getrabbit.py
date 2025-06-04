@@ -18,16 +18,16 @@ def read_args():
         description=("Map compute nodes to rabbits and vice versa."),
     )
     parser.add_argument(
-        "--computes",
         "-c",
+        "--computes",
         nargs="+",
         metavar="HOSTS",
         type=Hostlist,
         help="hostlists of compute nodes, to map to rabbits",
     )
     parser.add_argument(
-        "--jobids",
         "-j",
+        "--jobids",
         nargs="+",
         metavar="JOBID",
         help="jobids, to map to rabbits",
