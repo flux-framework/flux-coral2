@@ -23,15 +23,15 @@ def main():
         description=("Create a mapping between compute nodes and rabbit nodes"),
     )
     parser.add_argument(
-        "--kubeconfig",
         "-k",
+        "--kubeconfig",
         default=None,
         metavar="FILE",
         help="Path to kubeconfig file to use",
     )
     parser.add_argument(
-        "--indent",
         "-i",
+        "--indent",
         default=None,
         type=int,
         metavar="N",
