@@ -66,6 +66,7 @@ EXTRA_DIST = \
 	requirements.txt \
 	guide/glossary.rst \
 	guide/admin.rst \
+	guide/images/dragonfly.png \
 	$(RST_FILES) \
 	man1/index.rst
 
