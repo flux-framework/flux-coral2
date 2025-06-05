@@ -67,6 +67,7 @@ EXTRA_DIST = \
 	guide/glossary.rst \
 	guide/admin.rst \
 	guide/images/dragonfly.png \
+	guide/slingshot.rst \
 	$(RST_FILES) \
 	man1/index.rst
 
