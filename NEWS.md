@@ -1,3 +1,20 @@
+flux-coral2 0.24.0 - 2025-06-10
+-------------------------------
+
+### New Features
+ * dws: drop copy offload (#361)
+ * dws: status rpc (#360)
+ * dws: heartbeat and profile data (#359)
+
+### Fixes
+ * cmd: fix help messages (#366)
+ * dws: remove python 3.7 feature (#363)
+
+### Documentation
+ * doc: fix link and style (#362)
+ * doc: document double cancellation behavior (#343)
+
+
 flux-coral2 0.23.1 - 2025-05-13
 -------------------------------
 
