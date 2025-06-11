@@ -14,4 +14,5 @@ libutil_la_SOURCES = \
 	errprintf.h \
 	errprintf.c \
 	eventlog.h \
-	eventlog.c
+	eventlog.c \
+	idf58.h
