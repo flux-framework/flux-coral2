@@ -119,6 +119,12 @@ AC_TYPE_SIZE_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
 
+# For CCAN
+AC_C_BIGENDIAN(
+  [AC_DEFINE([HAVE_BIG_ENDIAN], [1], [big endian])],
+  [AC_DEFINE([HAVE_LITTLE_ENDIAN], [1], [little endian])]
+)
+
 # Checks for library functions.
 AC_FUNC_MALLOC
 AC_CHECK_FUNCS([gettimeofday localtime_r memset strchr strdup strerror strstr strtol strtoul])
@@ -203,6 +209,7 @@ AC_CONFIG_FILES([Makefile
   src/Makefile
   src/common/Makefile
   src/common/libtap/Makefile
+  src/common/libccan/Makefile
   src/common/libutil/Makefile
   src/common/libapinfo/Makefile
   src/job-manager/Makefile

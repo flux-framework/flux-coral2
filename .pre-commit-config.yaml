@@ -1,5 +1,5 @@
 files: '^(src|t)/.*(\.py|\.h|\.hpp|\.c|\.cpp)'
-exclude: "^(.*((pyco|lib)tap).*)"
+exclude: "^(t/python/pycotap|src/common/libtap|src/common/libccan)"
 repos:
   - repo: meta
     hooks:
