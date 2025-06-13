@@ -6,6 +6,7 @@ AM_LDFLAGS = \
 	$(CODE_COVERAGE_LIBS)
 
 AM_CPPFLAGS = \
+	-I$(top_srcdir)/src/common/libccan \
 	$(FLUX_CORE_CFLAGS) \
 	$(FLUX_HOSTLIST_CFLAGS) \
 	$(SODIUM_CFLAGS) \
@@ -23,8 +24,7 @@ dws_jobtap_la_SOURCES = \
 
 dws_jobtap_la_LDFLAGS = \
 	$(AM_LDFLAGS) \
-	-module \
-	-avoid-version
+	$(fluxplugin_ldflags) -module
 
 dws_jobtap_la_LIBADD= \
 	$(FLUX_CORE_LIBS) \
@@ -35,8 +35,7 @@ cray_pmi_bootstrap_la_SOURCES = \
 
 cray_pmi_bootstrap_la_LDFLAGS = \
 	$(AM_LDFLAGS) \
-	-module \
-	-avoid-version
+	$(fluxplugin_ldflags) -module
 
 cray_pmi_bootstrap_la_LIBADD= \
 	$(FLUX_CORE_LIBS) \
