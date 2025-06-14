@@ -8,6 +8,10 @@ if test_have_prereq NO_DWS_K8S; then
 	skip_all='skipping DWS workflow tests due to no DWS K8s'
 	test_done
 fi
+if ! test_have_prereq FLUXION; then
+        skip_all='skipping tests since fluxion is not installed'
+        test_done
+fi
 
 flux version | grep -q libflux-security && test_set_prereq FLUX_SECURITY
 

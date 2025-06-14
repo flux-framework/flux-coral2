@@ -21,6 +21,10 @@ if test_have_prereq NO_DWS_K8S; then
     skip_all='skipping DWS workflow tests due to no DWS K8s'
     test_done
 fi
+if ! test_have_prereq FLUXION; then
+    skip_all='skipping tests since fluxion is not installed'
+    test_done
+fi
 
 test_expect_success 'smoke test to ensure the storage resources are expected' '
 	test $(kubectl get storages | wc -l) -eq 3 &&
