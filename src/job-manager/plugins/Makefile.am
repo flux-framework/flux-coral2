@@ -16,7 +16,7 @@ jobtapdir = \
 
 jobtap_LTLIBRARIES = \
 	dws-jobtap.la \
-	cray_pals_port_distributor.la
+	cray-pmi-bootstrap.la
 
 dws_jobtap_la_SOURCES = \
 	dws-jobtap.c
@@ -30,15 +30,15 @@ dws_jobtap_la_LIBADD= \
 	$(FLUX_CORE_LIBS) \
 	$(JANSSON_LIBS)
 
-cray_pals_port_distributor_la_SOURCES = \
-	cray_pals_port_distributor.c
+cray_pmi_bootstrap_la_SOURCES = \
+	cray-pmi-bootstrap.c
 
-cray_pals_port_distributor_la_LDFLAGS = \
+cray_pmi_bootstrap_la_LDFLAGS = \
 	$(AM_LDFLAGS) \
 	-module \
 	-avoid-version
 
-cray_pals_port_distributor_la_LIBADD= \
+cray_pmi_bootstrap_la_LIBADD= \
 	$(FLUX_CORE_LIBS) \
 	$(SODIUM_LIBS) \
 	$(FLUX_HOSTLIST_LIBS) \

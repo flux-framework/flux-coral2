@@ -8,8 +8,8 @@
  * SPDX-License-Identifier: LGPL-3.0
 \************************************************************/
 
-/* cray_pals_port_distributor.c - Distribute port numbers for use
- * by Cray's libpals. See also `src/shell/plugins/cray_pals.c`.
+/* cray-pmi-bootstrap.c - Distribute port numbers and secrets
+ * for use by Cray's libpmi. See also `src/shell/plugins/cray_pals.c`.
  */
 
 #include <stdio.h>
@@ -23,9 +23,9 @@
 #include <flux/hostlist.h>
 #include <flux/jobtap.h>
 
-#define CRAY_PALS_AUX_NAME "cray::libpals::ports"
+#define CRAY_PMI_AUX_NAME "cray::libpmi::ports"
 
-#define PLUGIN_NAME "cray_pals_port_distributor"
+#define PLUGIN_NAME "cray-pmi-bootstrap"
 
 struct port_range {
     json_int_t *available_ports;
@@ -75,7 +75,7 @@ static struct hostlist *hostlist_from_array (json_t *nodelist_array)
 }
 
 /* Calculate the number of shells in the job and then optionally
- * post a cray_port_distribution event to the job's eventlog.
+ * post a cray-pmi-bootstrap event to the job's eventlog.
  */
 static int run_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
 {
@@ -116,14 +116,14 @@ static int run_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args,
         || !(arr = json_pack ("[I, I]", port1, port2))
         || flux_jobtap_event_post_pack (p,
                                         jobid,
-                                        "cray_port_distribution",
+                                        "cray-pmi-bootstrap",
                                         "{s:O, s:I}",
                                         "ports",
                                         arr,
                                         "random_integer",
                                         random)
                < 0
-        || flux_jobtap_job_aux_set (p, jobid, CRAY_PALS_AUX_NAME, arr, (flux_free_f)json_decref)
+        || flux_jobtap_job_aux_set (p, jobid, CRAY_PMI_AUX_NAME, arr, (flux_free_f)json_decref)
                < 0) {
         json_decref (arr);
         flux_log_error (h,
@@ -151,10 +151,10 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
 
     if (!(h = flux_jobtap_get_flux (p)))
         return -1;
-    if (!(array = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, CRAY_PALS_AUX_NAME)))
+    if (!(array = flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, CRAY_PMI_AUX_NAME)))
         return 0;
     if (!json_is_array (array)) {
-        flux_log_error (h, PLUGIN_NAME ": " CRAY_PALS_AUX_NAME " aux is not array");
+        flux_log_error (h, PLUGIN_NAME ": " CRAY_PMI_AUX_NAME " aux is not array");
         return -1;
     }
     json_array_foreach (array, index, value) {
@@ -162,7 +162,7 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
             flux_log_error (h,
                             PLUGIN_NAME
                             ": "
-                            "Malformed cray_port_distribution event");
+                            "Malformed cray-pmi-bootstrap event");
             return -1;
         }
         if (set_port (range, portnum) < 0) {
@@ -190,7 +190,7 @@ int flux_plugin_init (flux_plugin_t *p)
     json_int_t port_min, port_max, size;
     flux_t *h;
 
-    if (!(h = flux_jobtap_get_flux (p)) || flux_plugin_set_name (p, "cray-pals") < 0)
+    if (!(h = flux_jobtap_get_flux (p)))
         return -1;
     if (flux_plugin_conf_unpack (p, "{s:I, s:I}", "port-min", &port_min, "port-max", &port_max)
         < 0) {

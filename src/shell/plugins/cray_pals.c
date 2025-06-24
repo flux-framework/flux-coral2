@@ -69,8 +69,8 @@
  * corresponding to the PMI_CONTROL_PORT variable. If not provided,
  * libpals will open the sockets itself.
  *
- * See also `src/job-manager/plugins/cray_pals_port_distributor.c` for
- * the PMI_CONTROL_PORT distribution mechanism.
+ * See also `src/job-manager/plugins/cray-pmi-bootstrap.c` which provides
+ * values for PMI_CONTROL_PORT and PMI_SHARED_SECRET.
  */
 
 struct pmi_bootstrap_info {
@@ -243,9 +243,9 @@ error:
     return -1;
 }
 
-/* Read events synchronously, looking for  the "cray_port_distribution" event.
+/* Read events synchronously, looking for  the "cray-pmi-bootstrap" event.
  * The following outcomes are possible:
- * - "cray_port_distribution" was posted: populate 'pmi', set pmi->valid true,
+ * - "cray-pmi-bootstrap" was posted: populate 'pmi', set pmi->valid true,
  *   return 0.
  * - "clean" event was encountered (module not loaded?): leave pmi->valid false,
  *   return 0
@@ -266,15 +266,15 @@ static int read_future (flux_future_t *fut, struct pmi_bootstrap_info *pmi, doub
             return -1;
         }
         if (!strcmp (name, "start")) {
-            /*  'start' event with no cray_port_distribution event.
+            /*  'start' event with no cray-pmi-bootstrap event.
              *  assume cray-pals jobtap plugin is not loaded.
              */
             shell_debug (
-                "cray_pals_port_distributor jobtap plugin is not "
+                "cray-pmi-bootstrap jobtap plugin is not "
                 "loaded: proceeding without PMI_CONTROL_PORT set");
             return 0;
         }
-        if (!strcmp (name, "cray_port_distribution")) {
+        if (!strcmp (name, "cray-pmi-bootstrap")) {
             if (json_unpack (context,
                              "{s:[ii] s:I}",
                              "ports",
@@ -283,7 +283,7 @@ static int read_future (flux_future_t *fut, struct pmi_bootstrap_info *pmi, doub
                              "random_integer",
                              &pmi->secret)
                 < 0) {
-                shell_log_error ("Error unpacking 'cray_port_distribution' event");
+                shell_log_error ("Error unpacking 'cray-pmi-bootstrap' event");
                 json_decref (o);
                 return -1;
             }

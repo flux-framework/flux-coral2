@@ -14,40 +14,40 @@ flux setattr log-stderr-level 1
 
 unset PALS_RANKID PALS_NODEID PMI_CONTROL_PORT PMI_SHARED_SECRET
 
-test_expect_success 'job-manager: load cray_pals_port_distributor plugin with invalid config' '
-	test_expect_code 1 flux jobtap load ${JOBTAP_PLUGINPATH}/cray_pals_port_distributor.so \
+test_expect_success 'job-manager: load cray-pmi-bootstrap plugin with invalid config' '
+	test_expect_code 1 flux jobtap load ${JOBTAP_PLUGINPATH}/cray-pmi-bootstrap.so \
 		port-min=0 port-max=12000 &&
-	test_expect_code 1 flux jobtap load ${JOBTAP_PLUGINPATH}/cray_pals_port_distributor.so \
+	test_expect_code 1 flux jobtap load ${JOBTAP_PLUGINPATH}/cray-pmi-bootstrap.so \
 		port-min=11000 port-max=120000 &&
-	test_expect_code 1 flux jobtap load ${JOBTAP_PLUGINPATH}/cray_pals_port_distributor.so \
+	test_expect_code 1 flux jobtap load ${JOBTAP_PLUGINPATH}/cray-pmi-bootstrapso \
 		port-min=11000 port-max=11010
 '
 
-test_expect_success 'job-manager: load cray_pals_port_distributor plugin' '
-	flux jobtap load ${JOBTAP_PLUGINPATH}/cray_pals_port_distributor.so \
+test_expect_success 'job-manager: load cray-pmi-bootstrap plugin' '
+	flux jobtap load ${JOBTAP_PLUGINPATH}/cray-pmi-bootstrap.so \
 		port-min=11000 port-max=12000 &&
-	flux jobtap list -a | grep cray_pals_port_distributor.so
+	flux jobtap list -a | grep cray-pmi-bootstrap.so
 '
 
-test_expect_success 'job-manager: pals port distributor works' '
+test_expect_success 'job-manager: cray-pmi-bootstrap plugin works' '
 	jobid=$(flux submit -N2 -n2 true) &&
-	flux job wait-event -vt 15 ${jobid} cray_port_distribution &&
-	flux job wait-event -mports=[11999,11998] ${jobid} cray_port_distribution &&
+	flux job wait-event -vt 15 ${jobid} cray-pmi-bootstrap &&
+	flux job wait-event -mports=[11999,11998] ${jobid} cray-pmi-bootstrap &&
 	flux job wait-event -vt 5 ${jobid} clean
 '
 
-test_expect_success 'job-manager: pals port distributor saves ports for multi-shell jobs' '
+test_expect_success 'job-manager: cray-pmi-bootstrap saves ports for multi-shell jobs' '
 	jobid=$(flux submit -n1 true) &&
-	test_must_fail flux job wait-event -vt 15 ${jobid} cray_port_distribution
+	test_must_fail flux job wait-event -vt 15 ${jobid} cray-pmi-bootstrap
 '
 
 # as long as it's only ever one job at a time the ports should be deterministic
-test_expect_success 'job-manager: pals port distributor reclaims ports' '
+test_expect_success 'job-manager: cray-pmi-bootstrap reclaims ports' '
 	flux run -N2 -n2 true &&
 	jobid=$(flux submit -N2 -n2 true) &&
-	flux job wait-event -vt 15 ${jobid} cray_port_distribution &&
-	(flux job wait-event -mports=[11999,11998] ${jobid} cray_port_distribution ||
-	flux job wait-event -mports=[11998,11999] ${jobid} cray_port_distribution) &&
+	flux job wait-event -vt 15 ${jobid} cray-pmi-bootstrap &&
+	(flux job wait-event -mports=[11999,11998] ${jobid} cray-pmi-bootstrap ||
+	flux job wait-event -mports=[11998,11999] ${jobid} cray-pmi-bootstrap) &&
 	flux job wait-event -vt 5 ${jobid} clean
 '
 
@@ -316,7 +316,7 @@ test_expect_success 'shell: pals shell plugin handles resource oversubscription'
 '
 
 test_expect_success 'shell: pals shell plugin ignores missing jobtap plugin' '
-	flux jobtap remove cray_pals_port_distributor.so &&
+	flux jobtap remove cray-pmi-bootstrap.so &&
 	flux run -o verbose -o userrc=$(pwd)/$USERRC_NAME \
 		-N2 -n2 hostname > no-jobtap.log 2>&1 &&
 	test_debug "cat no-jobtap.log" &&
