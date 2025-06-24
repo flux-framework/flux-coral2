@@ -33,12 +33,6 @@ struct port_range {
     json_int_t maxsize;
 };
 
-struct plugin_range_jobid_triple {
-    flux_plugin_t *plugin;
-    struct port_range *range;
-    flux_jobid_t jobid;
-};  // for passing to flux_future_t callback
-
 static json_int_t get_port (struct port_range *range)
 {
     if (range->fill <= 0) {
@@ -80,43 +74,48 @@ static struct hostlist *hostlist_from_array (json_t *nodelist_array)
     return hlist;
 }
 
-/* Callback to KVS lookup for a job's R.
- * Calculate the number of shells in the job and then optionally
- * post a cray_port_distribution to the job's eventlog.
+/* Calculate the number of shells in the job and then optionally
+ * post a cray_port_distribution event to the job's eventlog.
  */
-static void count_job_shells (flux_future_t *fut, void *arg)
+static int run_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
 {
-    struct plugin_range_jobid_triple *triple = arg;
+    struct port_range *range = arg;
+    flux_t *h;
+    flux_jobid_t jobid;
     json_t *nodelist;
     struct hostlist *hlist = NULL;
     json_int_t port1, port2;
-    flux_t *h;
     json_t *arr = NULL;
-    int prolog_status = 0;
     json_int_t random;
 
-    if (!(h = flux_future_get_flux (fut))) {
-        prolog_status = 1;
-        goto cleanup;
-    }
-    if (flux_kvs_lookup_get_unpack (fut, "{s:{s:o}}", "execution", "nodelist", &nodelist) < 0
+    if (!(h = flux_jobtap_get_flux (p))
+        || flux_plugin_arg_unpack (args,
+                                   FLUX_PLUGIN_ARG_IN,
+                                   "{s:I s:{s:{s:o}}}",
+                                   "id",
+                                   &jobid,
+                                   "R",
+                                   "execution",
+                                   "nodelist",
+                                   &nodelist)
+               < 0
         || !(hlist = hostlist_from_array (nodelist))) {
         flux_log_error (h,
                         PLUGIN_NAME
                         ": "
-                        "Error fetching R from shell-counting future");
-        prolog_status = 1;
-        goto cleanup;
+                        "Error decoding nodelist from R");
+        return -1;
     }
+
     if (hostlist_count (hlist) == 1) {
         goto cleanup;  // no need to post ports
     }
     randombytes_buf (&random, sizeof (json_int_t));
-    // assign ports to the job
-    if ((port1 = get_port (triple->range)) < 0 || (port2 = get_port (triple->range)) < 0
+    // assign ports and secret to the job and post event
+    if ((port1 = get_port (range)) < 0 || (port2 = get_port (range)) < 0
         || !(arr = json_pack ("[I, I]", port1, port2))
-        || flux_jobtap_event_post_pack (triple->plugin,
-                                        triple->jobid,
+        || flux_jobtap_event_post_pack (p,
+                                        jobid,
                                         "cray_port_distribution",
                                         "{s:O, s:I}",
                                         "ports",
@@ -124,75 +123,19 @@ static void count_job_shells (flux_future_t *fut, void *arg)
                                         "random_integer",
                                         random)
                < 0
-        || flux_jobtap_job_aux_set (triple->plugin,
-                                    triple->jobid,
-                                    CRAY_PALS_AUX_NAME,
-                                    arr,
-                                    (flux_free_f)json_decref)
+        || flux_jobtap_job_aux_set (p, jobid, CRAY_PALS_AUX_NAME, arr, (flux_free_f)json_decref)
                < 0) {
-        if (arr)
-            json_decref (arr);
-        prolog_status = 1;
+        json_decref (arr);
         flux_log_error (h,
                         PLUGIN_NAME
                         ": "
                         "Failed to post ports to job");
-        goto cleanup;
+        return -1;
     }
 
 cleanup:
-    if (flux_jobtap_prolog_finish (triple->plugin,
-                                   triple->jobid,
-                                   "cray-pals-port-distributor",
-                                   prolog_status)
-        < 0)
-        flux_log_error (h, PLUGIN_NAME ": prolog_finish");
-    if (hlist)
-        hostlist_destroy (hlist);
-    flux_future_destroy (fut);
-    free (triple);
-    return;
-}
-
-/* Create a future to get a job's R. Callback to the future will grab
- * free ports and write them into the job's event log.
- */
-static int run_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
-{
-    flux_t *h;
-    flux_jobid_t jobid;
-    char buf[1024];
-    flux_future_t *fut = NULL;
-    struct plugin_range_jobid_triple *triple;
-    // 'arg' is 'struct port_range *'
-
-    if (!(h = flux_jobtap_get_flux (p))
-        || flux_plugin_arg_unpack (args, FLUX_PLUGIN_ARG_IN, "{s:I}", "id", &jobid) < 0
-        || !(triple = malloc (sizeof (struct plugin_range_jobid_triple))))
-        return -1;
-    triple->range = arg;
-    triple->jobid = jobid;
-    triple->plugin = p;
-    if (flux_job_kvs_key (buf, sizeof (buf), jobid, "R") < 0
-        || !(fut = flux_kvs_lookup (h, NULL, 0, buf))
-        || flux_future_then (fut, -1., count_job_shells, triple) < 0) {
-        if (fut)
-            flux_future_destroy (fut);
-        flux_log_error (h,
-                        PLUGIN_NAME
-                        ": "
-                        "Error creating shell-counting future");
-        goto error;
-    }
-    if (flux_jobtap_prolog_start (p, "cray-pals-port-distributor") < 0) {
-        flux_log_error (h, PLUGIN_NAME ": prolog_start");
-        goto error;
-    }
-    // 'triple' freed in callback
+    hostlist_destroy (hlist);
     return 0;
-error:
-    free (triple);
-    return -1;
 }
 
 /* On a job's cleanup event, get the ports and return them
