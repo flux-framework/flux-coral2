@@ -4,6 +4,11 @@ test_description='Test dws2jgf command with no dws'
 
 . $(dirname $0)/sharness.sh
 
+if ! test_have_prereq FLUXION; then
+	skip_all='skipping tests since fluxion is not installed'
+	test_done
+fi
+
 FLUX_SIZE=2
 
 test_under_flux ${FLUX_SIZE} job

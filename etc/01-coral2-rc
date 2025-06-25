@@ -10,5 +10,5 @@ jobtap_load() {
 }
 
 if test $(flux getattr rank) -eq 0; then
-    jobtap_load cray_pals_port_distributor.so
+    jobtap_load cray-pmi-bootstrap.so
 fi

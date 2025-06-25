@@ -73,7 +73,7 @@ in all Flux instances.  Edit ``/etc/flux/shell/initrc.lua`` to contain:
       shell.options['pmi'] = 'cray-pals,simple'
   end
 
-The ``cray_pals_port_distributor.so`` jobtap plugin, required by the above,
+The ``cray-pmi-bootstrap.so`` jobtap plugin, required by the above,
 is loaded automatically via ``/etc/flux/rc1.d/01-coral2-rc``.
 
 *******

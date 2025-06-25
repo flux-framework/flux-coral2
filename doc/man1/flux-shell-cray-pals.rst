@@ -56,7 +56,7 @@ SHELL OPTIONS
 .. option:: cray-pals.timeout=SECONDS
 
   The plugin synchronously watches the job eventlog for data from the
-  ``cray_pals_port_distributor`` jobtap plugin.  The job is aborted
+  ``cray-pmi-bootstrap`` jobtap plugin.  The job is aborted
   if the eventlog does not make progress for the specified number of
   seconds.  Setting the timeout to a negative value disables it.
   Default: 10.
