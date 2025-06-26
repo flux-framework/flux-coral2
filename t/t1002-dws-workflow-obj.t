@@ -277,11 +277,14 @@ test_expect_success 'job submission with valid DW string works' '
 '
 
 test_expect_success 'job requesting copy-offload in DW string works' '
-	kubectl patch nnfcontainerprofiles -nnnf-system copy-offload-default --type=json \
-		-p "[{\"op\":\"replace\", \"path\":\"/data/storages/1/optional\", \"value\": true}]" &&
+	kubectl get nnfcontainerprofiles -nnnf-system copy-offload-default -ojson \
+		| jq  ".data.storages[1].optional = true | .metadata.name = \"flux-test-copyoffload\"
+		| .data.mpiSpec.launcher.containers[0].image = \"ghcr.io/nearnodeflash/nnf-dm-copy-offload\"
+		| .data.mpiSpec.worker.containers[0].image = \"ghcr.io/nearnodeflash/nnf-dm-copy-offload\"" \
+		| kubectl apply -f - &&
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=gfs2 name=project1
 			requires=copy-offload
-			#DW container name=copyoff-container profile=copy-offload-default
+			#DW container name=copyoff-container profile=flux-test-copyoffload
 			DW_JOB_my_storage=project1" \
 		-N1 -n1 hostname) &&
 	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
@@ -321,8 +324,7 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 '
 
 test_expect_success 'revert changes to containerprofile' '
-	kubectl patch nnfcontainerprofiles -nnnf-system copy-offload-default --type=json \
-		-p "[{\"op\":\"replace\", \"path\":\"/data/storages/1/optional\", \"value\": false}]"
+	kubectl delete nnfcontainerprofiles -nnnf-system flux-test-copyoffload
 '
 
 test_expect_success 'job requesting too much storage is rejected' '
