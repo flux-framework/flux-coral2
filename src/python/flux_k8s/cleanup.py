@@ -16,7 +16,7 @@ FINALIZER = "flux-framework.readthedocs.io/workflow"
 CLEANUP_LOOP = asyncio.get_event_loop()
 
 
-def remove_finalizer(workflow_name, k8s_api, workflow):
+def remove_finalizer(workflow_name, crd_api, workflow):
     """Remove the finalizer from the workflow so it can be deleted.
 
     If an outdated version of the workflow is being used, in particular
@@ -28,15 +28,15 @@ def remove_finalizer(workflow_name, k8s_api, workflow):
     another attempt.
     """
     try:
-        _remove_finalizer(workflow_name, k8s_api, workflow)
+        _remove_finalizer(workflow_name, crd_api, workflow)
     except ApiException:
-        workflow = k8s_api.get_namespaced_custom_object(
+        workflow = crd_api.get_namespaced_custom_object(
             *crd.WORKFLOW_CRD, workflow_name
         )
-        _remove_finalizer(workflow_name, k8s_api, workflow)
+        _remove_finalizer(workflow_name, crd_api, workflow)
 
 
-def _remove_finalizer(workflow_name, k8s_api, workflow):
+def _remove_finalizer(workflow_name, crd_api, workflow):
     """Remove the finalizer from the workflow so it can be deleted."""
     try:
         workflow["metadata"]["finalizers"].remove(FINALIZER)
@@ -44,7 +44,7 @@ def _remove_finalizer(workflow_name, k8s_api, workflow):
         # finalizer is not present, nothing to do
         pass
     else:
-        k8s_api.patch_namespaced_custom_object(
+        crd_api.patch_namespaced_custom_object(
             *crd.WORKFLOW_CRD,
             workflow_name,
             {"metadata": {"finalizers": workflow["metadata"]["finalizers"]}},
@@ -59,7 +59,7 @@ def get_k8s_api(kubeconfig):
         LOGGER.exception("Kubernetes misconfigured")
         raise
     try:
-        k8s_api = k8s.client.CustomObjectsApi(k8s_client)
+        crd_api = k8s.client.CustomObjectsApi(k8s_client)
     except ApiException as rest_exception:
         if rest_exception.status == 403:
             LOGGER.exception(
@@ -68,7 +68,7 @@ def get_k8s_api(kubeconfig):
             raise
         LOGGER.exception("Cannot access kubernetes")
         raise
-    return k8s_api
+    return crd_api
 
 
 def log_error(fut):
@@ -81,14 +81,14 @@ def log_error(fut):
 
 async def delete_workflow_coro(workflow):
     """Delete a workflow, retrying indefinitely (with backoff) upon error."""
-    k8s_api = threading.current_thread().k8s_api
+    crd_api = threading.current_thread().crd_api
     attempts = 0
     name = workflow["metadata"]["name"]
     # attempt to delete the workflow in a loop
     while True:
         try:
-            remove_finalizer(name, k8s_api, workflow)
-            k8s_api.delete_namespaced_custom_object(*crd.WORKFLOW_CRD, name)
+            remove_finalizer(name, crd_api, workflow)
+            crd_api.delete_namespaced_custom_object(*crd.WORKFLOW_CRD, name)
         except Exception as gen_exc:
             if isinstance(gen_exc, ApiException) and gen_exc.status == 404:
                 # workflow was not found, presume it was deleted already
@@ -115,7 +115,7 @@ def delete_workflow(workflow):
 
 async def teardown_workflow_coro(workflow):
     """Teardown a workflow, retrying indefinitely (with backoff) upon error."""
-    k8s_api = threading.current_thread().k8s_api
+    crd_api = threading.current_thread().crd_api
     attempts = 0
     name = workflow["metadata"]["name"]
     try:
@@ -125,7 +125,7 @@ async def teardown_workflow_coro(workflow):
     # attempt to teardown the workflow in a loop
     while True:
         try:
-            k8s_api.patch_namespaced_custom_object(
+            crd_api.patch_namespaced_custom_object(
                 *crd.WORKFLOW_CRD,
                 name,
                 {
@@ -160,7 +160,7 @@ def teardown_workflow(workflow):
 def cleanup_target(kubeconfig):
     """Run the asyncio event loop indefinitely."""
     curr_thread = threading.current_thread()
-    curr_thread.k8s_api = get_k8s_api(kubeconfig)
+    curr_thread.crd_api = get_k8s_api(kubeconfig)
     try:
         CLEANUP_LOOP.run_forever()
     finally:
