@@ -264,7 +264,7 @@ test_expect_success 'return the storage resource to Live mode' '
 
 test_expect_success 'exec Storage watching script with --disable-fluxion' '
     flux cancel ${jobid} &&
-    flux resource undrain compute-01 &&
+    flux resource undrain --force compute-01 &&
     echo "
 [rabbit]
 drain_compute_nodes = false
