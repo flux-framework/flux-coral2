@@ -114,9 +114,8 @@ def save_elapsed_time_to_kvs(handle, jobid, workflow):
     except KeyError:
         return
     try:
-        kvsdir = flux.job.job_kvs(handle, jobid)
-        kvsdir[f"rabbit_{state}_timing"] = timing
-        kvsdir.commit()
+        with flux.job.job_kvs(handle, jobid) as kvsdir:
+            kvsdir[f"rabbit_{state}_timing"] = timing
     except Exception:
         LOGGER.exception(
             "Failed to update KVS for job %s: workflow is %s", jobid, workflow
