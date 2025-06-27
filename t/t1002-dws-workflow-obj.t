@@ -29,6 +29,7 @@ CREATE_DEP_NAME="dws-create"
 PROLOG_NAME="dws-setup"
 EPILOG_NAME="dws-epilog"
 DATADIR=${SHARNESS_TEST_SRCDIR}/data/workflow-obj
+LOGFILE_NUM=0
 
 submit_as_alternate_user()
 {
@@ -38,6 +39,50 @@ submit_as_alternate_user()
 		>job.signed
 	FLUX_HANDLE_USERID=$FAKE_USERID \
 	  flux job submit --flags=signed job.signed
+}
+
+start_dws_script()
+{
+	# cancel any existing dws script and start a new one
+	(flux cancel $DWS_JOBID || true) &&
+	local R=$(flux R encode -r 0) &&
+	DWS_JOBID=$(flux submit --setattr=system.alloc-bypass.R="$R" \
+		-o per-resource.type=node --output=${LOGFILE_NUM}.out \
+		--error=${LOGFILE_NUM}.err ${LAUNCH_DWS} -vvv $1) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start &&
+	# This test used to close the race condition between the python process starting
+	# and the `dws` service being registered.  Once https://github.com/flux-framework/flux-core/issues/3821
+	# is implemented/closed, this can be replaced with that solution.
+	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
+	LOGFILE_NUM=$((LOGFILE_NUM+1)) &&
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+}
+
+walk_job_through_prolog()
+{
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${1} dependency-add &&
+	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
+		${1} dependency-remove &&
+	${RPC} "dws.status" | jq -e ".workflows | index($(flux job id $1))" &&
+	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${1}) \
+		${1} memo &&
+	flux job wait-event -t 5 ${1} jobspec-update &&
+	flux job wait-event -t 15 ${1} depend &&
+	flux job wait-event -t 15 ${1} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${1} prolog-start &&
+	flux job wait-event -vt 45 -m description=${PROLOG_NAME} \
+		${1} prolog-finish
+}
+
+job_epilog_start_finish_clean()
+{
+	flux job wait-event -vt 25 -m description=${EPILOG_NAME} \
+		${1} epilog-start &&
+	flux job wait-event -vt 60 -m description=${EPILOG_NAME} \
+		${1} epilog-finish &&
+	flux job wait-event -vt 15 ${1} clean
 }
 
 test_expect_success 'job-manager: load dws-jobtap and alloc-bypass plugin' '
@@ -72,15 +117,7 @@ fake = 1
 
 test_expect_success 'exec dws service-providing script with fluxion scheduling disabled' '
 	flux config reload &&
-	R=$(flux R encode -r 0) &&
-	DWS_JOBID=$(flux submit \
-			--setattr=system.alloc-bypass.R="$R" \
-			-o per-resource.type=node --output=dws-fluxion-disabled.out \
-			--error=dws-fluxion-disabled.err ${LAUNCH_DWS} \
-			-vvv --disable-fluxion) &&
-	flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start &&
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script --disable-fluxion
 '
 
 test_expect_success 'job submission without DW string works with fluxion-rabbit scheduling disabled' '
@@ -93,46 +130,21 @@ test_expect_success 'job submission without DW string works with fluxion-rabbit 
 test_expect_success 'job submission with valid DW string works with fluxion-rabbit scheduling disabled' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 1" &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean
+	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success 'inspection of resources while job running passes' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 -t200 sleep 30) &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
-	flux job id $jobid &&
+	walk_job_through_prolog $jobid &&
 	kubectl get clientmounts -A &&
 	kubectl get clientmounts -A -oyaml &&
 	flux python ${SHARNESS_TEST_SRCDIR}/scripts/coral2_inspection.py $jobid $DWS_MODULE_PATH &&
 	flux cancel $jobid &&
 	flux job wait-event -t 3 ${jobid} exception &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 65 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 10 ${jobid} clean
+	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success 'dws service script handles restarts while a job is in SCHED with fluxion disabled' '
@@ -143,13 +155,7 @@ test_expect_success 'dws service script handles restarts while a job is in SCHED
 		${jobid} dependency-add &&
 	flux job wait-event -t 15 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
-	flux cancel ${DWS_JOBID} &&
-	R=$(flux R encode -r 0) &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws-fluxion-disabled2.out \
-		--error=dws-fluxion-disabled2.err \
-		${LAUNCH_DWS} -vvv --disable-fluxion) &&
+	start_dws_script --disable-fluxion &&
 	test_must_fail flux job wait-event -vt 10 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
 	flux queue start --all &&
@@ -158,11 +164,7 @@ test_expect_success 'dws service script handles restarts while a job is in SCHED
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-finish
 	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 25 ${jobid} clean
+	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success 'rabbit jobs run even with --requires with fluxion scheduling disabled' '
@@ -213,20 +215,7 @@ test_expect_success 'load fluxion with rabbits' '
 '
 
 test_expect_success 'exec dws service-providing script' '
-	R=$(flux R encode -r 0) &&
-	DWS_JOBID=$(flux submit \
-			--setattr=system.alloc-bypass.R="$R" \
-			-o per-resource.type=node --output=dws1.out --error=dws1.err \
-			${LAUNCH_DWS} -vvv) &&
-	flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start
-'
-
-# This test used to close the race condition between the python process starting
-# and the `dws` service being registered.  Once https://github.com/flux-framework/flux-core/issues/3821
-# is implemented/closed, this can be replaced with that solution.
-test_expect_success 'wait for service to register and send test RPC' '
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script
 '
 
 test_expect_success 'job submission without DW string works' '
@@ -239,27 +228,11 @@ test_expect_success 'job submission without DW string works' '
 test_expect_success 'job submission with valid DW string works' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event.json &&
 	jq -e .context.variables env-event.json &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean &&
+	job_epilog_start_finish_clean $jobid &&
 	flux jobs -n ${jobid} -o "{user.rabbits}" | flux hostlist -q - &&
 	flux job info ${jobid} rabbit_workflow &&
 	flux job info ${jobid} rabbit_workflow | \
@@ -287,29 +260,12 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 			#DW container name=copyoff-container profile=flux-test-copyoffload
 			DW_JOB_my_storage=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event2.json &&
 	jq -e .context.variables env-event2.json &&
 	jq -e .context.variables.DW_WORKFLOW_TOKEN env-event2.json &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux cancel ${jobid} &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean &&
+	job_epilog_start_finish_clean $jobid &&
 	flux job info ${jobid} rabbit_workflow &&
 	flux job info ${jobid} rabbit_workflow | \
 		jq -e ".metadata.name == \"fluxjob-$(flux job id ${jobid})\"" &&
@@ -345,25 +301,9 @@ test_expect_success 'job submission with multiple valid DW strings on different 
 
 											 #DW jobdw capacity=20GiB type=gfs2 name=project2" \
 			-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean &&
+	job_epilog_start_finish_clean $jobid &&
 	flux jobs -n ${jobid} -o "{user.rabbits}" | flux hostlist -q -
 '
 
@@ -371,46 +311,17 @@ test_expect_success 'job submission with multiple valid DW strings on the same l
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1 \
 			#DW jobdw capacity=20GiB type=gfs2 name=project2" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean
+	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success 'job submission with multiple valid DW strings in a JSON file works' '
 	jobid=$(flux submit --setattr=^system.dw="${DATADIR}/two_directives.json" \
 			-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 45 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 65 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean
+	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success 'job submission with invalid copy_in DW directive fails' '
@@ -467,32 +378,20 @@ test_expect_success 'dws service handles jobs being canceled repeatedly' '
 '
 
 test_expect_success 'exec dws service-providing script with custom config path' '
-	flux cancel ${DWS_JOBID} &&
 	cp $REAL_HOME/.kube/config ./kubeconfig
-	R=$(flux R encode -r 0) &&
 	echo "
 [rabbit]
 kubeconfig = \"$PWD/kubeconfig\"
 	" | flux config load &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws2.out --error=dws2.err \
-		${LAUNCH_DWS} -vvv) &&
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script
 '
 
 test_expect_success 'job submission with valid DW string works after config change' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 30 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 25 ${jobid} clean
+	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success 'job submission with persistent DW string works' '
@@ -503,22 +402,15 @@ test_expect_success 'job submission with persistent DW string works' '
 	flux job wait-event -vt 30 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
 	flux job wait-event -vt 30 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 30 ${jobid} clean &&
+	job_epilog_start_finish_clean $jobid &&
 	jobid=$(flux submit --setattr=system.dw="#DW persistentdw name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 30 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 30 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 30 ${jobid} clean &&
+	job_epilog_start_finish_clean $jobid &&
 	jobid=$(flux submit --setattr=system.dw="#DW destroy_persistent name=project1" \
 		-N1 -n1 -c1 hostname) &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 30 ${jobid} clean
+	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success FLUX_SECURITY 'job submission with persistent DW string and non-owner UID fails' '
@@ -542,32 +434,18 @@ test_expect_success 'job submission with standalone MGT persistent DW string wor
 		-N1 -n1 -c1 hostname &&
 	jobid=$(flux submit --setattr=system.dw="#DW destroy_persistent name=mgtpooltest" \
 		-N1 -n1 -c1 hostname) &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 30 ${jobid} clean &&
+	job_epilog_start_finish_clean $jobid &&
 	kubectl delete nnfstorageprofiles -nnnf-system mypoolprofile
 '
 
 test_expect_success 'dws service script handles restarts while a job is running' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 sleep 5) &&
-	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 30 ${jobid} start &&
-	flux cancel ${DWS_JOBID} &&
-	R=$(flux R encode -r 0) &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws3.out --error=dws3.err \
-		${LAUNCH_DWS} -vvv) &&
+	start_dws_script &&
 	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 25 ${jobid} clean
+	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success 'dws service script handles restarts while a job is in SCHED' '
@@ -578,12 +456,7 @@ test_expect_success 'dws service script handles restarts while a job is in SCHED
 		${jobid} dependency-add &&
 	flux job wait-event -t 15 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
-	flux cancel ${DWS_JOBID} &&
-	R=$(flux R encode -r 0) &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws4.out --error=dws4.err \
-		${LAUNCH_DWS} -vvv) &&
+	start_dws_script &&
 	test_must_fail flux job wait-event -vt 10 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
 	flux queue start --all &&
@@ -592,11 +465,7 @@ test_expect_success 'dws service script handles restarts while a job is in SCHED
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-finish
 	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 25 ${jobid} clean
+	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success 'back-to-back job submissions with 10TiB file systems works' '
@@ -631,27 +500,15 @@ test_expect_success 'back-to-back job submissions with 10TiB file systems works'
 	flux job wait-event -vt 15 -m status=0 ${jobid1} finish &&
 	flux job wait-event -vt 15 -m status=0 ${jobid2} finish &&
 	flux job wait-event -vt 15 -m status=0 ${jobid3} finish &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
-		${jobid1} epilog-finish &&
-	flux job wait-event -vt 45 -m description=${EPILOG_NAME} \
-		${jobid2} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid1} clean &&
-	flux job wait-event -vt 15 ${jobid2} clean &&
-	flux job wait-event -vt 15 ${jobid3} clean &&
+	job_epilog_start_finish_clean $jobid1 &&
+	job_epilog_start_finish_clean $jobid2 &&
+	job_epilog_start_finish_clean $jobid3 &&
 	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
 
 test_expect_success 'launch service with storage maximums and presets' '
-	flux cancel $DWS_JOBID &&
 	flux config load ${DATADIR}/maximums &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws5.out --error=dws5.err \
-		${LAUNCH_DWS} -vvv) &&
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script
 '
 
 test_expect_success 'job submission with storage within max works' '
@@ -660,47 +517,16 @@ test_expect_success 'job submission with storage within max works' '
 		#DW jobdw capacity=30GiB type=raw name=project3
 		#DW jobdw capacity=10GiB type=lustre name=project4" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 55 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean
+	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success 'job submission with presets works' '
 	jobid=$(flux submit -S dw=xfs_justright -N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 55 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean
+	job_epilog_start_finish_clean $jobid
 '
 
 
@@ -754,58 +580,30 @@ test_expect_success 'job submission with preset lustre storage beyond max fails'
 '
 
 test_expect_success 'launch service with teardown_after' '
-	flux cancel $DWS_JOBID &&
 	echo "
 [rabbit]
 teardown_after = 0.0001
 "   | flux config load &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws7.out --error=dws7.err \
-		${LAUNCH_DWS} -vvv) &&
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script
 '
 
 test_expect_success 'job submission with valid DW string works with teardown_after' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event.json &&
 	jq -e .context.variables env-event.json &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean &&
+	job_epilog_start_finish_clean $jobid &&
 	flux job wait-event -vt 1 -m "note=skipping rabbit data movement" ${jobid} exception
 '
 
 test_expect_success 'launch service with postrun_timeout' '
-	flux cancel $DWS_JOBID &&
 	echo "
 [rabbit]
 postrun_timeout = 0.0001
 "   | flux config load &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws8.out --error=dws8.err \
-		${LAUNCH_DWS} -vvv) &&
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script
 '
 
 test_expect_success 'job submission with valid DW string works with postrun_timeout' '
@@ -813,27 +611,11 @@ test_expect_success 'job submission with valid DW string works with postrun_time
 		jq -e ".data.nodes.\"$(hostname)\" == \"Enabled\""
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
-	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
-		${jobid} epilog-start &&
+	job_epilog_start_finish_clean $jobid &&
 	flux job wait-event -vt 1 -m "note=unmounts timed out, skipping data movement" \
-		${jobid} exception &&
-	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
-		${jobid} epilog-finish &&
-	flux job wait-event -vt 15 ${jobid} clean
+		${jobid} exception
 '
 
 test_expect_success 'systemstatus object is updated' '
