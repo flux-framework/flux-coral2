@@ -246,7 +246,8 @@ test_expect_success 'job submission with valid DW string works' '
 	flux job info ${jobid} rabbit_postrun_timing &&
 	flux job info ${jobid} rabbit_dataout_timing &&
 	flux job info ${jobid} rabbit_teardown_timing &&
-	flux job info ${jobid} rabbit_datamovements | jq "length == 0"
+	flux job info ${jobid} rabbit_datamovements | jq "length == 0" &&
+	test_must_fail flux job info ${jobid} rabbit_container_log
 '
 
 test_expect_success 'job requesting copy-offload in DW string works' '
@@ -276,7 +277,8 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 	flux job info ${jobid} rabbit_datain_timing &&
 	flux job info ${jobid} rabbit_prerun_timing &&
 	flux job info ${jobid} rabbit_teardown_timing &&
-	flux job info ${jobid} rabbit_datamovements | jq "length == 0"
+	flux job info ${jobid} rabbit_datamovements | jq "length == 0" &&
+	flux job info ${jobid} rabbit_container_log
 '
 
 test_expect_success 'revert changes to containerprofile' '

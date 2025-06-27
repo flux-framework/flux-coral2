@@ -158,13 +158,12 @@ def save_workflow_to_kvs(handle, jobid, workflow, datamovements=None):
         timing = None
         state = None
     try:
-        kvsdir = flux.job.job_kvs(handle, jobid)
-        kvsdir["rabbit_workflow"] = workflow
-        if timing is not None and state is not None:
-            kvsdir[f"rabbit_{state}_timing"] = timing
-        if datamovements is not None:
-            kvsdir["rabbit_datamovements"] = datamovements
-        kvsdir.commit()
+        with flux.job.job_kvs(handle, jobid) as kvsdir:
+            kvsdir["rabbit_workflow"] = workflow
+            if timing is not None and state is not None:
+                kvsdir[f"rabbit_{state}_timing"] = timing
+            if datamovements is not None:
+                kvsdir["rabbit_datamovements"] = datamovements
     except Exception:
         LOGGER.exception(
             "Failed to update KVS for job %s: workflow is %s", jobid, workflow
