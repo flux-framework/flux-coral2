@@ -58,6 +58,24 @@ start_dws_script()
 	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 }
 
+walk_job_through_prolog()
+{
+	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+		${1} dependency-add &&
+	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
+		${1} dependency-remove &&
+	${RPC} "dws.status" | jq -e ".workflows | index($(flux job id $1))" &&
+	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${1}) \
+		${1} memo &&
+	flux job wait-event -t 5 ${1} jobspec-update &&
+	flux job wait-event -t 15 ${1} depend &&
+	flux job wait-event -t 15 ${1} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${1} prolog-start &&
+	flux job wait-event -vt 45 -m description=${PROLOG_NAME} \
+		${1} prolog-finish
+}
+
 test_expect_success 'job-manager: load dws-jobtap and alloc-bypass plugin' '
 	flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
 	flux jobtap load alloc-bypass.so
@@ -103,20 +121,7 @@ test_expect_success 'job submission without DW string works with fluxion-rabbit 
 test_expect_success 'job submission with valid DW string works with fluxion-rabbit scheduling disabled' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 1" &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -128,11 +133,7 @@ test_expect_success 'job submission with valid DW string works with fluxion-rabb
 test_expect_success 'inspection of resources while job running passes' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 -t200 sleep 30) &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
-	flux job id $jobid &&
+	walk_job_through_prolog $jobid &&
 	kubectl get clientmounts -A &&
 	kubectl get clientmounts -A -oyaml &&
 	flux python ${SHARNESS_TEST_SRCDIR}/scripts/coral2_inspection.py $jobid $DWS_MODULE_PATH &&
@@ -230,19 +231,7 @@ test_expect_success 'job submission without DW string works' '
 test_expect_success 'job submission with valid DW string works' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event.json &&
 	jq -e .context.variables env-event.json &&
@@ -278,19 +267,7 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 			#DW container name=copyoff-container profile=flux-test-copyoffload
 			DW_JOB_my_storage=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event2.json &&
 	jq -e .context.variables env-event2.json &&
@@ -336,19 +313,7 @@ test_expect_success 'job submission with multiple valid DW strings on different 
 
 											 #DW jobdw capacity=20GiB type=gfs2 name=project2" \
 			-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -362,17 +327,7 @@ test_expect_success 'job submission with multiple valid DW strings on the same l
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1 \
 			#DW jobdw capacity=20GiB type=gfs2 name=project2" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -384,18 +339,7 @@ test_expect_success 'job submission with multiple valid DW strings on the same l
 test_expect_success 'job submission with multiple valid DW strings in a JSON file works' '
 	jobid=$(flux submit --setattr=^system.dw="${DATADIR}/two_directives.json" \
 			-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 45 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -469,10 +413,7 @@ kubeconfig = \"$PWD/kubeconfig\"
 test_expect_success 'job submission with valid DW string works after config change' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 30 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -492,8 +433,7 @@ test_expect_success 'job submission with persistent DW string works' '
 	flux job wait-event -vt 30 ${jobid} clean &&
 	jobid=$(flux submit --setattr=system.dw="#DW persistentdw name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 30 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 30 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 30 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -535,10 +475,7 @@ test_expect_success 'job submission with standalone MGT persistent DW string wor
 test_expect_success 'dws service script handles restarts while a job is running' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 sleep 5) &&
-	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 30 ${jobid} start &&
 	start_dws_script &&
 	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
@@ -628,19 +565,7 @@ test_expect_success 'job submission with storage within max works' '
 		#DW jobdw capacity=30GiB type=raw name=project3
 		#DW jobdw capacity=10GiB type=lustre name=project4" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -651,18 +576,7 @@ test_expect_success 'job submission with storage within max works' '
 
 test_expect_success 'job submission with presets works' '
 	jobid=$(flux submit -S dw=xfs_justright -N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -732,19 +646,7 @@ teardown_after = 0.0001
 test_expect_success 'job submission with valid DW string works with teardown_after' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event.json &&
 	jq -e .context.variables env-event.json &&
@@ -769,19 +671,7 @@ test_expect_success 'job submission with valid DW string works with postrun_time
 		jq -e ".data.nodes.\"$(hostname)\" == \"Enabled\""
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${jobid}) \
-		${jobid} memo &&
-	flux job wait-event -t 5 ${jobid} jobspec-update &&
-	flux job wait-event -vt 15 ${jobid} depend &&
-	flux job wait-event -vt 15 ${jobid} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux job wait-event -vt 25 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish &&
+	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 15 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
