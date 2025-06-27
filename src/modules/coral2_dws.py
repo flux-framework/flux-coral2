@@ -869,6 +869,16 @@ def config_logging(args):
     LOGGER.setLevel(log_level)
     # also set level on flux_k8s package
     logging.getLogger(flux_k8s.__name__).setLevel(log_level)
+    try:
+        from systemd.journal import JournalHandler
+    except ImportError:
+        pass
+    else:
+        # if running under systemd, use a JournalHandler
+        LOGGER.addHandler(JournalHandler())
+        LOGGER.propagate = False
+        logging.getLogger(flux_k8s.__name__).addHandler(JournalHandler())
+        logging.getLogger(flux_k8s.__name__).propagate = False
 
 
 def register_services(handle, k8s_api):
