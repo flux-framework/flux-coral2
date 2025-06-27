@@ -10,6 +10,8 @@ from kubernetes.config.config_exception import ConfigException
 
 from flux_k8s import crd
 import flux_k8s.workflow
+import flux
+import flux.job
 
 LOGGER = logging.getLogger(__name__)
 FINALIZER = "flux-framework.readthedocs.io/workflow"
@@ -113,6 +115,28 @@ def delete_workflow(workflow):
     ).add_done_callback(log_error)
 
 
+def save_pod_log(workflow_name, jobid, core_api, handle):
+    """Save the logs for a pod associated with a workflow to the KVS.
+
+    Not all jobs have a pod, only those with a `#DW container` directive.
+    """
+    api_response = core_api.list_namespaced_pod(
+        "default",
+        limit=1,
+        label_selector=(
+            f"{crd.DWS_GROUP}/workflow.name={workflow_name},"
+            f"{crd.DWS_GROUP}/workflow.namespace=default"
+        ),
+    )
+    if not api_response.items:
+        return
+    log = core_api.read_namespaced_pod_log(
+        api_response.items[0].metadata.name, namespace="default"
+    )
+    with flux.job.job_kvs(handle, jobid) as kvsdir:
+        kvsdir["rabbit_container_log"] = log[-50000:]
+
+
 async def teardown_workflow_coro(workflow):
     """Teardown a workflow, retrying indefinitely (with backoff) upon error."""
     crd_api = threading.current_thread().crd_api
@@ -123,6 +147,15 @@ async def teardown_workflow_coro(workflow):
     except ValueError:
         pass
     # attempt to teardown the workflow in a loop
+    try:
+        save_pod_log(
+            name,
+            flux.job.JobID(workflow["spec"]["jobID"]),
+            threading.current_thread().core_api,
+            threading.current_thread().flux_handle,
+        )
+    except Exception:
+        LOGGER.warning("Failed to fetch pod logs for workflow %s", name)
     while True:
         try:
             crd_api.patch_namespaced_custom_object(
@@ -160,7 +193,10 @@ def teardown_workflow(workflow):
 def cleanup_target(kubeconfig):
     """Run the asyncio event loop indefinitely."""
     curr_thread = threading.current_thread()
+    curr_thread.k8s_client = k8s.config.new_client_from_config(kubeconfig)
     curr_thread.crd_api = get_k8s_api(kubeconfig)
+    curr_thread.core_api = k8s.client.CoreV1Api(curr_thread.k8s_client)
+    curr_thread.flux_handle = flux.Flux()
     try:
         CLEANUP_LOOP.run_forever()
     finally:
