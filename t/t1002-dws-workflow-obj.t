@@ -29,6 +29,7 @@ CREATE_DEP_NAME="dws-create"
 PROLOG_NAME="dws-setup"
 EPILOG_NAME="dws-epilog"
 DATADIR=${SHARNESS_TEST_SRCDIR}/data/workflow-obj
+LOGFILE_NUM=0
 
 submit_as_alternate_user()
 {
@@ -38,6 +39,23 @@ submit_as_alternate_user()
 		>job.signed
 	FLUX_HANDLE_USERID=$FAKE_USERID \
 	  flux job submit --flags=signed job.signed
+}
+
+start_dws_script()
+{
+	# cancel any existing dws script and start a new one
+	(flux cancel $DWS_JOBID || true) &&
+	local R=$(flux R encode -r 0) &&
+	DWS_JOBID=$(flux submit --setattr=system.alloc-bypass.R="$R" \
+		-o per-resource.type=node --output=${LOGFILE_NUM}.out \
+		--error=${LOGFILE_NUM}.err ${LAUNCH_DWS} -vvv $1) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start &&
+	# This test used to close the race condition between the python process starting
+	# and the `dws` service being registered.  Once https://github.com/flux-framework/flux-core/issues/3821
+	# is implemented/closed, this can be replaced with that solution.
+	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
+	LOGFILE_NUM=$((LOGFILE_NUM+1)) &&
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 }
 
 test_expect_success 'job-manager: load dws-jobtap and alloc-bypass plugin' '
@@ -72,15 +90,7 @@ fake = 1
 
 test_expect_success 'exec dws service-providing script with fluxion scheduling disabled' '
 	flux config reload &&
-	R=$(flux R encode -r 0) &&
-	DWS_JOBID=$(flux submit \
-			--setattr=system.alloc-bypass.R="$R" \
-			-o per-resource.type=node --output=dws-fluxion-disabled.out \
-			--error=dws-fluxion-disabled.err ${LAUNCH_DWS} \
-			-vvv --disable-fluxion) &&
-	flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start &&
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script --disable-fluxion
 '
 
 test_expect_success 'job submission without DW string works with fluxion-rabbit scheduling disabled' '
@@ -143,13 +153,7 @@ test_expect_success 'dws service script handles restarts while a job is in SCHED
 		${jobid} dependency-add &&
 	flux job wait-event -t 15 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
-	flux cancel ${DWS_JOBID} &&
-	R=$(flux R encode -r 0) &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws-fluxion-disabled2.out \
-		--error=dws-fluxion-disabled2.err \
-		${LAUNCH_DWS} -vvv --disable-fluxion) &&
+	start_dws_script --disable-fluxion &&
 	test_must_fail flux job wait-event -vt 10 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
 	flux queue start --all &&
@@ -213,20 +217,7 @@ test_expect_success 'load fluxion with rabbits' '
 '
 
 test_expect_success 'exec dws service-providing script' '
-	R=$(flux R encode -r 0) &&
-	DWS_JOBID=$(flux submit \
-			--setattr=system.alloc-bypass.R="$R" \
-			-o per-resource.type=node --output=dws1.out --error=dws1.err \
-			${LAUNCH_DWS} -vvv) &&
-	flux job wait-event -vt 15 -p guest.exec.eventlog ${DWS_JOBID} shell.start
-'
-
-# This test used to close the race condition between the python process starting
-# and the `dws` service being registered.  Once https://github.com/flux-framework/flux-core/issues/3821
-# is implemented/closed, this can be replaced with that solution.
-test_expect_success 'wait for service to register and send test RPC' '
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script
 '
 
 test_expect_success 'job submission without DW string works' '
@@ -467,19 +458,12 @@ test_expect_success 'dws service handles jobs being canceled repeatedly' '
 '
 
 test_expect_success 'exec dws service-providing script with custom config path' '
-	flux cancel ${DWS_JOBID} &&
 	cp $REAL_HOME/.kube/config ./kubeconfig
-	R=$(flux R encode -r 0) &&
 	echo "
 [rabbit]
 kubeconfig = \"$PWD/kubeconfig\"
 	" | flux config load &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws2.out --error=dws2.err \
-		${LAUNCH_DWS} -vvv) &&
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script
 '
 
 test_expect_success 'job submission with valid DW string works after config change' '
@@ -556,12 +540,7 @@ test_expect_success 'dws service script handles restarts while a job is running'
 	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
 	flux job wait-event -vt 30 ${jobid} start &&
-	flux cancel ${DWS_JOBID} &&
-	R=$(flux R encode -r 0) &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws3.out --error=dws3.err \
-		${LAUNCH_DWS} -vvv) &&
+	start_dws_script &&
 	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
 	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
 		${jobid} epilog-start &&
@@ -578,12 +557,7 @@ test_expect_success 'dws service script handles restarts while a job is in SCHED
 		${jobid} dependency-add &&
 	flux job wait-event -t 15 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
-	flux cancel ${DWS_JOBID} &&
-	R=$(flux R encode -r 0) &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws4.out --error=dws4.err \
-		${LAUNCH_DWS} -vvv) &&
+	start_dws_script &&
 	test_must_fail flux job wait-event -vt 10 -m description=${PROLOG_NAME} \
 		${jobid} prolog-start &&
 	flux queue start --all &&
@@ -644,14 +618,8 @@ test_expect_success 'back-to-back job submissions with 10TiB file systems works'
 '
 
 test_expect_success 'launch service with storage maximums and presets' '
-	flux cancel $DWS_JOBID &&
 	flux config load ${DATADIR}/maximums &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws5.out --error=dws5.err \
-		${LAUNCH_DWS} -vvv) &&
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script
 '
 
 test_expect_success 'job submission with storage within max works' '
@@ -754,17 +722,11 @@ test_expect_success 'job submission with preset lustre storage beyond max fails'
 '
 
 test_expect_success 'launch service with teardown_after' '
-	flux cancel $DWS_JOBID &&
 	echo "
 [rabbit]
 teardown_after = 0.0001
 "   | flux config load &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws7.out --error=dws7.err \
-		${LAUNCH_DWS} -vvv) &&
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script
 '
 
 test_expect_success 'job submission with valid DW string works with teardown_after' '
@@ -795,17 +757,11 @@ test_expect_success 'job submission with valid DW string works with teardown_aft
 '
 
 test_expect_success 'launch service with postrun_timeout' '
-	flux cancel $DWS_JOBID &&
 	echo "
 [rabbit]
 postrun_timeout = 0.0001
 "   | flux config load &&
-	DWS_JOBID=$(flux submit \
-		--setattr=system.alloc-bypass.R="$R" \
-		-o per-resource.type=node --output=dws8.out --error=dws8.err \
-		${LAUNCH_DWS} -vvv) &&
-	flux job wait-event -vt 15 -m "note=dws watchers setup" ${DWS_JOBID} exception &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+	start_dws_script
 '
 
 test_expect_success 'job submission with valid DW string works with postrun_timeout' '
