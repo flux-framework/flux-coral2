@@ -222,3 +222,11 @@ information about data movement. Fetch it with
 .. code-block:: bash
 
 	flux job info ${jobid} rabbit_datamovements | jq .
+
+Container Attributes
+~~~~~~~~~~~~~~~~~~~~
+
+If a job launched a rabbit container with a `#DW container` directive, once the job
+is complete it will have an additional attribute ``rabbit_container_log`` storing
+the tail of the logs of one of the containers. Unfortunately, due to size limitations
+of Flux's KVS, the complete logs cannot be stored.
