@@ -811,6 +811,33 @@ def heartbeat_cb(_reactor, watcher, _r, profiler):
     profiler.enable()
 
 
+def _setup_heartbeat_watchers(handle, profiler):
+    """Set up watchers meant to monitor the status of the service.
+
+    If the WATCHDOG_USEC environment variable is set and the systemd
+    module is available, issue an `sd_notify` call regularly.
+    """
+    profiler_watcher = handle.timer_watcher_create(
+        3600,
+        heartbeat_cb,
+        repeat=3600,
+        args=profiler,
+    )
+    try:
+        from systemd.daemon import notify
+
+        watchdog_sec = float(os.environ["WATCHDOG_USEC"]) / 1000000
+    except (ImportError, KeyError):
+        return (profiler_watcher,)
+    else:
+        systemd_watcher = handle.timer_watcher_create(
+            0,
+            lambda *args: notify("WATCHDOG=1"),
+            repeat=watchdog_sec / 2,
+        )
+        return (profiler_watcher, systemd_watcher)
+
+
 def setup_parsing():
     """Set up argument parsing."""
     parser = argparse.ArgumentParser()
@@ -869,6 +896,16 @@ def config_logging(args):
     LOGGER.setLevel(log_level)
     # also set level on flux_k8s package
     logging.getLogger(flux_k8s.__name__).setLevel(log_level)
+    try:
+        from systemd.journal import JournalHandler
+    except ImportError:
+        pass
+    else:
+        # if running under systemd, use a JournalHandler
+        LOGGER.addHandler(JournalHandler())
+        LOGGER.propagate = False
+        logging.getLogger(flux_k8s.__name__).addHandler(JournalHandler())
+        logging.getLogger(flux_k8s.__name__).propagate = False
 
 
 def register_services(handle, k8s_api):
@@ -1025,14 +1062,9 @@ def main():
             repeat=tc_timeout / 2,
             args=(tc_timeout, k8s_api, manager),
         )
-        heartbeat_watcher = handle.timer_watcher_create(
-            3600,
-            heartbeat_cb,
-            repeat=3600,
-            args=profiler,
-        )
+        heartbeat_watchers = _setup_heartbeat_watchers(handle, profiler)
         with contextlib.ExitStack() as stack:
-            for watcher in (timer_watcher, heartbeat_watcher):
+            for watcher in (timer_watcher,) + heartbeat_watchers:
                 stack.enter_context(watcher)
             for service in register_services(handle, k8s_api):
                 stack.enter_context(service)
