@@ -1,3 +1,18 @@
+flux-coral2 0.25.0 - 2025-06-30
+-------------------------------
+
+### New Features
+
+ * dws: use systemd watchdog (#374)
+ * dws: save pod logs to KVS (#373)
+ * dws: version update (#371)
+ * pmi: simplify and rename port allocator (#370)
+
+### Build/Testsuite/Documentation
+ * test: workflow tests refactor (#372)
+ * doc: add design document for slingshot VNI + hw collectives (#369)
+
+
 flux-coral2 0.24.0 - 2025-06-10
 -------------------------------
 
