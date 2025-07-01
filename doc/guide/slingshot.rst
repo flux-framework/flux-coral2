@@ -68,40 +68,37 @@ VNI Reservation
 VNI numbers range from 0 to 65535 with 1 and 10 reserved as defaults.
 Flux may be configured to use any range, typically 1024-65535.
 
-Flux reserves one unique VNI for each job at the Flux system instance level
-when it enters RUN state.  Since only the Flux system instance can spawn jobs
-as other users, allocating each system instance job a unique VNI effectively
-isolates users from each other.  Jobs launched in Flux sub-instances share the
-parent job's VNI and have no isolation from each other.
+Flux reserves unique VNIs (typically one) for each job at the Flux system
+instance level when it enters RUN state.  Since only the Flux system instance
+can spawn jobs as other users, allocating each system instance job a unique VNI
+effectively isolates users from each other.  Jobs launched in Flux
+sub-instances share the parent job's VNI and have no isolation from each other.
 
 .. note::
 
   In contrast, Slurm [#slurmplug]_ allocates a block of VNIs to each job and
-  isolates job steps from one another.  This would be tricky to accomplish in
-  Flux without creating a coupling between Flux instance levels *for all jobs*
-  that could impact scalability.  Although there is no security problem with
-  sharing VNI tags among jobs running as the same user, CXI services are also
-  used for NIC resource management.  It remains to be seen if Flux's
-  laissez-faire attitude towards NIC resource management in sub-instances
-  will prove to be workable.
+  isolates job steps from one another.  This confers no security advantage
+  but does allow NIC resources to be managed among steps.  Implementing this
+  in Flux is possible but not currently planned due to the extra challenges
+  presented by the lack of coupling within the Flux instance hierarchy
+  and lack of privileged capability in Flux sub-instances.
 
-When a job enters INACTIVE state and all CXI service allocations for the
-job's reserved VNIs have been destroyed, the job's VNI reservation is released
-and may be reused.
+When a job enters CLEANUP state, all CXI service allocations for the job's
+reserved VNIs are destroyed and the job's VNI reservation is released and may
+be reused.
 
 CXI Service Allocation
 ======================
 
-When a job in the Flux system instance enters RUN state, a prolog scriptlet
-running as root retrieves the VNI reservation and allocates CXI services on
-each node, one for each NIC.  The CXI service authorizes only the job owner
-to use the job's reserved VNI.  The job shell then passes the CXI service
-information to libfabric [#fi_cxi]_ via these environment variables:
+When a job in the Flux system instance enters RUN state, the VNI reservation
+is retrieved and CXI services are allocated on each node, one for each NIC.
+The CXI service authorizes only the job owner to use the job's reserved VNI.
+The job shell then passes the CXI service information to libfabric [#fi_cxi]_
+via these environment variables:
 
 .. envvar:: SLINGSHOT_VNIS
 
-   Comma-separated list of VNI numbers the job can use.  Flux always assigns
-   one VNI per job.
+   Comma-separated list of VNI numbers the job can use.
 
 .. envvar:: SLINGSHOT_DEVICES
 
@@ -127,30 +124,35 @@ When the job is a Flux instance, these environment variables are captured on
 each node so that the sub-instance can pass them through to its jobs, and so on
 if there are more Flux instance levels.
 
-When the system instance job enters CLEANUP state, the VNI reservation is
-marked for cleanup, and when the job enters INACTIVE state, a housekeeping
-scriptlet running as root removes any CXI services associated with
-reservations marked for cleanup.  Housekeeping is chosen instead of epilog
-because, rarely, CXI service destruction may need to be retried for up to
-several minutes while the NIC completes network operations on behalf of the
-CXI service user.  Once all the CXI services belonging to the job have been
-removed, the VNI reservation is released.
+When the system instance job enters CLEANUP state, all CXI services that were
+created for the job are destroyed.
 
-Exception Handling
-==================
+Exceptional Conditions
+======================
 
-Any failures in VNI reservation causes a fatal job exception to be raised.
-Failure to allocate a CXI service manifests as a prolog failure, which causes
-a fatal job exception and drains the node.  Failure to destroy a CXI service
-manifests as a housekeeping failure which drains the node.
+Rarely, CXI service destruction may need to be retried for up to several
+minutes while the NIC attempts to complete network operations on behalf of
+the CXI service user.  Rather than delay the job from completing CLEANUP state
+and releasing its resources, Flux times out the initial destruction quickly
+and retries in housekeeping, after the job has entered INACTIVE state.
+The implementation must prevent these VNIs from being reused before
+destruction is successful.
+
+Failures in VNI reservation causes a fatal job exception to be raised.
+For jobs that do not require Slingshot, VNI reservation can be disabled
+as a job submission option.
+
+Failure to allocate a CXI service for a reservation causes a fatal job
+exception to be raised.
+
+Failure to destroy a lingering CXI service in housekeeping drains the node.
 
 Instance Restart
 ================
 
-Upon restart, the Flux system instance reloads VNI reservation state
-from the KVS that was saved at shutdown.  Any VNI reservations marked for
-cleanup will persist until housekeeping runs on the node again (for example,
-triggered by the next job).
+When a Flux system instance restarts, jobs may continue to use VNIs that
+were allocated before the restart.  The pool allocation state is persisted
+in the KVS across Flux restarts.
 
 Running under Slurm
 ===================
@@ -440,49 +442,79 @@ The first phase of implementation covers VNI tagging, traffic classes,
 and NIC resource management.  Several Flux components work together to
 this phase:
 
-broker module
-  The cray-slingshot broker module is loaded on all ranks at all instance
-  levels.
+jobtap plugin
+  The cray-slingshot jobtap plugin is loaded only in the Flux system
+  instance. It manages a configurable pool of VNI numbers and creates
+  VNI reservations for jobs when they enter the RUN state.  Reservations
+  are posted to the job eventlog as a `cray-slingshot` event, e.g.
 
-  In the system instance, the leader broker subscribes to the
-  job manager journal to be notified when jobs enter RUN or CLEANUP state.
-  At RUN state, a VNI reservation is created.  At CLEANUP state, the VNI
-  reservation is marked for cleanup.  All brokers in the system instance
-  register service methods for querying reservations and adding or removing
-  local CXI service IDs from reservations.  The CXI service IDs are only
-  tracked on the local broker, but contribute to a reservation use count on
-  the leader.  When the use count on a reservation marked for cleanup
-  reaches zero, the reservation is released.  Active reservations are saved
-  to the KVS at shutdown and restored from the KVS at startup.
+  .. code:: json
 
-  In sub-instances, Slingshot environment variables are captured on each
-  broker and an inherited reservation for that rank is created which can
-  be queried as above.  Reservations and CXI services are neither created
-  nor destroyed in Flux sub-instances.
+    {
+      "timestamp": 1751386927.8443174,
+      "name": "cray-slingshot",
+      "context": {
+        "ncores": 96,
+        "reservation": { "vnis": [ 1024 ] }
+      }
+    }
+
+  Jobs that do not use slingshot can specify the ``cray-slingshot=off``
+  shell option to suppress the reservation.  Jobs that want more than one
+  VNI may use ``cray-slingshot.vnicount=N`` to request up to four, which
+  is maximum that may be associated with one CXI service.
+
+  The plugin releases reservations when the job enters CLEANUP state.
+  To keep the initial implementation simple, yet make it unlikely that
+  a VNI could be reused before CXI services are cleaned up, VNI numbers
+  are allocated round-robin from the pool.
+
+  When the instance restarts, the jobtap plugin recovers the state of
+  the VNI pool as the job eventlogs are replayed.
 
 prolog
-  The privileged cray-slingshot prolog scriptlet, running only in the
-  system instance, queries the job's VNI reservation from the local broker
-  module and creates CXI services on all NICs.  The new CXI service IDs
-  are reported to the local broker module.
+  CXI service allocation is a root-only operation.  In the Flux system
+  instance, the job prolog invokes :option:`flux-slingshot prolog` on each
+  allocated node, which retrieves the reservation from the job eventlog
+  and allocates CXI services on each Slingshot NIC.  The CXI services
+  restrict access to the job owner, VNIs to the reserved VNI numbers,
+  traffic classes to :const:`TC_BEST_EFFORT` and :const:`TC_LOW_LATENCY`,
+  and resources to the HPE recommended values scaled by *ncores*.
 
 shell plugin
-  The cray-slingshot shell plugin retrieves the job's reservation and CXI
-  service IDs from the local broker module and sets up the job environment
-  accordingly.
+  The cray-slingshot shell plugin is responsible for setting up the
+  environment to enable libfabric-enabled applications to use Slingshot.
+  There are three modes:
+
+  #. In the Flux system instance, it fetches the reservation from the job
+     eventlog, then finds matching CXI services on each Slingshot NIC.
+
+  #. In a Flux sub-instance, it asks the broker on the local node for
+     the Slingshot environment variables to pass along to the job.
+
+  #. If there is no reservation and no inheritable environment, it
+     clears the Slingshot environment so that libfabric-enabled applications
+     will try to use the default CXI service.
+
+epilog
+  CXI service destruction is a root-only operation.  In the Flux system
+  instance, the job epilog invokes :option:`flux-slingshot epilog`
+  on each allocated node, which retrieves the reservation from the job
+  eventlog and destroys matching CXI services on each Slingshot NIC.
+  Failure to remove a matching CXI service at this phase results in a
+  warning but does not cause the job to fail.
 
 housekeeping
-  The privileged cray-slingshot housekeeping scriptlet, running only in the
-  system instance, queries the NICs for all CXI services in the configured
-  range, and queries the local broker module for all local VNI reservations.
-  Any CXI services for nonexistent reservations, or reservations tagged for
-  cleanup are destroyed.  In the latter case, the destroyed service IDs are
-  reported to the local broker module.
+  Housekeeping again invokes :option:`flux-slingshot epilog`, but with
+  an option to retry CXI service destruction for a longer period of time.
+  If CXI services cannot be destroyed, the node is drained.
 
-utility
-  A :program:`flux-slingshot` utility can be used to perform queries on
-  the flux-slingshot broker module and the local NIC.  It is a useful tool
-  for diagnosis and a helper for the prolog and epilog scripts.
+  In addition to cleaning up after the current job, housekeeping may invoke
+  :option:`flux-slingshot clean --all` to remove all user CXI services from
+  the node.  This may be useful as an extra precaution on node-scheduled
+  systems like *El Capitan*, in case CXI services were left on the NIC by
+  another job that Flux was unable to clean up, for example if Flux was
+  not running.
 
 Example 1
 ---------
@@ -493,40 +525,35 @@ An MPI program is run directly in the Flux system instance:
 
   $ flux run -N2 ./mpi-hello
 
-#. The broker module on rank 0 sees the transition of the job to RUN state
-   and creates a VNI reservation for the job.
+#. The jobtap plugin on rank 0 sees the transition of the job to RUN state
+   and posts a VNI reservation to the job eventlog before the ``start`` event.
 
-#. The prolog queries the broker module on the local node requesting the VNI
-   reservation by job ID.  The request is forwarded to the TBON parent
-   and so on, until the reservation is found.  If the reservation is not found
-   on the leader, the request is set aside until the reservation is created.
+#. The prolog script calls :option:`flux-slingshot prolog`, which fetches
+   the reservation and creates matching CXI services on each Slingshot NIC.
 
-#. Having obtained the job's VNI reservation, the prolog creates one CXI
-   service per node.  It then writes the CXI service IDs to the local broker
-   module.  The local broker module sends a request to the TBON parent to
-   add the CXI service count to the reservation use count.
+#. The job shell plugin fetches the reservation, then queries each Slingshot
+   NIC for matching CXI services.  The job tasks are launched with the
+   appropriate Slingshot environment.
 
-#. The job shell plugin asks the local broker module for the job's VNI
-   reservation and local CXI service IDs, then launches the job with the
-   appropriate environment variables set.
+#. The job transitions to CLEANUP state.
 
-#. The broker module on rank 0 sees the transition of the job to CLEANUP
-   state and marks the VNI reservation for cleanup.
+#. The epilog script calls :option:`flux-slingshot epilog`,
+   which fetches the reservation and destroys matching CXI services on
+   each Slingshot NIC.  Any retries are deferred to housekeeping so the
+   job's resources can be returned to the scheduler.
 
-#. The job transitions to INACTIVE.
+#. In parallel with the previous step, the jobtap plugin on rank 0 releases
+   the reservation.
 
-#. Housekeeping queries the NIC and the local broker module and destroys the
-   CXI services for the reservation that was marked for cleanup. It then
-   informs the local broker module that it should subtract the CXI service
-   count from the reservation use count, which is forward to the leader.
-
-#. When the reservation use count reaches zero, the reservation is released.
-
+#. The housekeeping script calls :option:`flux-slingshot epilog --timeout=5m`,
+   which fetches the reservation and destroys matching CXI services on
+   each Slingshot NIC. Recalcitrant CXI services cause the node to be
+   drained after the timeout expires.
 
 Example 2
 ---------
 
-An MPI program is in a batch sub-instance:
+An MPI program is run in a batch sub-instance:
 
 .. code::
 
@@ -535,13 +562,9 @@ An MPI program is in a batch sub-instance:
 The sequence in Example 1 is followed, except the "job" is a Flux sub-instance.
 Within the sub-instance the following occurs:
 
-#. At startup, the broker module on each rank reads the Slingshot environment
-   variables from the broker environment and creates an inherited reservation
+#. At startup, the shell plugin on each rank reads the Slingshot environment
+   variables from the local broker environment and creates an inherited reservation
    that will be re-used for all jobs.
-
-#. The job shell plugin asks the local broker module for the job's VNI
-   reservation and local CXI service IDs, then launches the job with the
-   appropriate environment variables set.
 
 That's it.  The broker module acts independently on each rank using only
 the information that it received from the local environment.  There is no
@@ -551,17 +574,8 @@ prolog or housekeeping.
 Phase II: Interfacing with the Fabric Manager
 =============================================
 
-The second phase of implementation enables hardware collective offload.
-The above components are extended and a new component is added:
-
-rest-client broker module
-  An general REST client module based on libcurl that can be loaded
-  under different names to provide a Flux RPC gateway to a REST service.
-  It is loaded as cray-slingshot-fabric on the leader broker and is used
-  as a gateway to the Slingshot fabric manager.
-
-  It uses the libcurl "multi" interface [#curlmulti]_ to remain responsive
-  while waiting for REST servers to respond.
+The second phase of implementation enables hardware collective offload,
+building on the infrastructure created in Phase II.
 
 TODO
 
@@ -590,5 +604,3 @@ TODO
    received May 2025.
 
 .. [#jobidpath] `flux-core github issue #6876: need unique identifier for jobs run at any level on a system <https://github.com/flux-framework/flux-core/issues/6876>`_
-
-.. [#curlmulti] `libcurl-multi(7) multi interface overview <https://curl.se/libcurl/c/libcurl-multi.html>`_
