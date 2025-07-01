@@ -47,7 +47,7 @@ at the NIC level.  A VNI tag is an integer value stamped on each RDMA message.
 A user may only send or receive messages with a given VNI tag if the local
 NIC driver has allocated a :term:`CXI service` (a privileged operation) that
 grants that user access to that VNI.  The user presents the CXI service id
-to the driver along with the I/O request.
+to the driver when requesting direct access to hardware resources for RDMA.
 
 VNI tagging support in Flux is implemented as a two step process.  First the
 system allocates a set of unique VNIs to the job, then a CXI service is
