@@ -10,10 +10,11 @@ How to Allocate Rabbit Storage
 
 Request rabbit storage allocations for a job
 by setting the ``.attributes.system.dw`` field in a jobspec to
-a string containing one or more DW directives. A JSON list of DW directives
-is also accepted, but cannot be provided on the command line. (It is however
-possible when constructing jobspecs with Flux's Python bindings, or when
-creating jobspecs directly.)
+a string containing one or more
+`DW directives <https://nearnodeflash.github.io/latest/guides/user-interactions/readme/>`_.
+A JSON list of DW directives is also accepted, but cannot be provided on the
+command line. (It is however possible when constructing jobspecs with Flux's
+Python bindings, or when creating jobspecs directly.)
 
 On the command line, set the ``.attributes.system.dw`` field by passing flags
 like ``-S dw="my_string"`` or ``--setattr=dw="my_string"``.
@@ -226,7 +227,13 @@ information about data movement. Fetch it with
 Container Attributes
 ~~~~~~~~~~~~~~~~~~~~
 
-If a job launched a rabbit container with a `#DW container` directive, once the job
+If a job launched a
+`rabbit container <https://nearnodeflash.github.io/latest/guides/user-containers/readme/>`_
+with a ``#DW container`` directive, once the job
 is complete it will have an additional attribute ``rabbit_container_log`` storing
 the tail of the logs of one of the containers. Unfortunately, due to size limitations
 of Flux's KVS, the complete logs cannot be stored.
+
+.. code-block:: bash
+
+	flux job info ${jobid} rabbit_container_log | less
