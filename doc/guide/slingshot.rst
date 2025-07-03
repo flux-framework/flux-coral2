@@ -454,7 +454,6 @@ jobtap plugin
       "timestamp": 1751386927.8443174,
       "name": "cray-slingshot",
       "context": {
-        "ncores": 96,
         "reservation": { "vnis": [ 1024 ] }
       }
     }
