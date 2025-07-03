@@ -11,6 +11,8 @@ AM_CPPFLAGS = \
 noinst_LTLIBRARIES = libutil.la
 
 libutil_la_SOURCES = \
+	monotime.h \
+	monotime.c \
 	errprintf.h \
 	errprintf.c \
 	eventlog.h \
