@@ -223,4 +223,6 @@ scriptlet
 libcurl
 boolean
 RPC
-curlmulti
+vnis
+vnicount
+eventlogs
