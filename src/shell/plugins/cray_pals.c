@@ -96,7 +96,7 @@ struct cray_pals {
 };
 
 static const int default_apinfo_version = 5;
-static const double default_timeout = 10.;
+static const double default_timeout = 30.;
 
 static void cray_pals_destroy (void *arg)
 {
@@ -247,55 +247,40 @@ error:
  * The following outcomes are possible:
  * - "cray-pmi-bootstrap" was posted: populate 'pmi', set pmi->valid true,
  *   return 0.
- * - "clean" event was encountered (module not loaded?): leave pmi->valid false,
+ * - a surpassing event was encountered (module not loaded?): leave pmi->valid false,
  *   return 0
  * - an error occurred such as timeout: log an error message, return -1.
  */
 static int read_future (flux_future_t *fut, struct pmi_bootstrap_info *pmi, double timeout)
 {
-    json_t *o = NULL;
+    flux_error_t error;
     json_t *context = NULL;
-    const char *name = "<no events received>", *event = NULL;
 
-    while (flux_future_wait_for (fut, timeout) == 0
-           && flux_job_event_watch_get (fut, &event) == 0) {
-        if (!(o = eventlog_entry_decode (event))
-            || eventlog_entry_parse (o, NULL, &name, &context) < 0) {
-            shell_log_errno ("Error decoding eventlog entry");
-            json_decref (o);
-            return -1;
-        }
-        if (!strcmp (name, "start")) {
-            /*  'start' event with no cray-pmi-bootstrap event.
-             *  assume cray-pals jobtap plugin is not loaded.
-             */
-            shell_debug (
-                "cray-pmi-bootstrap jobtap plugin is not "
-                "loaded: proceeding without PMI_CONTROL_PORT set");
-            return 0;
-        }
-        if (!strcmp (name, "cray-pmi-bootstrap")) {
-            if (json_unpack (context,
-                             "{s:[ii] s:I}",
-                             "ports",
-                             &pmi->port[0],
-                             &pmi->port[1],
-                             "random_integer",
-                             &pmi->secret)
-                < 0) {
-                shell_log_error ("Error unpacking 'cray-pmi-bootstrap' event");
-                json_decref (o);
-                return -1;
-            }
-            pmi->valid = true;
-            json_decref (o);
-            return 0;
-        }
-        flux_future_reset (fut);
-        json_decref (o);
+    if (eventlog_wait_for (fut, "cray-pmi-bootstrap", timeout, &context, &error) < 0) {
+        shell_log_error ("waiting for cray-pmi-bootstrap or surpassing event: %s", error.text);
+        return -1;
     }
-    shell_log_error ("Timed out waiting for start event, last event received was %s", name);
-    return -1;
+    if (!context) {
+        shell_debug (
+            "cray-pmi-bootstrap jobtap plugin is not "
+            "loaded: proceeding without PMI_CONTROL_PORT set");
+        return 0;
+    }
+    if (json_unpack (context,
+                     "{s:[ii] s:I}",
+                     "ports",
+                     &pmi->port[0],
+                     &pmi->port[1],
+                     "random_integer",
+                     &pmi->secret)
+        < 0) {
+        shell_log_error ("Error unpacking 'cray-pmi-bootstrap' event");
+        json_decref (context);
+        return -1;
+    }
+    pmi->valid = true;
+    json_decref (context);
+    return 0;
 }
 
 /* Read pmi bootstrap info from the job eventlog.

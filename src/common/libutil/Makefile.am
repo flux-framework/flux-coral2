@@ -6,6 +6,8 @@ AM_LDFLAGS = \
 	$(CODE_COVERAGE_LIBS)
 
 AM_CPPFLAGS = \
+	-I$(top_srcdir) \
+	-I$(top_srcdir)/src/common/libccan \
 	$(CODE_COVERAGE_CPPFLAGS)
 
 noinst_LTLIBRARIES = libutil.la
