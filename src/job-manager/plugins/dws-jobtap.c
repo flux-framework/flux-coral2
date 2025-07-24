@@ -165,12 +165,12 @@ static int depend_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
     flux_t *h = flux_jobtap_get_flux (p);
     json_t *resources;
     json_t *jobspec;
-    int userid;
+    int userid, failure_tolerance = 0;
     struct create_arg_t *create_args;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:I s:{s:{s:{s?o}}} s:{s:o} s:i s:o}",
+                                "{s:I s:{s:{s:{s?o s?i}}} s:{s:o} s:i s:o}",
                                 "id",
                                 &id,
                                 "jobspec",
@@ -178,6 +178,8 @@ static int depend_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
                                 "system",
                                 "dw",
                                 &dw,
+                                "dw_failure_tolerance",
+                                &failure_tolerance,
                                 "jobspec",
                                 "resources",
                                 &resources,
@@ -207,7 +209,7 @@ static int depend_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
                                                    "dws.create",
                                                    FLUX_NODEID_ANY,
                                                    0,
-                                                   "{s:O, s:I, s:O, s:i}",
+                                                   "{s:O, s:I, s:O, s:i, s:i}",
                                                    "dw_directives",
                                                    dw,
                                                    "jobid",
@@ -215,7 +217,9 @@ static int depend_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
                                                    "resources",
                                                    resources,
                                                    "userid",
-                                                   userid);
+                                                   userid,
+                                                   "failure_tolerance",
+                                                   failure_tolerance);
         if (create_fut == NULL) {
             flux_log_error (h, "Failed to send dws.create RPC for %s", idf58 (id));
             current_job_exception (p, "Failed to send dws.create RPC");
