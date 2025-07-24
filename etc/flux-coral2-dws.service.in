@@ -11,7 +11,7 @@ SyslogIdentifier=flux-coral2-dws
 Restart=always
 RestartSec=10s
 RestartPreventExitStatus=2 3
-WatchDogSec=60s
+WatchdogSec=60s
 
 User=flux
 Group=flux
