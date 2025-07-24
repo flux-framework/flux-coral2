@@ -18,14 +18,18 @@ args = parser.parse_args()
 
 
 def create_cb(fh, t, msg, arg):
+    failure_tolerance = msg.payload["failure_tolerance"]
     payload = {
         "success": not args.create_fail,
     }
     if args.create_fail:
         payload["errstr"] = "create RPC failed for test purposes"
+    if not isinstance(failure_tolerance, int) or failure_tolerance < 0:
+        payload["success"] = False
+        payload["errstr"] = "bad value for fault_tolerance"
     fh.respond(msg, payload)
     print(f"Responded to create request with {payload}")
-    if args.create_fail:
+    if not payload["success"]:
         return
     fh.rpc(
         "job-manager.dws.resource-update",
@@ -77,7 +81,7 @@ def teardown_cb(fh, t, msg, arg):
 
 
 def abort_cb(fh, t, msg, arg):
-    print(f"Received dws.abort RPC with msg {msg}")
+    print(f"Received dws.abort RPC with msg {msg.payload}")
     fh.reactor_stop()
 
 

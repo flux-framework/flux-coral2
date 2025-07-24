@@ -328,4 +328,28 @@ test_expect_success 'job-manager: dws jobtap plugin works when job hits exceptio
 	test_must_fail flux job attach ${jobid}
 '
 
+test_expect_success 'job-manager: dws jobtap plugin accepts dw_failure_tolerance' '
+	create_jobid=$(flux submit -t 8 --output=dws14.out --error=dws14.out \
+		flux python ${DWS_SCRIPT}) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	jobid=$(flux submit -S dw="foo" -S dw_failure_tolerance=1 hostname) &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} ${jobid} prolog-start &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} ${jobid} prolog-finish &&
+	flux job wait-event -vt 1 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 1 ${jobid} clean &&
+	flux job wait-event -vt 5 ${create_jobid} clean
+'
+
+test_expect_success 'job-manager: dws jobtap plugin rejects bad dw_failure_tolerance' '
+	create_jobid=$(flux submit -t 8 --output=dws15.out --error=dws15.out \
+		flux python ${DWS_SCRIPT} --create-fail) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	jobid=$(flux submit -S dw="foo" -S dw_failure_tolerance=-1 hostname) &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 1 ${jobid} exception &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 5 ${create_jobid} clean
+'
+
 test_done
