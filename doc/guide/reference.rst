@@ -15,3 +15,5 @@ References
 
 - `Rabbit Storage for El Capitan <https://www.opensfs.org/wp-content/uploads/Fast-IO-El-Capitan-Rabbits.revised.pdf>`_,
   Behlendorf and Faaland, LUG May 2023.
+
+- `HPE Rabbit documentation <https://nearnodeflash.github.io/latest/>`_
