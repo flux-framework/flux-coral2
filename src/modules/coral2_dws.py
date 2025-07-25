@@ -404,7 +404,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
         postrun_timeout = handle.conf_get("rabbit.postrun_timeout", 0.0)
         # create a timer watcher to abandon mounts and move to teardown
         if postrun_timeout > 0:
-            winfo.postrun_watcher = handle.timer_watcher_create(
+            winfo.state_timer = handle.timer_watcher_create(
                 postrun_timeout, postrun_timeout_cb, args=(handle, k8s_api, winfo)
             ).start()
 
@@ -691,8 +691,6 @@ def _workflow_state_change_cb_inner(
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, WorkflowState.POSTRUN):
         # move workflow to next stage, DataOut
-        if winfo.postrun_watcher is not None:
-            winfo.postrun_watcher.stop()  # stop the postrun timer
         winfo.move_desiredstate(WorkflowState.DATAOUT, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, WorkflowState.DATAOUT):
