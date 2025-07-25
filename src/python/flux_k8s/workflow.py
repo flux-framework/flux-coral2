@@ -75,12 +75,13 @@ class WorkflowInfo:
     def known_workflows(cls):
         return cls._WORKFLOWINFO_CACHE.keys()
 
-    def __init__(self, jobid, name=None, resources=None):
+    def __init__(self, jobid, name=None, resources=None, failure_tolerance=-1):
         self.jobid = jobid
         if name is None:
             self.name = self.get_name(jobid)
         else:
             self.name = name  # name of the k8s workflow
+        self.failure_tolerance = failure_tolerance  # tolerance for rabbit failures
         self.resources = resources  # jobspec 'resources' field
         self.toredown = False  # True if workflows has been moved to teardown
         self.deleted = False  # True if delete request has been sent to k8s
