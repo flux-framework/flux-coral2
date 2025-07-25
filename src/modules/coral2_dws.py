@@ -73,6 +73,26 @@ def log_rpc_response(rpc, jobid):
             LOGGER.debug("RPC response for job %s was %s", jobid, msg)
 
 
+def timer_callback_wrapper(func):
+    """Decorator for timer_watcher callbacks.
+
+    Catch exceptions and stop the watcher.
+    """
+
+    @functools.wraps(func)
+    def wrapper(_reactor, watcher, _r, args):
+        handle, k8s_api, winfo, *rest = args
+        try:
+            func(handle, k8s_api, winfo, *rest)
+        except Exception as exc:
+            LOGGER.exception("Exception during timer callback:")
+            handle.job_raise(winfo.jobid, "dws-timer-error", 0, str(exc))
+        finally:
+            watcher.stop()
+
+    return wrapper
+
+
 def message_callback_wrapper(func):
     """Decorator for msg_watcher callbacks.
 
@@ -343,29 +363,25 @@ def check_existence_and_move_to_teardown(handle, k8s_api, winfo):
         winfo.move_to_teardown(handle, k8s_api, workflow)
 
 
-def teardown_after_timer_cb(reactor, watcher, _r, args):
+@timer_callback_wrapper
+def teardown_after_timer_cb(handle, k8s_api, winfo):
     """Tear down a workflow."""
     try:
-        handle, k8s_api, winfo = args
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
     except Exception:
         LOGGER.exception("Failed to move workflow to teardown after timeout:")
-    finally:
-        watcher.stop()
     handle.job_raise(
         winfo.jobid, "teardown-timeout", 1, "skipping rabbit data movement"
     )
 
 
-def postrun_timeout_cb(reactor, watcher, _r, args):
+@timer_callback_wrapper
+def postrun_timeout_cb(handle, k8s_api, winfo):
     """Tear down a workflow."""
     try:
-        handle, k8s_api, winfo = args
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
     except Exception:
         LOGGER.exception("Failed to move workflow to teardown after timeout:")
-    finally:
-        watcher.stop()
     handle.job_raise(
         winfo.jobid, "rabbit-timeout", 0, "unmounts timed out, skipping data movement"
     )
