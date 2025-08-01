@@ -272,4 +272,60 @@ test_expect_success 'job-manager: dws jobtap plugin works when job hits epilog t
 	test_must_fail flux job attach ${jobid}
 '
 
+test_expect_success 'job-manager: dws jobtap plugin works when job hits exception during prolog after restart' '
+	create_jobid=$(flux submit -t 8 --output=dws12.out --error=dws12.out \
+		flux python ${DWS_SCRIPT} --setup-hang) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	flux queue stop --all &&
+	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-remove &&
+	test_must_fail flux job wait-event -vt 1 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux jobtap remove dws-jobtap.so &&
+	flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
+	flux queue start --all &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux cancel $jobid
+	flux job wait-event -vt 1 ${jobid} exception &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} -m status=1 \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 5 ${create_jobid} clean
+'
+
+test_expect_success 'job-manager: dws jobtap plugin works when job hits exception during epilog after restart' '
+	create_jobid=$(flux submit -t 8 --output=dws13.out --error=dws13.out \
+		flux python ${DWS_SCRIPT} --teardown-hang) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	flux queue stop --all &&
+	jobid=$(flux submit --setattr=system.dw="foo" hostname) &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-remove &&
+	test_must_fail flux job wait-event -vt 1 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux jobtap remove dws-jobtap.so &&
+	flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
+	flux queue start --all &&
+	flux job wait-event -vt 1 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux cancel $jobid &&
+	flux job wait-event -vt 1 ${jobid} exception &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} -m status=0 \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 5 ${create_jobid} clean &&
+	test_must_fail flux job attach ${jobid}
+'
+
 test_done
