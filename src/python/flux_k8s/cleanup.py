@@ -155,7 +155,7 @@ async def teardown_workflow_coro(workflow):
             threading.current_thread().flux_handle,
         )
     except Exception:
-        LOGGER.warning("Failed to fetch pod logs for workflow %s", name)
+        LOGGER.exception("Failed to fetch pod logs for workflow %s", name)
     while True:
         try:
             crd_api.patch_namespaced_custom_object(
