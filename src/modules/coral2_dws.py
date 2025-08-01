@@ -898,7 +898,9 @@ def config_logging(args):
     logging.getLogger(flux_k8s.__name__).setLevel(log_level)
     try:
         from systemd.journal import JournalHandler
-    except ImportError:
+
+        os.environ["INVOCATION_ID"]  # set by systemd
+    except (ImportError, KeyError):
         pass
     else:
         # if running under systemd, use a JournalHandler
