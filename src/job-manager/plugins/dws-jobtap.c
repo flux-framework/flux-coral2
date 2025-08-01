@@ -356,6 +356,14 @@ static int run_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args,
         return -1;
     }
     if (dw) {
+        // re-subscribe to exception events, just in case the plugin was reloaded
+        if (flux_jobtap_job_subscribe (p, FLUX_JOBTAP_CURRENT_JOB) < 0) {
+            current_job_exception (p, "dws-jobtap: error initializing exception-monitoring");
+            flux_log_error (h,
+                            "dws-jobtap: error initializing exception-monitoring for %s",
+                            idf58 (id));
+            return -1;
+        }
         // set a boolean aux indicating whether jobtap prolog is active, so it can
         // be finished if an exception occurs
         if (!(prolog_active = malloc (sizeof (int)))
