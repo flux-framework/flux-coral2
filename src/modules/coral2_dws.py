@@ -267,6 +267,22 @@ def create_cb(handle, _t, msg, k8s_api):
     ).then(log_rpc_response, jobid)
 
 
+@timer_callback_wrapper
+def prerun_timeout_cb(handle, k8s_api, winfo):
+    """Check for mount failures and take action.
+
+    This callback fires after a workflow has been in PreRun for a configurable
+    amount of time.
+    """
+    if winfo.failure_tolerance <= 0:
+        handle.job_raise(winfo.jobid, "dws-timeout", 0, "timed out waiting for mounts")
+    not_mounted = get_clientmounts_not_in_state(k8s_api, winfo.name, "mounted")
+    try:
+        winfo.notify_of_node_failure(handle, not_mounted, k8s_api)
+    except ValueError:
+        handle.job_raise(winfo.jobid, "dws-timeout", 0, "timed out waiting for mounts")
+
+
 @message_callback_wrapper
 def setup_cb(handle, _t, msg, k8s_api):
     """dws.setup RPC callback.
@@ -696,6 +712,12 @@ def _workflow_state_change_cb_inner(
         # move workflow to next stage, PreRun
         winfo.move_desiredstate(WorkflowState.PRERUN, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
+        prerun_timeout = handle.conf_get("rabbit.prerun_timeout", 0.0)
+        # create a timer watcher to abandon mounts and move to teardown
+        if prerun_timeout > 0:
+            winfo.state_timer = handle.timer_watcher_create(
+                prerun_timeout, prerun_timeout_cb, args=(handle, k8s_api, winfo)
+            ).start()
     elif state_complete(workflow, WorkflowState.PRERUN):
         # tell DWS jobtap plugin that the job can start
         variables = fetch_job_environment(secrets_api, workflow)
@@ -800,14 +822,6 @@ def kill_workflows_in_tc(_reactor, watcher, _r, args):
     # iterate over it.
     for jobid, trans_cond in list(WORKFLOWS_IN_TC.items()):
         if curr_time - trans_cond.last_time > tc_timeout:
-            watcher.flux_handle.job_raise(
-                jobid,
-                "exception",
-                0,
-                "DWS/Rabbit interactions failed: workflow in 'TransientCondition' "
-                f"state too long: {trans_cond.last_message}",
-            )
-            del WORKFLOWS_IN_TC[jobid]
             if trans_cond.prerun:
                 # if a job is in prerun, a mount is probably failing
                 # in this case check what nodes have failed to mount and set
@@ -816,6 +830,23 @@ def kill_workflows_in_tc(_reactor, watcher, _r, args):
                     k8s_api, WorkflowInfo.get_name(jobid), "mounted"
                 )
                 manager.set_property(not_mounted, f"{jobid} timed out in PreRun")
+                try:
+                    WorkflowInfo.get(jobid).notify_of_node_failure(
+                        watcher.flux_handle, not_mounted, k8s_api
+                    )
+                except ValueError:
+                    pass
+                else:
+                    del WORKFLOWS_IN_TC[jobid]
+                    return
+            watcher.flux_handle.job_raise(
+                jobid,
+                "exception",
+                0,
+                "DWS/Rabbit interactions failed: workflow in 'TransientCondition' "
+                f"state too long: {trans_cond.last_message}",
+            )
+            del WORKFLOWS_IN_TC[jobid]
 
 
 def heartbeat_cb(_reactor, watcher, _r, profiler):
@@ -1009,6 +1040,7 @@ def validate_config(config):
         "presets",
         "mapping",
         "soft_drain",
+        "prerun_timeout",
         "postrun_timeout",
         "teardown_after",
     }
