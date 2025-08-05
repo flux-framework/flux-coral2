@@ -40,7 +40,7 @@ from flux_k8s.watch import Watchers, Watch
 from flux_k8s import directivebreakdown
 from flux_k8s import cleanup
 from flux_k8s import storage
-from flux_k8s import systemstatus
+import flux_k8s.systemstatus
 from flux_k8s.workflow import (
     TransientConditionInfo,
     WorkflowInfo,
@@ -54,7 +54,6 @@ WORKFLOWS_IN_TC = {}  # tc for TransientCondition
 _MIN_ALLOCATION_SIZE = 4  # minimum rabbit allocation size
 _EXITCODE_NORESTART = 3  # exit code indicating to systemd not to restart
 CLIENTMOUNT_NAME = re.compile(r"-computes$")
-_systemstatus = None
 
 
 class UserError(Exception):
@@ -376,7 +375,7 @@ def teardown_after_timer_cb(handle, k8s_api, winfo):
 
 
 @timer_callback_wrapper
-def postrun_timeout_cb(handle, k8s_api, winfo):
+def postrun_timeout_cb(handle, k8s_api, winfo, system_status):
     """Tear down a workflow."""
     try:
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
@@ -386,11 +385,11 @@ def postrun_timeout_cb(handle, k8s_api, winfo):
         winfo.jobid, "rabbit-timeout", 0, "unmounts timed out, skipping data movement"
     )
     drained = drain_nodes_with_mounts(handle, k8s_api, winfo)
-    _systemstatus.disable_until_undrained(drained)
+    system_status.disable_until_undrained(drained)
 
 
 @message_callback_wrapper
-def post_run_cb(handle, _t, msg, k8s_api):
+def post_run_cb(handle, _t, msg, args):
     """dws.post_run RPC callback.
 
     The dws.post_run RPC is sent when the job has reached the CLEANUP state.
@@ -399,6 +398,7 @@ def post_run_cb(handle, _t, msg, k8s_api):
     If the job did not reach the RUN state (exception path), move
     the workflow directly to `teardown`.
     """
+    k8s_api, system_status = args
     jobid = msg.payload["jobid"]
     winfo = WorkflowInfo.get(jobid)
     run_started = msg.payload["run_started"]
@@ -421,7 +421,9 @@ def post_run_cb(handle, _t, msg, k8s_api):
         # create a timer watcher to abandon mounts and move to teardown
         if postrun_timeout > 0:
             winfo.state_timer = handle.timer_watcher_create(
-                postrun_timeout, postrun_timeout_cb, args=(handle, k8s_api, winfo)
+                postrun_timeout,
+                postrun_timeout_cb,
+                args=(handle, k8s_api, winfo, system_status),
             ).start()
 
 
@@ -479,7 +481,7 @@ def abort_cb(handle, _t, msg, k8s_api):
         )
 
 
-def status_cb(handle, _arg, msg, _k8s_api):
+def status_cb(handle, _arg, msg, _):
     """dws.status RPC callback. Returns some status info."""
     try:
         workflows = list(WorkflowInfo.known_workflows())
@@ -934,22 +936,22 @@ def config_logging(args):
         logging.getLogger(flux_k8s.__name__).propagate = False
 
 
-def register_services(handle, k8s_api):
+def register_services(handle, k8s_api, system_status):
     """register dws.create, dws.setup, and dws.post_run services."""
     serv_reg_fut = handle.service_register("dws")
-    for service_name, cb in (
-        ("create", create_cb),
-        ("setup", setup_cb),
-        ("post_run", post_run_cb),
-        ("teardown", teardown_cb),
-        ("abort", abort_cb),
-        ("status", status_cb),
+    for service_name, cb, args in (
+        ("create", create_cb, k8s_api),
+        ("setup", setup_cb, k8s_api),
+        ("post_run", post_run_cb, (k8s_api, system_status)),
+        ("teardown", teardown_cb, k8s_api),
+        ("abort", abort_cb, k8s_api),
+        ("status", status_cb, None),
     ):
         yield handle.msg_watcher_create(
             cb,
             FLUX_MSGTYPE_REQUEST,
             f"dws.{service_name}",
-            args=k8s_api,
+            args=args,
         )
     serv_reg_fut.get()
 
@@ -1034,8 +1036,6 @@ def validate_config(config):
 
 def main():
     """Init script, begin processing of services."""
-    global _systemstatus
-
     profiler = cProfile.Profile()
     profiler.enable()
     args = setup_parsing().parse_args()
@@ -1068,7 +1068,7 @@ def main():
     )
     cleanup.setup_cleanup_thread(handle.conf_get("rabbit.kubeconfig"))
     storage.populate_rabbits_dict(k8s_api)
-    _systemstatus = systemstatus.SystemStatusManager(handle, k8s_api).start()
+    system_status = flux_k8s.systemstatus.SystemStatusManager(handle, k8s_api).start()
     # start watching k8s workflow resources and operate on them when updates occur
     # or new RPCs are received
     with Watchers(handle, watch_interval=args.watch_interval) as watchers:
@@ -1092,7 +1092,7 @@ def main():
         with contextlib.ExitStack() as stack:
             for watcher in (timer_watcher,) + heartbeat_watchers:
                 stack.enter_context(watcher)
-            for service in register_services(handle, k8s_api):
+            for service in register_services(handle, k8s_api, system_status):
                 stack.enter_context(service)
             watchers.add_watch(
                 Watch(
