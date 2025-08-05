@@ -6,6 +6,7 @@ import enum
 
 import flux
 import flux.job
+from flux.hostlist import Hostlist
 
 from flux_k8s import cleanup, crd
 
@@ -87,6 +88,7 @@ class WorkflowInfo:
         self.deleted = False  # True if delete request has been sent to k8s
         self.epilog_removed = False  # True if jobtap epilog was already removed
         self.state_timer = None  # Flux timer-watcher for a state
+        self._failures = Hostlist()  # nodes that failed rabbit creation or mounting
 
     def move_to_teardown(self, handle, k8s_api, workflow=None):
         """Move a workflow to the 'Teardown' desiredState."""
@@ -152,6 +154,20 @@ class WorkflowInfo:
             self.name,
             {"spec": {"desiredState": desiredstate}},
         )
+
+    def notify_of_node_failure(self, handle, nodes, k8s_api):
+        hlist = Hostlist(nodes).uniq()
+        self._failures.append(hlist)
+        self._failures.uniq()
+        if len(self._failures) <= self.failure_tolerance:
+            handle.job_raise(self.jobid, "dws-node-failure", 1, hlist.encode())
+            k8s_api.patch_namespaced_custom_object(
+                *crd.WORKFLOW_CRD,
+                self.name,
+                {"spec": {"forceReady": True}},
+            )
+        else:
+            raise ValueError("node failure tolerance exceeded")
 
 
 def save_workflow_to_kvs(handle, jobid, workflow, datamovements=None):
