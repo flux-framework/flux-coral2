@@ -227,7 +227,7 @@ test_expect_success 'job submission without DW string works' '
 
 test_expect_success 'job submission with valid DW string works' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
-		-N1 -n1 hostname) &&
+		-S dw_failure_tolerance=0 -N1 -n1 hostname) &&
 	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event.json &&
@@ -353,6 +353,15 @@ test_expect_success 'job-manager: dependency plugin works when validation fails'
 	flux job wait-event -vt 10 ${jobid} exception | grep "DWS workflow interactions failed" &&
 	test_must_fail grep foo_test dws1.out &&
 	test_must_fail grep foo_test dws1.err
+'
+
+test_expect_success 'job is rejected when dw_failure_tolerance is negative' '
+	jobid=$(flux submit -S dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-S dw_failure_tolerance=-1 hostname) &&
+	flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 10 ${jobid} exception | grep "DWS workflow interactions failed" &&
+	flux job wait-event -vt 10 ${jobid} exception | grep "dw_failure_tolerance must be a positive integer"
 '
 
 test_expect_success 'dws service kills workflows in Error properly' '
