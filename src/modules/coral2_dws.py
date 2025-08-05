@@ -414,9 +414,9 @@ def post_run_cb(handle, _t, msg, k8s_api):
         teardown_after = handle.conf_get("rabbit.teardown_after", 0.0)
         # create a timer watcher to move the workflow to teardown
         if teardown_after > 0:
-            handle.timer_watcher_create(
+            winfo._teardown_after_timer = handle.timer_watcher_create(
                 teardown_after, teardown_after_timer_cb, args=(handle, k8s_api, winfo)
-            ).start()
+            ).start()  # store it on winfo so it isn't garbage collected
         postrun_timeout = handle.conf_get("rabbit.postrun_timeout", 0.0)
         # create a timer watcher to abandon mounts and move to teardown
         if postrun_timeout > 0:
