@@ -268,7 +268,7 @@ def create_cb(handle, _t, msg, k8s_api):
 
 
 @timer_callback_wrapper
-def prerun_timeout_cb(handle, k8s_api, winfo):
+def prerun_timeout_cb(handle, k8s_api, winfo, rabbit_manager):
     """Check for mount failures and take action.
 
     This callback fires after a workflow has been in PreRun for a configurable
@@ -277,6 +277,7 @@ def prerun_timeout_cb(handle, k8s_api, winfo):
     if winfo.failure_tolerance <= 0:
         handle.job_raise(winfo.jobid, "dws-timeout", 0, "timed out waiting for mounts")
     not_mounted = get_clientmounts_not_in_state(k8s_api, winfo.name, "mounted")
+    rabbit_manager.set_property(not_mounted, f"{winfo.jobid} timed out in PreRun")
     try:
         winfo.notify_of_node_failure(handle, not_mounted, k8s_api)
     except ValueError:
@@ -625,7 +626,9 @@ def state_active(workflow, state):
     return workflow["spec"]["desiredState"] == workflow["status"]["state"] == state
 
 
-def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion, secrets_api):
+def workflow_state_change_cb(
+    event, handle, k8s_api, disable_fluxion, secrets_api, rabbit_manager
+):
     """Exception-catching wrapper around _workflow_state_change_cb_inner."""
     try:
         workflow = event["object"]
@@ -644,7 +647,13 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion, secrets_ap
         return
     try:
         _workflow_state_change_cb_inner(
-            workflow, winfo, handle, k8s_api, disable_fluxion, secrets_api
+            workflow,
+            winfo,
+            handle,
+            k8s_api,
+            disable_fluxion,
+            secrets_api,
+            rabbit_manager,
         )
     except Exception:
         LOGGER.exception(
@@ -667,7 +676,7 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion, secrets_ap
 
 
 def _workflow_state_change_cb_inner(
-    workflow, winfo, handle, k8s_api, disable_fluxion, secrets_api
+    workflow, winfo, handle, k8s_api, disable_fluxion, secrets_api, rabbit_manager
 ):
     """Handle workflow state transitions."""
     jobid = winfo.jobid
@@ -716,7 +725,9 @@ def _workflow_state_change_cb_inner(
         # create a timer watcher to abandon mounts and move to teardown
         if prerun_timeout > 0:
             winfo.state_timer = handle.timer_watcher_create(
-                prerun_timeout, prerun_timeout_cb, args=(handle, k8s_api, winfo)
+                prerun_timeout,
+                prerun_timeout_cb,
+                args=(handle, k8s_api, winfo, rabbit_manager),
             ).start()
     elif state_complete(workflow, WorkflowState.PRERUN):
         # tell DWS jobtap plugin that the job can start
@@ -1136,6 +1147,7 @@ def main():
                     k8s_api,
                     args.disable_fluxion,
                     secrets_api,
+                    manager,
                 )
             )
             raise_self_exception(handle)
