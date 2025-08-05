@@ -479,7 +479,9 @@ def abort_cb(handle, _t, msg, k8s_api):
     # get all clientmounts for the job that aren't unmounted
     drain_nodes_with_mounts(handle, k8s_api, winfo)
     # get all rabbits with active allocations and disable them.
-    for rabbit_to_disable in get_servers_with_active_allocations(k8s_api, winfo.name):
+    for rabbit_to_disable in get_servers_with_condition(
+        k8s_api, winfo.name, lambda x: x["allocationSize"] > 0
+    ):
         k8s_api.patch_namespaced_custom_object(
             *crd.RABBIT_CRD,
             rabbit_to_disable,
@@ -575,10 +577,13 @@ def get_clientmounts_not_in_state(k8s_api, workflow_name, desired_state):
     return to_drain
 
 
-def get_servers_with_active_allocations(k8s_api, workflow_name):
-    """Return all rabbits in a job that have active allocations.
+def get_servers_with_condition(k8s_api, workflow_name, condition):
+    """Return all rabbits in a job that match a condition.
 
     The job is specified by the name of the workflow.
+
+    `condition` should be a callable accepting the .status.allocationSets.storage
+    field of the Servers resource.
     """
     try:
         servers = k8s_api.list_cluster_custom_object(
@@ -601,7 +606,7 @@ def get_servers_with_active_allocations(k8s_api, workflow_name):
             allocation_sets = resource["status"]["allocationSets"]
             for alloc_set in allocation_sets:
                 for rabbit_name, alloc_info in alloc_set["storage"].items():
-                    if alloc_info["allocationSize"] > 0:
+                    if condition(alloc_info):
                         with_allocations.add(rabbit_name)
         except (KeyError, TypeError) as exc:
             # can't tell what node to drain, nothing to do

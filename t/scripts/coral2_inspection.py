@@ -43,7 +43,9 @@ def main():
     coral2_dws = get_coral2_dws(args)
     winfo = workflow.WorkflowInfo.get(int(args.jobid))
     k8s_api = cleanup.get_k8s_api(handle.conf_get("rabbit.kubeconfig"))
-    rabbits = coral2_dws.get_servers_with_active_allocations(k8s_api, winfo.name)
+    rabbits = coral2_dws.get_servers_with_condition(
+        k8s_api, winfo.name, lambda x: x["allocationSize"] > 0
+    )
     print(f"{__name__}: rabbits: {rabbits}")
     # there should be one rabbit with an active allocation and one mount
     assert isinstance(rabbits, set)
