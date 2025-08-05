@@ -230,7 +230,17 @@ def create_cb(handle, _t, msg, k8s_api):
             # 403 Forbidden when the DW directive is invalid
             raise UserError(json.loads(api_err.body)["message"]) from api_err
         raise
-    WorkflowInfo.add(jobid, workflow_name, msg.payload["resources"])
+    if (
+        not isinstance(msg.payload["failure_tolerance"], int)
+        or int(msg.payload["failure_tolerance"]) < 0
+    ):
+        raise UserError("dw_failure_tolerance must be a positive integer")
+    WorkflowInfo.add(
+        jobid,
+        workflow_name,
+        msg.payload["resources"],
+        int(msg.payload["failure_tolerance"]),
+    )
     # submit a memo providing the name of the workflow
     handle.rpc(
         "job-manager.memo",
