@@ -284,6 +284,28 @@ def prerun_timeout_cb(handle, k8s_api, winfo, rabbit_manager):
         handle.job_raise(winfo.jobid, "dws-timeout", 0, "timed out waiting for mounts")
 
 
+@timer_callback_wrapper
+def setup_timeout_cb(handle, k8s_api, winfo, compute_nodes):
+    """Check for file system creation failures and take action.
+
+    This callback fires after a workflow has been in Setup for a configurable
+    amount of time.
+    """
+    node_failures = []
+    not_ready = get_servers_with_condition(
+        k8s_api, winfo.name, lambda x: not x.get("ready")
+    )
+    for hostname in compute_nodes:
+        if storage.HOSTNAMES_TO_RABBITS[hostname] in not_ready:
+            node_failures.append(hostname)
+    try:
+        winfo.notify_of_node_failure(handle, node_failures, k8s_api)
+    except ValueError:
+        handle.job_raise(
+            winfo.jobid, "dws-timeout", 0, "File system creation took too long"
+        )
+
+
 @message_callback_wrapper
 def setup_cb(handle, _t, msg, k8s_api):
     """dws.setup RPC callback.
@@ -336,7 +358,14 @@ def setup_cb(handle, _t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    WorkflowInfo.get(jobid).move_desiredstate(WorkflowState.SETUP, k8s_api)
+    winfo = WorkflowInfo.get(jobid)
+    winfo.move_desiredstate(WorkflowState.SETUP, k8s_api)
+    setup_timeout = handle.conf_get("rabbit.setup_timeout", 0)
+    # create a timer watcher to check for failures and set forceReady
+    if setup_timeout > 0:
+        winfo.state_timer = handle.timer_watcher_create(
+            setup_timeout, setup_timeout_cb, args=(handle, k8s_api, winfo, hlist)
+        ).start()
 
 
 def drain_nodes_with_mounts(handle, k8s_api, winfo):
@@ -1056,6 +1085,7 @@ def validate_config(config):
         "presets",
         "mapping",
         "soft_drain",
+        "setup_timeout",
         "prerun_timeout",
         "postrun_timeout",
         "teardown_after",
