@@ -208,4 +208,6 @@ fi
 for var in $(env | grep ^PMI); do unset ${var%%=*}; done
 for var in $(env | grep ^SLURM); do unset ${var%%=*}; done
 
+export FLUX_RC_USE_MODPROBE=t
+
 # vi: ts=4 sw=4 expandtab
