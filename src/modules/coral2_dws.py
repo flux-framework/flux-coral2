@@ -285,12 +285,22 @@ def prerun_timeout_cb(handle, k8s_api, winfo, rabbit_manager):
 
 
 @timer_callback_wrapper
-def setup_timeout_cb(handle, k8s_api, winfo, compute_nodes):
+def setup_timeout_cb(handle, k8s_api, winfo, compute_nodes, lustre):
     """Check for file system creation failures and take action.
 
     This callback fires after a workflow has been in Setup for a configurable
     amount of time.
+
+    Node-local file systems are tolerant of both rabbits failing to create some file
+    systems and nodes failing to mount those file systems. However, Lustre is only
+    tolerant of failed mounts. If the workflow requests a Lustre file system and the
+    timeout hits, kill the job.
     """
+    if winfo.failure_tolerance <= 0 or lustre:
+        handle.job_raise(
+            winfo.jobid, "dws-timeout", 0, "File system creation took too long"
+        )
+        return
     node_failures = []
     not_ready = get_servers_with_condition(
         k8s_api, winfo.name, lambda x: not x.get("ready")
@@ -332,6 +342,7 @@ def setup_cb(handle, _t, msg, k8s_api):
             "memo": {"rabbits": Hostlist(nodes_per_nnf.keys()).encode()},
         },
     ).then(log_rpc_response, jobid)
+    lustre = False
     k8s_api.patch_namespaced_custom_object(
         crd.COMPUTE_CRD.group,
         crd.COMPUTE_CRD.version,
@@ -344,8 +355,9 @@ def setup_cb(handle, _t, msg, k8s_api):
         # if a breakdown doesn't have a storage field (e.g. persistentdw) directives
         # ignore it and proceed
         if "storage" in breakdown["status"]:
+            breakdown_alloc_sets = breakdown["status"]["storage"]["allocationSets"]
             allocation_sets = directivebreakdown.build_allocation_sets(
-                breakdown["status"]["storage"]["allocationSets"],
+                breakdown_alloc_sets,
                 nodes_per_nnf,
                 hlist,
                 _MIN_ALLOCATION_SIZE,
@@ -358,13 +370,16 @@ def setup_cb(handle, _t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
+            lustre = directivebreakdown.check_is_lustre(breakdown_alloc_sets)
     winfo = WorkflowInfo.get(jobid)
     winfo.move_desiredstate(WorkflowState.SETUP, k8s_api)
     setup_timeout = handle.conf_get("rabbit.setup_timeout", 0)
     # create a timer watcher to check for failures and set forceReady
     if setup_timeout > 0:
         winfo.state_timer = handle.timer_watcher_create(
-            setup_timeout, setup_timeout_cb, args=(handle, k8s_api, winfo, hlist)
+            setup_timeout,
+            setup_timeout_cb,
+            args=(handle, k8s_api, winfo, hlist, lustre),
         ).start()
 
 
