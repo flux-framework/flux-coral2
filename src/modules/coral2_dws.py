@@ -330,7 +330,6 @@ def setup_cb(handle, _t, msg, k8s_api):
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
     workflow_name = WorkflowInfo.get_name(jobid)
     workflow = k8s_api.get_namespaced_custom_object(*crd.WORKFLOW_CRD, workflow_name)
-    compute_nodes = [{"name": hostname} for hostname in hlist]
     nodes_per_nnf = {}
     for hostname in hlist:
         nnf_name = storage.HOSTNAMES_TO_RABBITS[hostname]
@@ -343,14 +342,6 @@ def setup_cb(handle, _t, msg, k8s_api):
         },
     ).then(log_rpc_response, jobid)
     lustre = False
-    k8s_api.patch_namespaced_custom_object(
-        crd.COMPUTE_CRD.group,
-        crd.COMPUTE_CRD.version,
-        workflow["status"]["computes"]["namespace"],
-        crd.COMPUTE_CRD.plural,
-        workflow["status"]["computes"]["name"],
-        {"data": compute_nodes},
-    )
     for breakdown in directivebreakdown.fetch_breakdowns(k8s_api, workflow):
         # if a breakdown doesn't have a storage field (e.g. persistentdw) directives
         # ignore it and proceed
@@ -372,6 +363,7 @@ def setup_cb(handle, _t, msg, k8s_api):
             )
             lustre = directivebreakdown.check_is_lustre(breakdown_alloc_sets)
     winfo = WorkflowInfo.get(jobid)
+    winfo.hlist = hlist
     winfo.move_desiredstate(WorkflowState.SETUP, k8s_api)
     setup_timeout = handle.conf_get("rabbit.setup_timeout", 0)
     # create a timer watcher to check for failures and set forceReady
@@ -766,6 +758,7 @@ def _workflow_state_change_cb_inner(
         # move workflow to next stage, DataIn
         winfo.move_desiredstate(WorkflowState.DATAIN, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
+        winfo.patch_computes_object(handle, k8s_api, workflow)
     elif state_complete(workflow, WorkflowState.DATAIN):
         # move workflow to next stage, PreRun
         winfo.move_desiredstate(WorkflowState.PRERUN, k8s_api)

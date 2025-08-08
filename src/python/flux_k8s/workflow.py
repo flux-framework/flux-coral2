@@ -89,6 +89,7 @@ class WorkflowInfo:
         self.epilog_removed = False  # True if jobtap epilog was already removed
         self.state_timer = None  # Flux timer-watcher for a state
         self._failures = Hostlist()  # nodes that failed rabbit creation or mounting
+        self.hlist = None  # R hostlist for the job
 
     def move_to_teardown(self, handle, k8s_api, workflow=None):
         """Move a workflow to the 'Teardown' desiredState."""
@@ -156,6 +157,12 @@ class WorkflowInfo:
         )
 
     def notify_of_node_failure(self, handle, nodes, k8s_api):
+        """Post an event indicating that ``nodes`` lost their rabbit file system.
+
+        There are two points a job may lose nodes: during Setup and during PreRun.
+        If the total number of lost nodes exceeds the user's specified maximum,
+        raise a ``ValueError``.
+        """
         hlist = Hostlist(nodes).uniq()
         self._failures.append(hlist)
         self._failures.uniq()
@@ -168,6 +175,34 @@ class WorkflowInfo:
             )
         else:
             raise ValueError("node failure tolerance exceeded")
+
+    def patch_computes_object(self, handle, k8s_api, workflow):
+        """Patch a workflow's ``Computes`` resource.
+
+        The ``Computes`` resources tells NNF what compute nodes to mount the file
+        systems on. If some rabbits failed to create their file systems, all nodes
+        attached to those rabbits should be excluded from the Computes resource,
+        because those mounts would necessarily fail given that there is nothing to
+        mount.
+
+        (Note this logic would break down for Lustre. However, if a rabbit fails to
+        create a Lustre file system, that job fails immediately.)
+        """
+        if self.hlist is None:  # may be set externally; if not, fetch R
+            self.hlist = Hostlist(
+                flux.job.job_kvs_lookup(handle, self.jobid, keys=["R"])["R"][
+                    "execution"
+                ]["nodelist"]
+            ).uniq()
+        self.hlist.delete(self._failures)
+        k8s_api.patch_namespaced_custom_object(
+            crd.COMPUTE_CRD.group,
+            crd.COMPUTE_CRD.version,
+            workflow["status"]["computes"]["namespace"],
+            crd.COMPUTE_CRD.plural,
+            workflow["status"]["computes"]["name"],
+            {"data": [{"name": hostname} for hostname in self.hlist]},
+        )
 
 
 def save_workflow_to_kvs(handle, jobid, workflow, datamovements=None):
