@@ -143,6 +143,28 @@ in a batch script:
 	echo "Hello World!" > $DW_JOB_lustreproject/world.txt
 
 
+Enabling Rabbit Fault Tolerance
+-------------------------------
+
+Imagine you submit a ten-thousand-node Flux job that requests a rabbit file
+system. The job sits in the queue for a long time while your job is scheduled.
+Finally your job is assigned resources, but then a single node fails to mount
+its file system, and the job fails before it even starts running. You might
+wish that Flux had just ignored the single node failure and proceeded with the
+remaining 9,999 nodes.
+
+The ``.attributes.system.dw_failure_tolerance`` field in a jobspec can help you
+in cases like the one just described. Set the field to a positive integer **N**,
+and Flux will allow up to **N** nodes in your job to fail to create or to access
+rabbit file systems. For example, ``flux alloc [OPTIONS] -S dw_failure_tolerance=16``
+would allow the loss of up to 16 nodes from your job due to rabbit-related failures.
+
+Unlike XFS and GFS2 rabbit file systems, ephemeral Lustre rabbit file systems cannot
+tolerate the failed creation of file systems. If any rabbits fail to create their
+Lustre targets, the whole job will fail. However, ephemeral Lustre rabbit jobs can
+still tolerate failed mounts.
+
+
 Fetching Rabbit Information
 ---------------------------
 

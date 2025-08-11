@@ -78,6 +78,14 @@ Flux's interactions with the rabbits.
   ``epilog-timeout``, to give the NNF software time to clean up before the
   ``epilog-timeout`` takes effect.
 
+**setup_timeout** (float)
+  (optional) Maximum time for a workflow to be in the ``Setup`` state
+  before the job is canceled. If unset or negative, do not set a timer.
+
+**prerun_timeout** (float)
+  (optional) Maximum time for a workflow to be in the ``PreRun`` state
+  before the job is canceled. If unset or negative, do not set a timer.
+
 **postrun_timeout** (float)
   (optional) Maximum time for a workflow to be in the ``PostRun`` state
   before it is moved to Teardown. If unset or negative, do not set a timer.

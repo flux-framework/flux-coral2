@@ -65,6 +65,14 @@ class ResourceLimits:
             raise AttributeError(attr)
 
 
+def check_is_lustre(breakdown_alloc_sets):
+    """Return True if the directivebreakdown represents a Lustre file system."""
+    for alloc_set in breakdown_alloc_sets:
+        if alloc_set["label"] in LUSTRE_TYPES:
+            return True
+    return False
+
+
 def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_size):
     """Build the allocationSet for a Server based on its DirectiveBreakdown."""
     allocation_sets = []

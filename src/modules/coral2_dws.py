@@ -267,6 +267,55 @@ def create_cb(handle, _t, msg, k8s_api):
     ).then(log_rpc_response, jobid)
 
 
+@timer_callback_wrapper
+def prerun_timeout_cb(handle, k8s_api, winfo, rabbit_manager):
+    """Check for mount failures and take action.
+
+    This callback fires after a workflow has been in PreRun for a configurable
+    amount of time.
+    """
+    if winfo.failure_tolerance <= 0:
+        handle.job_raise(winfo.jobid, "dws-timeout", 0, "timed out waiting for mounts")
+    not_mounted = get_clientmounts_not_in_state(k8s_api, winfo.name, "mounted")
+    rabbit_manager.set_property(not_mounted, f"{winfo.jobid} timed out in PreRun")
+    try:
+        winfo.notify_of_node_failure(handle, not_mounted, k8s_api)
+    except ValueError:
+        handle.job_raise(winfo.jobid, "dws-timeout", 0, "timed out waiting for mounts")
+
+
+@timer_callback_wrapper
+def setup_timeout_cb(handle, k8s_api, winfo, compute_nodes, lustre):
+    """Check for file system creation failures and take action.
+
+    This callback fires after a workflow has been in Setup for a configurable
+    amount of time.
+
+    Node-local file systems are tolerant of both rabbits failing to create some file
+    systems and nodes failing to mount those file systems. However, Lustre is only
+    tolerant of failed mounts. If the workflow requests a Lustre file system and the
+    timeout hits, kill the job.
+    """
+    if winfo.failure_tolerance <= 0 or lustre:
+        handle.job_raise(
+            winfo.jobid, "dws-timeout", 0, "File system creation took too long"
+        )
+        return
+    node_failures = []
+    not_ready = get_servers_with_condition(
+        k8s_api, winfo.name, lambda x: not x.get("ready")
+    )
+    for hostname in compute_nodes:
+        if storage.HOSTNAMES_TO_RABBITS[hostname] in not_ready:
+            node_failures.append(hostname)
+    try:
+        winfo.notify_of_node_failure(handle, node_failures, k8s_api)
+    except ValueError:
+        handle.job_raise(
+            winfo.jobid, "dws-timeout", 0, "File system creation took too long"
+        )
+
+
 @message_callback_wrapper
 def setup_cb(handle, _t, msg, k8s_api):
     """dws.setup RPC callback.
@@ -281,7 +330,6 @@ def setup_cb(handle, _t, msg, k8s_api):
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
     workflow_name = WorkflowInfo.get_name(jobid)
     workflow = k8s_api.get_namespaced_custom_object(*crd.WORKFLOW_CRD, workflow_name)
-    compute_nodes = [{"name": hostname} for hostname in hlist]
     nodes_per_nnf = {}
     for hostname in hlist:
         nnf_name = storage.HOSTNAMES_TO_RABBITS[hostname]
@@ -293,20 +341,14 @@ def setup_cb(handle, _t, msg, k8s_api):
             "memo": {"rabbits": Hostlist(nodes_per_nnf.keys()).encode()},
         },
     ).then(log_rpc_response, jobid)
-    k8s_api.patch_namespaced_custom_object(
-        crd.COMPUTE_CRD.group,
-        crd.COMPUTE_CRD.version,
-        workflow["status"]["computes"]["namespace"],
-        crd.COMPUTE_CRD.plural,
-        workflow["status"]["computes"]["name"],
-        {"data": compute_nodes},
-    )
+    lustre = False
     for breakdown in directivebreakdown.fetch_breakdowns(k8s_api, workflow):
         # if a breakdown doesn't have a storage field (e.g. persistentdw) directives
         # ignore it and proceed
         if "storage" in breakdown["status"]:
+            breakdown_alloc_sets = breakdown["status"]["storage"]["allocationSets"]
             allocation_sets = directivebreakdown.build_allocation_sets(
-                breakdown["status"]["storage"]["allocationSets"],
+                breakdown_alloc_sets,
                 nodes_per_nnf,
                 hlist,
                 _MIN_ALLOCATION_SIZE,
@@ -319,7 +361,18 @@ def setup_cb(handle, _t, msg, k8s_api):
                 breakdown["status"]["storage"]["reference"]["name"],
                 {"spec": {"allocationSets": allocation_sets}},
             )
-    WorkflowInfo.get(jobid).move_desiredstate(WorkflowState.SETUP, k8s_api)
+            lustre = directivebreakdown.check_is_lustre(breakdown_alloc_sets)
+    winfo = WorkflowInfo.get(jobid)
+    winfo.hlist = hlist
+    winfo.move_desiredstate(WorkflowState.SETUP, k8s_api)
+    setup_timeout = handle.conf_get("rabbit.setup_timeout", 0)
+    # create a timer watcher to check for failures and set forceReady
+    if setup_timeout > 0:
+        winfo.state_timer = handle.timer_watcher_create(
+            setup_timeout,
+            setup_timeout_cb,
+            args=(handle, k8s_api, winfo, hlist, lustre),
+        ).start()
 
 
 def drain_nodes_with_mounts(handle, k8s_api, winfo):
@@ -462,7 +515,9 @@ def abort_cb(handle, _t, msg, k8s_api):
     # get all clientmounts for the job that aren't unmounted
     drain_nodes_with_mounts(handle, k8s_api, winfo)
     # get all rabbits with active allocations and disable them.
-    for rabbit_to_disable in get_servers_with_active_allocations(k8s_api, winfo.name):
+    for rabbit_to_disable in get_servers_with_condition(
+        k8s_api, winfo.name, lambda x: x["allocationSize"] > 0
+    ):
         k8s_api.patch_namespaced_custom_object(
             *crd.RABBIT_CRD,
             rabbit_to_disable,
@@ -558,10 +613,13 @@ def get_clientmounts_not_in_state(k8s_api, workflow_name, desired_state):
     return to_drain
 
 
-def get_servers_with_active_allocations(k8s_api, workflow_name):
-    """Return all rabbits in a job that have active allocations.
+def get_servers_with_condition(k8s_api, workflow_name, condition):
+    """Return all rabbits in a job that match a condition.
 
     The job is specified by the name of the workflow.
+
+    `condition` should be a callable accepting the .status.allocationSets.storage
+    field of the Servers resource.
     """
     try:
         servers = k8s_api.list_cluster_custom_object(
@@ -584,7 +642,7 @@ def get_servers_with_active_allocations(k8s_api, workflow_name):
             allocation_sets = resource["status"]["allocationSets"]
             for alloc_set in allocation_sets:
                 for rabbit_name, alloc_info in alloc_set["storage"].items():
-                    if alloc_info["allocationSize"] > 0:
+                    if condition(alloc_info):
                         with_allocations.add(rabbit_name)
         except (KeyError, TypeError) as exc:
             # can't tell what node to drain, nothing to do
@@ -609,7 +667,9 @@ def state_active(workflow, state):
     return workflow["spec"]["desiredState"] == workflow["status"]["state"] == state
 
 
-def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion, secrets_api):
+def workflow_state_change_cb(
+    event, handle, k8s_api, disable_fluxion, secrets_api, rabbit_manager
+):
     """Exception-catching wrapper around _workflow_state_change_cb_inner."""
     try:
         workflow = event["object"]
@@ -628,7 +688,13 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion, secrets_ap
         return
     try:
         _workflow_state_change_cb_inner(
-            workflow, winfo, handle, k8s_api, disable_fluxion, secrets_api
+            workflow,
+            winfo,
+            handle,
+            k8s_api,
+            disable_fluxion,
+            secrets_api,
+            rabbit_manager,
         )
     except Exception:
         LOGGER.exception(
@@ -651,7 +717,7 @@ def workflow_state_change_cb(event, handle, k8s_api, disable_fluxion, secrets_ap
 
 
 def _workflow_state_change_cb_inner(
-    workflow, winfo, handle, k8s_api, disable_fluxion, secrets_api
+    workflow, winfo, handle, k8s_api, disable_fluxion, secrets_api, rabbit_manager
 ):
     """Handle workflow state transitions."""
     jobid = winfo.jobid
@@ -692,10 +758,19 @@ def _workflow_state_change_cb_inner(
         # move workflow to next stage, DataIn
         winfo.move_desiredstate(WorkflowState.DATAIN, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
+        winfo.patch_computes_object(handle, k8s_api, workflow)
     elif state_complete(workflow, WorkflowState.DATAIN):
         # move workflow to next stage, PreRun
         winfo.move_desiredstate(WorkflowState.PRERUN, k8s_api)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
+        prerun_timeout = handle.conf_get("rabbit.prerun_timeout", 0.0)
+        # create a timer watcher to abandon mounts and move to teardown
+        if prerun_timeout > 0:
+            winfo.state_timer = handle.timer_watcher_create(
+                prerun_timeout,
+                prerun_timeout_cb,
+                args=(handle, k8s_api, winfo, rabbit_manager),
+            ).start()
     elif state_complete(workflow, WorkflowState.PRERUN):
         # tell DWS jobtap plugin that the job can start
         variables = fetch_job_environment(secrets_api, workflow)
@@ -800,14 +875,6 @@ def kill_workflows_in_tc(_reactor, watcher, _r, args):
     # iterate over it.
     for jobid, trans_cond in list(WORKFLOWS_IN_TC.items()):
         if curr_time - trans_cond.last_time > tc_timeout:
-            watcher.flux_handle.job_raise(
-                jobid,
-                "exception",
-                0,
-                "DWS/Rabbit interactions failed: workflow in 'TransientCondition' "
-                f"state too long: {trans_cond.last_message}",
-            )
-            del WORKFLOWS_IN_TC[jobid]
             if trans_cond.prerun:
                 # if a job is in prerun, a mount is probably failing
                 # in this case check what nodes have failed to mount and set
@@ -816,6 +883,23 @@ def kill_workflows_in_tc(_reactor, watcher, _r, args):
                     k8s_api, WorkflowInfo.get_name(jobid), "mounted"
                 )
                 manager.set_property(not_mounted, f"{jobid} timed out in PreRun")
+                try:
+                    WorkflowInfo.get(jobid).notify_of_node_failure(
+                        watcher.flux_handle, not_mounted, k8s_api
+                    )
+                except ValueError:
+                    pass
+                else:
+                    del WORKFLOWS_IN_TC[jobid]
+                    return
+            watcher.flux_handle.job_raise(
+                jobid,
+                "exception",
+                0,
+                "DWS/Rabbit interactions failed: workflow in 'TransientCondition' "
+                f"state too long: {trans_cond.last_message}",
+            )
+            del WORKFLOWS_IN_TC[jobid]
 
 
 def heartbeat_cb(_reactor, watcher, _r, profiler):
@@ -1009,6 +1093,8 @@ def validate_config(config):
         "presets",
         "mapping",
         "soft_drain",
+        "setup_timeout",
+        "prerun_timeout",
         "postrun_timeout",
         "teardown_after",
     }
@@ -1104,6 +1190,7 @@ def main():
                     k8s_api,
                     args.disable_fluxion,
                     secrets_api,
+                    manager,
                 )
             )
             raise_self_exception(handle)
