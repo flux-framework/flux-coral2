@@ -638,6 +638,72 @@ test_expect_success 'systemstatus object is updated' '
 		jq -e ".data.nodes.\"$(hostname)\" == \"Enabled\""
 '
 
+test_expect_success 'launch dws service with prerun_timeout' '
+	echo "
+[rabbit]
+prerun_timeout = 0.0001
+"   | flux config load &&
+	start_dws_script
+'
+
+test_expect_success 'job submission with valid DW string times out in prerun' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -t 15 ${jobid} depend &&
+	flux job wait-event -vt 25 ${jobid} jobspec-update &&
+	flux job wait-event -t 15 ${jobid} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	job_epilog_start_finish_clean $jobid &&
+	flux job wait-event -vt 1 -m "note=timed out waiting for mounts" \
+		${jobid} exception
+'
+
+test_expect_success 'job submission with DW and dw_failure_tolerance works with prerun_timeout' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-S dw_failure_tolerance=1 -N1 -n1 hostname) &&
+	walk_job_through_prolog $jobid &&
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	job_epilog_start_finish_clean $jobid &&
+	flux job wait-event -vt 1 -m "type=dws-node-failure" \
+		${jobid} exception
+'
+
+test_expect_success 'exec dws service with setup_timeout' '
+	flux module reload resource &&
+	flux module load sched-fluxion-resource &&
+	flux module load sched-fluxion-qmanager &&
+	echo "
+[rabbit]
+setup_timeout = 0.0001
+"   | flux config load &&
+	start_dws_script
+'
+
+test_expect_success 'job submission with valid DW string times out in setup' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 hostname) &&
+	flux job wait-event -t 15 ${jobid} depend &&
+	flux job wait-event -vt 25 ${jobid} jobspec-update &&
+	flux job wait-event -t 15 ${jobid} priority &&
+	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	job_epilog_start_finish_clean $jobid &&
+	flux job wait-event -vt 1 -m "note=File system creation took too long" \
+		${jobid} exception
+'
+
+test_expect_success 'job submission with DW and dw_failure_tolerance works with setup_timeout' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-S dw_failure_tolerance=1 -N1 -n1 hostname) &&
+	walk_job_through_prolog $jobid &&
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	job_epilog_start_finish_clean $jobid &&
+	flux job wait-event -vt 1 -m "type=dws-node-failure" \
+		${jobid} exception
+'
+
+
 test_expect_success 'cleanup: unload fluxion' '
 	# all jobs must be canceled before unloading fluxion or a hang will occur during
 	# shutdown, unless another scheduler is loaded afterwards
