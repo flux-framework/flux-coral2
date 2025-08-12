@@ -660,13 +660,15 @@ test_expect_success 'job submission with valid DW string times out in prerun' '
 '
 
 test_expect_success 'job submission with DW and dw_failure_tolerance works with prerun_timeout' '
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
-		-S dw_failure_tolerance=1 -N1 -n1 hostname) &&
+	jobid=$(flux batch --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-S dw_failure_tolerance=1 -N1 -n1 --wrap --output=kvs \
+		"$FLUX_SOURCE_DIR/etc/01-rabbit-rc && flux resource drain") &&
 	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	job_epilog_start_finish_clean $jobid &&
 	flux job wait-event -vt 1 -m "type=dws-node-failure" \
-		${jobid} exception
+		${jobid} exception &&
+	flux job attach ${jobid}
 '
 
 test_expect_success 'exec dws service with setup_timeout' '
@@ -694,13 +696,15 @@ test_expect_success 'job submission with valid DW string times out in setup' '
 '
 
 test_expect_success 'job submission with DW and dw_failure_tolerance works with setup_timeout' '
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
-		-S dw_failure_tolerance=1 -N1 -n1 hostname) &&
+	jobid=$(flux batch --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-S dw_failure_tolerance=1 -N1 -n1 --wrap --output=kvs \
+		"$FLUX_SOURCE_DIR/etc/01-rabbit-rc && flux resource drain") &&
 	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	job_epilog_start_finish_clean $jobid &&
 	flux job wait-event -vt 1 -m "type=dws-node-failure" \
-		${jobid} exception
+		${jobid} exception &&
+	flux job attach ${jobid} | grep $(hostname)
 '
 
 
