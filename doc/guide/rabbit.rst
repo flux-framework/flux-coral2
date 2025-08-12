@@ -164,6 +164,10 @@ tolerate the failed creation of file systems. If any rabbits fail to create thei
 Lustre targets, the whole job will fail. However, ephemeral Lustre rabbit jobs can
 still tolerate failed mounts.
 
+If this attribute is set, and a job proceeds through some rabbit failures, the nodes
+that are missing file systems will be drained when the allocation is granted. The
+nodes may still be undrained and used at the user's discretion.
+
 
 Fetching Rabbit Information
 ---------------------------
