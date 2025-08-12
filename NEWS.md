@@ -1,3 +1,24 @@
+flux-coral2 0.26.0 - 2025-08-12
+-------------------------------
+
+### New Features
+ * dws: `dw_failure_tolerance` attribute (#382)
+ * dws: allow jobs to tolerate lost nodes and/or rabbits (#385)
+ * dws: add rc1 script to drain nodes with rabbit failures (#387)
+
+### Fixes
+ * dws: exceptions raised while fetching pod logs are lost (#381)
+ * dws: jobtap event resubscribe (#380)
+ * dws: fix typo in systemd unit file (#378)
+
+### Cleanup
+ * dws: cleanup, drop global variable (#384)
+
+### Build/Testsuite/Documentation
+ * docs: add rabbit references (#377)
+ * update slingshot doc to reflect design progress (#376)
+
+
 flux-coral2 0.25.0 - 2025-06-30
 -------------------------------
 
