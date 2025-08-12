@@ -47,7 +47,8 @@ check-prep: all
 
 
 dist_fluxrc1_SCRIPTS = \
-	etc/01-coral2-rc
+	etc/01-coral2-rc \
+	etc/01-rabbit-rc
 
 export DEB_BUILD_OPTIONS ?= nocheck terse
 deb: debian scripts/debbuild.sh
