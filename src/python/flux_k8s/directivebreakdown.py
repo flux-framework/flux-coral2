@@ -155,11 +155,8 @@ def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_
 def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
     """Apply all of the directive breakdown information to a jobspec's `resources`.
 
-    Return the resources and a boolean indicating whether copy offload has been
-    requested.
-
-    If it appears that the information has already been applied, return
-    (None, None).
+    Return the modified resources, or, if it appears that the modification has already
+    been applied, return None.
     """
     limits = ResourceLimits()
     resources = copy.deepcopy(old_resources)
