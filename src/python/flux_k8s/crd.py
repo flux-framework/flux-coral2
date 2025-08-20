@@ -5,11 +5,11 @@ from collections import namedtuple
 CRD = namedtuple("CRD", ["group", "version", "namespace", "plural"])
 
 DWS_GROUP = "dataworkflowservices.github.io"
-DWS_API_VERSION = "v1alpha5"
+DWS_API_VERSION = "v1alpha6"
 DEFAULT_NAMESPACE = "default"
 
 NNF_GROUP = "nnf.cray.hpe.com"
-NNF_API_VERSION = "v1alpha7"
+NNF_API_VERSION = "v1alpha8"
 
 
 WORKFLOW_CRD = CRD(
