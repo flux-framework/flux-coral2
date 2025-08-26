@@ -781,6 +781,8 @@ def _workflow_state_change_cb_inner(
                 "variables": variables,
             },
         ).then(log_rpc_response, jobid)
+        if winfo.state_timer is not None:
+            winfo.state_timer.stop()
         save_elapsed_time_to_kvs(handle, jobid, workflow)
     elif state_complete(workflow, WorkflowState.POSTRUN):
         # move workflow to next stage, DataOut
