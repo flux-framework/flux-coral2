@@ -20,6 +20,10 @@ unset SLINGSHOT_TCS
 
 test_under_flux 1
 
+test_expect_success 'override system shell initrc with empty one' '
+        flux setattr conf.shell_initrc /dev/null
+'
+
 # Usage: flux config get | update_vni_pool idset | flux config load
 # Updates cray-slingshot.vni-pool only.
 update_vni_pool() {
