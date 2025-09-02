@@ -10,3 +10,4 @@ extend-exclude = [
 [default.extend-words]
 # commonly used names/variables that aren't typos
 BA = "BA"
+HPE = "HPE"
