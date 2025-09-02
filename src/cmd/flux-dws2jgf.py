@@ -170,9 +170,9 @@ def get_node_properties(properties):
     return rank_to_property
 
 
-def to_gibibytes(byt):
+def to_gibibytes(bytecount):
     """Technically gigabytes are (1000^3)"""
-    return byt // (1024**3)
+    return bytecount // (1024**3)
 
 
 def encode(rv1, rabbit_mapping, r_hostlist, chunks_per_nnf, cluster_name):
