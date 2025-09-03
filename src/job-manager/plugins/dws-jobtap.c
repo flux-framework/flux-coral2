@@ -26,6 +26,8 @@
 #include <flux/core.h>
 #include <flux/jobtap.h>
 
+#include "src/common/libutil/idf58.h"
+
 #define PLUGIN_NAME "dws"
 #define CREATE_DEP_NAME "dws-create"
 #define SETUP_PROLOG_NAME "dws-setup"
@@ -38,21 +40,6 @@ struct create_arg_t {
 };
 
 static double epilog_timeout = 0.0;
-
-/*  Convenience function to convert a flux_jobid_t to F58 encoding
- *  If the encode fails (unlikely), then the decimal encoding is returned.
- */
-static inline const char *idf58 (flux_jobid_t id)
-{
-    static __thread char buf[21];
-    if (flux_job_id_encode (id, "f58", buf, sizeof (buf)) < 0) {
-        /* 64bit integer is guaranteed to fit in 21 bytes
-         * floor(log(2^64-1)/log(1)) + 1 = 20
-         */
-        (void)sprintf (buf, "%ju", (uintmax_t)id);
-    }
-    return buf;
-}
 
 static inline int current_job_exception (flux_plugin_t *p, const char *reason)
 {
