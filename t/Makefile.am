@@ -32,6 +32,7 @@ TESTSCRIPTS = \
 	t2002-dws2jgf2.t \
 	t3000-slingshot-jobtap.t \
 	t3001-slingshot-shell.t \
+	t3002-slingshot-cmd.t \
 	python/t0001-directive-breakdown.py \
 	python/t0002-storage.py \
 	python/t0003-coral2-dws.py
