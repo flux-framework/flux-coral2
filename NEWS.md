@@ -1,3 +1,23 @@
+flux-coral2 0.27.0 - 2025-09-05
+-------------------------------
+
+### New Features
+ * add flux-slingshot utility (#397)
+ * add cray-slingshot shell plugin for VNI/CXI environment setup (#396)
+ * add support for modprobe based startup and shutdown (#383)
+ * add cray-slingshot jobtap plugin for VNI reservation (#393)
+
+### Fixes
+ * dws: stop prerun timer once state completes (#392)
+ * rc: avoid unportable bashism (#398)
+ * dws: upgrade to dws api v1alpha6 (#388)
+
+### Build/Testsuite/Cleanup
+ * github: update crate-ci typos version (#394)
+ * testsuite: don't load deprecated barrier module (#391)
+ * shell: use eventlog_wait_for in dws_environment.c (#403)
+
+
 flux-coral2 0.26.0 - 2025-08-12
 -------------------------------
 
