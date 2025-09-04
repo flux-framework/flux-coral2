@@ -1,6 +1,6 @@
 #!/bin/sh -e
 
-if [ $(flux getattr rank) -eq 0 && -n "$FLUX_ENCLOSING_ID" ]; then
+if [ $(flux getattr rank) -eq 0 ] && [ -n "$FLUX_ENCLOSING_ID" ]; then
     HOSTLIST=$(flux --parent job eventlog -fjson $FLUX_ENCLOSING_ID | \
                jq -r 'select(.name == "exception"
                      and .context.type == "dws-node-failure")
