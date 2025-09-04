@@ -160,6 +160,9 @@ AS_IF([test "x$HAVE_CXI" = "xyes"], [
 ##
 # Project directories
 ##
+AS_VAR_SET(fluxlibexecdir, $libexecdir/flux)
+AC_SUBST(fluxlibexecdir)
+
 AS_VAR_SET(fluxcmddir, $libexecdir/flux/cmd)
 AC_SUBST(fluxcmddir)
 
