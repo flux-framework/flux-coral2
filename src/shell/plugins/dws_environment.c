@@ -56,45 +56,28 @@ static int set_environment (flux_shell_t *shell, json_t *env_object)
  */
 static int read_future (flux_shell_t *shell, flux_future_t *fut)
 {
-    json_t *o = NULL;
-    json_t *context = NULL;
-    json_t *env;
-    const char *name, *event = NULL;
+    json_t *context, *env;
+    flux_error_t error;
 
-    while (flux_future_wait_for (fut, 30.0) == 0 && flux_job_event_watch_get (fut, &event) == 0) {
-        if (!(o = eventlog_entry_decode (event))) {
-            shell_log_errno ("Error decoding eventlog entry");
-            return -1;
-        }
-        if (eventlog_entry_parse (o, NULL, &name, &context) < 0) {
-            shell_log_errno ("Error parsing eventlog entry");
-            json_decref (o);
-            return -1;
-        }
-        if (!strcmp (name, "start")) {
-            //  'start' event with no dws_environment event.
-            shell_log_error ("'start' event found before 'dws_environment'");
-            json_decref (o);
-            return -1;
-        } else if (!strcmp (name, "dws_environment")) {
-            if (json_unpack (context, "{s:o}", "variables", &env) < 0) {
-                shell_log_error ("No 'variables' context in dws_environment event");
-                json_decref (o);
-                return -1;
-            }
-            if (set_environment (shell, env) < 0) {
-                json_decref (o);
-                return -1;
-            }
-            json_decref (o);
-            return 0;
-        } else {
-            flux_future_reset (fut);
-            json_decref (o);
-        }
+    if (eventlog_wait_for (fut, "dws_environment", 30.0, &context, &error) < 0) {
+        shell_log_error ("waiting for eventlog: %s", error.text);
+        return -1;
     }
-    shell_log_error ("No 'dws_environment' event posted within timeout");
-    return -1;
+    if (!context) {
+        shell_log_error ("'dws_environment' event not found");
+        return -1;
+    }
+    if (json_unpack (context, "{s:o}", "variables", &env) < 0) {
+        shell_log_error ("No 'variables' context in dws_environment event");
+        json_decref (context);
+        return -1;
+    }
+    if (set_environment (shell, env) < 0) {
+        json_decref (context);
+        return -1;
+    }
+    json_decref (context);
+    return 0;
 }
 
 static int dws_environment_init (flux_plugin_t *p,
