@@ -191,7 +191,7 @@ def main():
         formatter_class=flux.util.help_formatter(),
         description=(
             "Print JGF representation of Rabbit nodes. Reads R from stdin"
-            "or a config file passed with the --from-config option."
+            " or a config file passed with the --from-config option."
         ),
     )
     parser.add_argument(
