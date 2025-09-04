@@ -7,6 +7,7 @@ AM_LDFLAGS = \
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir) \
+	-I$(top_srcdir)/src/common/libccan \
 	$(FLUX_CORE_CFLAGS) \
 	$(FLUX_HOSTLIST_CFLAGS) \
 	$(FLUX_TASKMAP_CFLAGS) \
@@ -18,6 +19,7 @@ shell_plugindir = \
 
 shell_plugin_LTLIBRARIES = \
 	cray_pals.la \
+	cray-slingshot.la \
 	dws_environment.la
 
 cray_pals_la_SOURCES = cray_pals.c
@@ -31,6 +33,19 @@ cray_pals_la_LIBADD = \
 	$(FLUX_IDSET_LIBS) \
 	$(JANSSON_LIBS)
 cray_pals_la_LDFLAGS = \
+	$(AM_LDFLAGS) \
+	$(fluxplugin_ldflags) -module
+
+cray_slingshot_la_SOURCES = cray-slingshot.c
+cray_slingshot_la_CPPFLAGS = \
+	$(AM_CPPFLAGS) \
+	$(CXI_CFLAGS)
+cray_slingshot_la_LIBADD = \
+	$(top_builddir)/src/common/libutil/libutil.la \
+	$(FLUX_CORE_LIBS) \
+	$(JANSSON_LIBS) \
+	$(CXI_LIBS)
+cray_slingshot_la_LDFLAGS = \
 	$(AM_LDFLAGS) \
 	$(fluxplugin_ldflags) -module
 

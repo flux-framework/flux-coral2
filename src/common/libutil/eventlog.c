@@ -18,6 +18,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <jansson.h>
+#include <flux/core.h>
+
+#include "errprintf.h"
+#include "monotime.h"
+#include "ccan/str/str.h"
 
 #include "eventlog.h"
 
@@ -108,6 +114,57 @@ int eventlog_entry_parse (json_t *entry, double *timestamp, const char **name, j
     if (context)
         (*context) = c;
 
+    return 0;
+}
+
+static double adjust_timeout (double timeout, struct timespec t0)
+{
+    return timeout - (1E-3 * monotime_since (t0));
+}
+
+int eventlog_wait_for (flux_future_t *f,
+                       const char *event_name,
+                       double timeout,
+                       json_t **obj,
+                       flux_error_t *error)
+{
+    bool done = false;
+    json_t *res = NULL;
+
+    while (!done) {
+        const char *s;
+        json_t *entry;
+        const char *name;
+        json_t *context;
+        struct timespec t0;
+
+        monotime (&t0);
+        if (flux_future_wait_for (f, timeout) < 0 || flux_job_event_watch_get (f, &s) < 0) {
+            errprintf (error, "error reading job eventlog: %s", future_strerror (f, errno));
+            return -1;
+        }
+        if (!(entry = eventlog_entry_decode (s))
+            || eventlog_entry_parse (entry, NULL, &name, &context) < 0) {
+            errprintf (error, "error parsing eventlog entry");
+            json_decref (entry);
+            return -1;
+        }
+        if (streq (name, "start")) {
+            done = true;
+        } else if (streq (name, "exception")) {
+            int severity;
+            if (json_unpack (context, "{s:i}", "severity", &severity) == 0 && severity == 0)
+                done = true;
+        } else if (streq (name, event_name)) {
+            res = json_incref (context);
+            done = true;
+        }
+        json_decref (entry);
+        flux_future_reset (f);
+        if (timeout >= 0.)
+            timeout = adjust_timeout (timeout, t0);
+    }
+    *obj = res;
     return 0;
 }
 
