@@ -208,6 +208,13 @@ matrix.add_build(
         DISTCHECK="t",
     ),
 )
+# coverage
+matrix.add_build(
+    name="coverage",
+    image="el9",
+    coverage_flags="ci-basic",
+    coverage=True,
+)
 
 
 print(matrix)
