@@ -276,6 +276,7 @@ def prerun_timeout_cb(handle, k8s_api, winfo, rabbit_manager):
     """
     if winfo.failure_tolerance <= 0:
         handle.job_raise(winfo.jobid, "dws-timeout", 0, "timed out waiting for mounts")
+        return
     not_mounted = get_clientmounts_not_in_state(k8s_api, winfo.name, "mounted")
     rabbit_manager.set_property(not_mounted, f"{winfo.jobid} timed out in PreRun")
     try:
