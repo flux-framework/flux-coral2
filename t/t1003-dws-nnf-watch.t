@@ -189,7 +189,7 @@ test_expect_success 'flux sets badrabbit property on compute node, job is not sc
     sleep 3 &&
     test_must_fail flux job wait-event -vt 1 ${jobid} finish &&
     flux resource drain | test_must_fail grep compute-01 &&
-    flux ion-resource get-property /compute/rack0/compute-01 badrabbit &&
+    flux ion-resource get-property /compute/chassis0/compute-01 badrabbit &&
     flux jobtap load ${PLUGINPATH}/dws-jobtap.so &&
     JOBID=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
         name=project1" -N1 -n1 hostname) &&
@@ -208,7 +208,7 @@ test_expect_success 'return the storage resource to Live mode' '
 
 test_expect_success 'flux removes badrabbit property from compute node, job is scheduled' '
     sleep 5 &&
-    test_must_fail flux ion-resource get-property /compute/rack0/compute-01 badrabbit &&
+    test_must_fail flux ion-resource get-property /compute/chassis0/compute-01 badrabbit &&
     JOBID=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
         name=project1" -N1 -n1 hostname) &&
     flux job wait-event -vt 10 ${JOBID} jobspec-update &&

@@ -32,14 +32,14 @@
         {
           "id": "1",
           "metadata": {
-            "type": "rack",
+            "type": "chassis",
             "id": 0,
             "properties": {
               "rabbit": "kind-worker2",
               "ssdcount": "36"
             },
             "paths": {
-              "containment": "/compute/rack0"
+              "containment": "/compute/chassis0"
             }
           }
         },
@@ -50,7 +50,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd0"
+              "containment": "/compute/chassis0/ssd0"
             },
             "status": 1
           }
@@ -62,7 +62,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd1"
+              "containment": "/compute/chassis0/ssd1"
             },
             "status": 1
           }
@@ -74,7 +74,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd2"
+              "containment": "/compute/chassis0/ssd2"
             },
             "status": 1
           }
@@ -86,7 +86,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd3"
+              "containment": "/compute/chassis0/ssd3"
             },
             "status": 1
           }
@@ -98,7 +98,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd4"
+              "containment": "/compute/chassis0/ssd4"
             },
             "status": 1
           }
@@ -110,7 +110,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd5"
+              "containment": "/compute/chassis0/ssd5"
             },
             "status": 1
           }
@@ -122,7 +122,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd6"
+              "containment": "/compute/chassis0/ssd6"
             },
             "status": 1
           }
@@ -134,7 +134,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd7"
+              "containment": "/compute/chassis0/ssd7"
             },
             "status": 1
           }
@@ -146,7 +146,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd8"
+              "containment": "/compute/chassis0/ssd8"
             },
             "status": 1
           }
@@ -158,7 +158,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd9"
+              "containment": "/compute/chassis0/ssd9"
             },
             "status": 1
           }
@@ -170,7 +170,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd10"
+              "containment": "/compute/chassis0/ssd10"
             },
             "status": 1
           }
@@ -182,7 +182,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd11"
+              "containment": "/compute/chassis0/ssd11"
             },
             "status": 1
           }
@@ -194,7 +194,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd12"
+              "containment": "/compute/chassis0/ssd12"
             },
             "status": 1
           }
@@ -206,7 +206,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd13"
+              "containment": "/compute/chassis0/ssd13"
             },
             "status": 1
           }
@@ -218,7 +218,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd14"
+              "containment": "/compute/chassis0/ssd14"
             },
             "status": 1
           }
@@ -230,7 +230,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd15"
+              "containment": "/compute/chassis0/ssd15"
             },
             "status": 1
           }
@@ -242,7 +242,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd16"
+              "containment": "/compute/chassis0/ssd16"
             },
             "status": 1
           }
@@ -254,7 +254,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd17"
+              "containment": "/compute/chassis0/ssd17"
             },
             "status": 1
           }
@@ -266,7 +266,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd18"
+              "containment": "/compute/chassis0/ssd18"
             },
             "status": 1
           }
@@ -278,7 +278,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd19"
+              "containment": "/compute/chassis0/ssd19"
             },
             "status": 1
           }
@@ -290,7 +290,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd20"
+              "containment": "/compute/chassis0/ssd20"
             },
             "status": 1
           }
@@ -302,7 +302,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd21"
+              "containment": "/compute/chassis0/ssd21"
             },
             "status": 1
           }
@@ -314,7 +314,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd22"
+              "containment": "/compute/chassis0/ssd22"
             },
             "status": 1
           }
@@ -326,7 +326,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd23"
+              "containment": "/compute/chassis0/ssd23"
             },
             "status": 1
           }
@@ -338,7 +338,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd24"
+              "containment": "/compute/chassis0/ssd24"
             },
             "status": 1
           }
@@ -350,7 +350,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd25"
+              "containment": "/compute/chassis0/ssd25"
             },
             "status": 1
           }
@@ -362,7 +362,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd26"
+              "containment": "/compute/chassis0/ssd26"
             },
             "status": 1
           }
@@ -374,7 +374,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd27"
+              "containment": "/compute/chassis0/ssd27"
             },
             "status": 1
           }
@@ -386,7 +386,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd28"
+              "containment": "/compute/chassis0/ssd28"
             },
             "status": 1
           }
@@ -398,7 +398,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd29"
+              "containment": "/compute/chassis0/ssd29"
             },
             "status": 1
           }
@@ -410,7 +410,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd30"
+              "containment": "/compute/chassis0/ssd30"
             },
             "status": 1
           }
@@ -422,7 +422,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd31"
+              "containment": "/compute/chassis0/ssd31"
             },
             "status": 1
           }
@@ -434,7 +434,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd32"
+              "containment": "/compute/chassis0/ssd32"
             },
             "status": 1
           }
@@ -446,7 +446,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd33"
+              "containment": "/compute/chassis0/ssd33"
             },
             "status": 1
           }
@@ -458,7 +458,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd34"
+              "containment": "/compute/chassis0/ssd34"
             },
             "status": 1
           }
@@ -470,7 +470,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack0/ssd35"
+              "containment": "/compute/chassis0/ssd35"
             },
             "status": 1
           }
@@ -482,7 +482,7 @@
             "name": "compute-01",
             "rank": 0,
             "paths": {
-              "containment": "/compute/rack0/compute-01"
+              "containment": "/compute/chassis0/compute-01"
             }
           }
         },
@@ -493,7 +493,7 @@
             "id": 0,
             "rank": 0,
             "paths": {
-              "containment": "/compute/rack0/compute-01/core0"
+              "containment": "/compute/chassis0/compute-01/core0"
             }
           }
         },
@@ -504,7 +504,7 @@
             "id": 1,
             "rank": 0,
             "paths": {
-              "containment": "/compute/rack0/compute-01/core1"
+              "containment": "/compute/chassis0/compute-01/core1"
             }
           }
         },
@@ -515,7 +515,7 @@
             "id": 2,
             "rank": 0,
             "paths": {
-              "containment": "/compute/rack0/compute-01/core2"
+              "containment": "/compute/chassis0/compute-01/core2"
             }
           }
         },
@@ -526,7 +526,7 @@
             "id": 3,
             "rank": 0,
             "paths": {
-              "containment": "/compute/rack0/compute-01/core3"
+              "containment": "/compute/chassis0/compute-01/core3"
             }
           }
         },
@@ -537,21 +537,21 @@
             "id": 4,
             "rank": 0,
             "paths": {
-              "containment": "/compute/rack0/compute-01/core4"
+              "containment": "/compute/chassis0/compute-01/core4"
             }
           }
         },
         {
           "id": "44",
           "metadata": {
-            "type": "rack",
+            "type": "chassis",
             "id": 1,
             "properties": {
               "rabbit": "kind-worker3",
               "ssdcount": "36"
             },
             "paths": {
-              "containment": "/compute/rack1"
+              "containment": "/compute/chassis1"
             }
           }
         },
@@ -562,7 +562,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd0"
+              "containment": "/compute/chassis1/ssd0"
             },
             "status": 1
           }
@@ -574,7 +574,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd1"
+              "containment": "/compute/chassis1/ssd1"
             },
             "status": 1
           }
@@ -586,7 +586,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd2"
+              "containment": "/compute/chassis1/ssd2"
             },
             "status": 1
           }
@@ -598,7 +598,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd3"
+              "containment": "/compute/chassis1/ssd3"
             },
             "status": 1
           }
@@ -610,7 +610,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd4"
+              "containment": "/compute/chassis1/ssd4"
             },
             "status": 1
           }
@@ -622,7 +622,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd5"
+              "containment": "/compute/chassis1/ssd5"
             },
             "status": 1
           }
@@ -634,7 +634,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd6"
+              "containment": "/compute/chassis1/ssd6"
             },
             "status": 1
           }
@@ -646,7 +646,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd7"
+              "containment": "/compute/chassis1/ssd7"
             },
             "status": 1
           }
@@ -658,7 +658,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd8"
+              "containment": "/compute/chassis1/ssd8"
             },
             "status": 1
           }
@@ -670,7 +670,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd9"
+              "containment": "/compute/chassis1/ssd9"
             },
             "status": 1
           }
@@ -682,7 +682,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd10"
+              "containment": "/compute/chassis1/ssd10"
             },
             "status": 1
           }
@@ -694,7 +694,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd11"
+              "containment": "/compute/chassis1/ssd11"
             },
             "status": 1
           }
@@ -706,7 +706,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd12"
+              "containment": "/compute/chassis1/ssd12"
             },
             "status": 1
           }
@@ -718,7 +718,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd13"
+              "containment": "/compute/chassis1/ssd13"
             },
             "status": 1
           }
@@ -730,7 +730,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd14"
+              "containment": "/compute/chassis1/ssd14"
             },
             "status": 1
           }
@@ -742,7 +742,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd15"
+              "containment": "/compute/chassis1/ssd15"
             },
             "status": 1
           }
@@ -754,7 +754,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd16"
+              "containment": "/compute/chassis1/ssd16"
             },
             "status": 1
           }
@@ -766,7 +766,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd17"
+              "containment": "/compute/chassis1/ssd17"
             },
             "status": 1
           }
@@ -778,7 +778,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd18"
+              "containment": "/compute/chassis1/ssd18"
             },
             "status": 1
           }
@@ -790,7 +790,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd19"
+              "containment": "/compute/chassis1/ssd19"
             },
             "status": 1
           }
@@ -802,7 +802,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd20"
+              "containment": "/compute/chassis1/ssd20"
             },
             "status": 1
           }
@@ -814,7 +814,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd21"
+              "containment": "/compute/chassis1/ssd21"
             },
             "status": 1
           }
@@ -826,7 +826,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd22"
+              "containment": "/compute/chassis1/ssd22"
             },
             "status": 1
           }
@@ -838,7 +838,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd23"
+              "containment": "/compute/chassis1/ssd23"
             },
             "status": 1
           }
@@ -850,7 +850,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd24"
+              "containment": "/compute/chassis1/ssd24"
             },
             "status": 1
           }
@@ -862,7 +862,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd25"
+              "containment": "/compute/chassis1/ssd25"
             },
             "status": 1
           }
@@ -874,7 +874,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd26"
+              "containment": "/compute/chassis1/ssd26"
             },
             "status": 1
           }
@@ -886,7 +886,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd27"
+              "containment": "/compute/chassis1/ssd27"
             },
             "status": 1
           }
@@ -898,7 +898,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd28"
+              "containment": "/compute/chassis1/ssd28"
             },
             "status": 1
           }
@@ -910,7 +910,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd29"
+              "containment": "/compute/chassis1/ssd29"
             },
             "status": 1
           }
@@ -922,7 +922,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd30"
+              "containment": "/compute/chassis1/ssd30"
             },
             "status": 1
           }
@@ -934,7 +934,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd31"
+              "containment": "/compute/chassis1/ssd31"
             },
             "status": 1
           }
@@ -946,7 +946,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd32"
+              "containment": "/compute/chassis1/ssd32"
             },
             "status": 1
           }
@@ -958,7 +958,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd33"
+              "containment": "/compute/chassis1/ssd33"
             },
             "status": 1
           }
@@ -970,7 +970,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd34"
+              "containment": "/compute/chassis1/ssd34"
             },
             "status": 1
           }
@@ -982,7 +982,7 @@
             "unit": "GiB",
             "size": 1024,
             "paths": {
-              "containment": "/compute/rack1/ssd35"
+              "containment": "/compute/chassis1/ssd35"
             },
             "status": 1
           }
