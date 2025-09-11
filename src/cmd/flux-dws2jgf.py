@@ -25,7 +25,7 @@ class ElCapResourcePoolV1(FluxionResourcePoolV1):
     @staticmethod
     def constraints(resource_type):
         return resource_type in [
-            "rack",
+            "chassis",
             "rabbit",
             "ssd",
         ] or super(ElCapResourcePoolV1, ElCapResourcePoolV1).constraints(resource_type)
@@ -54,7 +54,7 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._rabbit_mapping = rabbit_mapping
         self._r_hostlist = r_hostlist
         self._chunks_per_nnf = chunks_per_nnf
-        self._rackids = 0
+        self._chassis_ids = 0
         self._cluster_name = cluster_name
         self._rank_to_children = get_node_children(rv1["execution"]["R_lite"])
         self._rank_to_properties = get_node_properties(
@@ -77,12 +77,12 @@ class Coral2Graph(FluxionResourceGraphV1):
             edg = ElCapResourceRelationshipV1(parent_id, vtx.get_id())
             self._add_and_tick_uniq_id(vtx, edg)
 
-    def _encode_rack(self, parent_id, parent_path, rabbit_name, entry):
-        path = f"{parent_path}/rack{self._rackids}"
+    def _encode_chassis(self, parent_id, parent_path, rabbit_name, entry):
+        path = f"{parent_path}/chassis{self._chassis_ids}"
         vtx = ElCapResourcePoolV1(
             self._uniqId,
-            "rack",
-            iden=self._rackids,
+            "chassis",
+            iden=self._chassis_ids,
             properties={"rabbit": rabbit_name, "ssdcount": str(self._chunks_per_nnf)},
             path=path,
         )
@@ -103,7 +103,7 @@ class Coral2Graph(FluxionResourceGraphV1):
                     node,
                     self._rank_to_properties.get(index, {}),
                 )
-        # if the rabbit itself is in R, add it to the rack as a compute node as well
+        # if the rabbit itself is in R, add it to the chassis as a compute node as well
         try:
             index = self._r_hostlist.index(rabbit_name)[0]
         except FileNotFoundError:
@@ -117,7 +117,7 @@ class Coral2Graph(FluxionResourceGraphV1):
                 rabbit_name,
                 self._rank_to_properties.get(index, {}),
             )
-        self._rackids += 1
+        self._chassis_ids += 1
 
     def _encode(self):
         path = "/" + self._cluster_name
@@ -129,8 +129,8 @@ class Coral2Graph(FluxionResourceGraphV1):
         )
         self._add_and_tick_uniq_id(vtx)
         for rabbit_name, entry in self._rabbit_mapping["rabbits"].items():
-            self._encode_rack(vtx.get_id(), path, rabbit_name, entry)
-        # add nodes not in rabbit racks, making the nodes contained by 'cluster'
+            self._encode_chassis(vtx.get_id(), path, rabbit_name, entry)
+        # add nodes not in rabbit chassis, making the nodes contained by 'cluster'
         dws_computes = set(self._rabbit_mapping["computes"].keys())
         dws_computes |= set(self._rabbit_mapping["rabbits"].keys())
         for rank, node in enumerate(self._r_hostlist):

@@ -184,7 +184,7 @@ class RabbitManager:
 class FluxionRabbitManager(RabbitManager):
     """Class for interfacing with k8s Storage resources.
 
-    Assumes Fluxion has been augmented to use a resource graph with `rack` and
+    Assumes Fluxion has been augmented to use a resource graph with `chassis` and
     `ssd` vertices as produced by `flux dws2jgf`.
 
     Offers methods for setting the `badrabbit` property on compute nodes, and for
@@ -192,7 +192,7 @@ class FluxionRabbitManager(RabbitManager):
     """
 
     def __init__(self, handle, allowlist):
-        self._rabbit_rpaths = {}  # maps rabbit hostnames to Fluxion rack paths
+        self._rabbit_rpaths = {}  # maps rabbit hostnames to Fluxion chassis paths
         super().__init__(handle, allowlist)
 
     def _get_rpaths(self):
@@ -207,7 +207,10 @@ class FluxionRabbitManager(RabbitManager):
             ) from exc
         for vertex in nodes:
             metadata = vertex["metadata"]
-            if metadata["type"] == "rack" and "rabbit" in metadata["properties"]:
+            if (
+                metadata["type"] in ("chassis", "rack")
+                and "rabbit" in metadata["properties"]
+            ):
                 self._rabbit_rpaths[metadata["properties"]["rabbit"]] = (
                     metadata["paths"]["containment"],
                     int(metadata["properties"].get("ssdcount", 36)),
