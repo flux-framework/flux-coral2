@@ -365,8 +365,24 @@ static void allocate_cxi_service_device (struct cxil_dev *dev,
     desc.tcs[CXI_TC_LOW_LATENCY] = true;
 
     if (!optparse_hasopt (p, "dry-run")) {
-        if ((e = cxil_alloc_svc (dev, &desc, &fail_info)) < 0)
+        if ((e = cxil_alloc_svc (dev, &desc, &fail_info)) < 0) {
+            for (int i = 0; i < CXI_RSRC_TYPE_MAX; i++) {
+                if (fail_info.rsrc_avail[i] < desc.limits.type[i].res) {
+                    warn ("%s: cannot reserve %hu %s: only %hu available",
+                          dev->info.device_name,
+                          desc.limits.type[i].res,
+                          cxi_rsrc_type_strs[i],
+                          fail_info.rsrc_avail[i]);
+                }
+            }
+            if (fail_info.no_le_pools)
+                warn ("%s: no LE pools available", dev->info.device_name);
+            if (fail_info.no_tle_pools)
+                warn ("%s: no TLE pools available", dev->info.device_name);
+            if (fail_info.no_cntr_pools)
+                warn ("%s: no CNTR pools available", dev->info.device_name);
             fatal ("cxi%u: cxil_alloc_svc: %s", dev->info.dev_id, strerror (-e));
+        }
     } else
         e = -1;
     char *s = json_dumps (vnis, JSON_COMPACT);
