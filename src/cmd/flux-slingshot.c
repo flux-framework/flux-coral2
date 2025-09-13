@@ -35,6 +35,10 @@
 #include "src/common/libutil/monotime.h"
 #include "ccan/str/str.h"
 
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
 static int cmd_prolog (optparse_t *p, int argc, char **argv);
 static int cmd_epilog (optparse_t *p, int argc, char **argv);
 static int cmd_list (optparse_t *p, int argc, char **argv);
@@ -338,23 +342,23 @@ static void allocate_cxi_service_device (struct cxil_dev *dev,
     desc.members[1].type = CXI_SVC_MEMBER_IGNORE;
 
     desc.resource_limits = 1;
-    desc.limits.txqs.max = 2048;
-    desc.limits.tgqs.max = 1024;
-    desc.limits.eqs.max = 2047;
-    desc.limits.cts.max = 2047;
-    desc.limits.tles.max = 1 * ncores;
-    desc.limits.ptes.max = 2048;
-    desc.limits.les.max = 16384;
-    desc.limits.acs.max = 1022;
+    desc.limits.txqs.max = MIN (2048, dev->info.num_txqs);
+    desc.limits.tgqs.max = MIN (1024, dev->info.num_tgqs);
+    desc.limits.eqs.max = MIN (2047, dev->info.num_eqs);
+    desc.limits.cts.max = MIN (2047, dev->info.num_cts);
+    desc.limits.tles.max = MIN (1 * ncores, dev->info.num_tles);
+    desc.limits.ptes.max = MIN (2048, dev->info.num_ptes);
+    desc.limits.les.max = MIN (16384, dev->info.num_les);
+    desc.limits.acs.max = MIN (1022, dev->info.num_acs);
 
-    desc.limits.txqs.res = 2 * ncores;
-    desc.limits.tgqs.res = 1 * ncores;
-    desc.limits.eqs.res = 2 * ncores;
-    desc.limits.cts.res = 1 * ncores;
-    desc.limits.tles.res = 1 * ncores;
-    desc.limits.ptes.res = 6 * ncores;
-    desc.limits.les.res = 16 * ncores;
-    desc.limits.acs.res = 2 * ncores;
+    desc.limits.txqs.res = MIN (2 * ncores, desc.limits.txqs.max);
+    desc.limits.tgqs.res = MIN (1 * ncores, desc.limits.tgqs.max);
+    desc.limits.eqs.res = MIN (2 * ncores, desc.limits.eqs.max);
+    desc.limits.cts.res = MIN (1 * ncores, desc.limits.cts.max);
+    desc.limits.tles.res = MIN (1 * ncores, desc.limits.tles.max);
+    desc.limits.ptes.res = MIN (6 * ncores, desc.limits.ptes.max);
+    desc.limits.les.res = MIN (16 * ncores, desc.limits.les.max);
+    desc.limits.acs.res = MIN (2 * ncores, desc.limits.acs.max);
 
     desc.restricted_tcs = 1;
     desc.tcs[CXI_TC_BEST_EFFORT] = true;
