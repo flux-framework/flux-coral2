@@ -30,8 +30,8 @@ from kubernetes.client.rest import ApiException
 import urllib3
 
 import flux
+import flux.job
 from flux.hostlist import Hostlist
-from flux.job.JobID import id_parse
 from flux.constants import FLUX_MSGTYPE_REQUEST
 from flux.future import Future
 import flux_k8s
@@ -42,11 +42,12 @@ from flux_k8s import cleanup
 from flux_k8s import storage
 import flux_k8s.systemstatus
 from flux_k8s.workflow import (
+    save_workflow_to_kvs,
     TransientConditionInfo,
     WorkflowInfo,
-    save_workflow_to_kvs,
     WorkflowState,
 )
+import flux_k8s.operator.minicluster as flux_operator
 
 
 LOGGER = logging.getLogger(__name__)
@@ -328,6 +329,8 @@ def setup_cb(handle, _t, msg, k8s_api):
     desiredState.
     """
     jobid = msg.payload["jobid"]
+    info = flux.job.get_job(handle, flux.job.JobID(jobid))
+    userid = info["userid"]
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
     workflow_name = WorkflowInfo.get_name(jobid)
     workflow = k8s_api.get_namespaced_custom_object(*crd.WORKFLOW_CRD, workflow_name)
@@ -335,6 +338,9 @@ def setup_cb(handle, _t, msg, k8s_api):
     for hostname in hlist:
         nnf_name = storage.HOSTNAMES_TO_RABBITS[hostname]
         nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
+
+    # We need to give the rabbit nodes to the Flux Operator
+    rabbits = list(nodes_per_nnf.keys())
     handle.rpc(
         "job-manager.memo",
         payload={
@@ -374,6 +380,25 @@ def setup_cb(handle, _t, msg, k8s_api):
             setup_timeout_cb,
             args=(handle, k8s_api, winfo, hlist, lustre),
         ).start()
+
+    # Create the MiniCluster post rabbit success.
+    # Note that we don't need a Flux handle here if we modify the jobtap plugin to
+    # add additional info. It's redundant to get resources again.
+    jobspec = flux.job.kvslookup.job_kvs_lookup(handle, jobid)["jobspec"]
+
+    # --setattr=rabbit.mpi being set to anything triggers a minicluster
+    # A rabbit minicluster is expected to be created with a workflow
+    is_requested = flux_operator.MiniCluster.is_requested(jobspec)
+    is_allowed = flux_operator.MiniCluster.is_allowed(jobspec)
+    if is_requested and is_allowed:
+        minicluster = flux_operator.RabbitMiniCluster(
+            handle=handle,
+            jobid=jobid,
+            userid=userid,
+            name=workflow["metadata"]["name"],
+            namespace=workflow["metadata"].get("namespace"),
+        )
+        minicluster.generate(jobspec, rabbits)
 
 
 def drain_nodes_with_mounts(handle, k8s_api, winfo):
@@ -1055,7 +1080,7 @@ def raise_self_exception(handle):
     implemented/closed, this can be replaced with that solution.
     """
     try:
-        jobid = id_parse(os.environ["FLUX_JOB_ID"])
+        jobid = flux.job.id_parse(os.environ["FLUX_JOB_ID"])
     except KeyError:
         return
     Future(handle.job_raise(jobid, "exception", 7, "dws watchers setup")).get()
