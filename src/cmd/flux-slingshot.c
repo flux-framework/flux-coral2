@@ -583,13 +583,19 @@ static int cmd_prolog (optparse_t *p, int argc, char **argv)
     if (json_array_size (vnis) == 0)
         goto done;
     ncores = ncores_from_R (f_R);
+    int count = 0;
 #if HAVE_CXI
-    allocate_cxi_service (p, uid, vnis, ncores);
-#else
-    char *s = json_dumps (vnis, JSON_COMPACT);
-    warn ("no CXI support uid=%u ncores=%d vnis=%s", uid, ncores, s ? s : "");
-    free (s);
+    count = allocate_cxi_service (p, uid, vnis, ncores);
 #endif
+    /* N.B. tests expect to find ncore and vnis in output, so if it
+     * wasn't emitted during service creation (no CXI support or no devices),
+     * do it here.
+     */
+    if (count == 0) {
+        char *s = json_dumps (vnis, JSON_COMPACT);
+        warn ("no CXI devices uid=%u ncores=%d vnis=%s", uid, ncores, s ? s : "");
+        free (s);
+    }
     json_decref (res);
 done:
     flux_future_destroy (f_eventlog);
