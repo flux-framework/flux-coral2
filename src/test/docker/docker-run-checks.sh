@@ -139,7 +139,8 @@ checks_group "Building image $IMAGE for user $USER $(id -u) group=$(id -g)" \
     --build-arg GID=$(id -g) \
     --build-arg FLUX_SECURITY_VERSION=$FLUX_SECURITY_VERSION \
     -t ${BUILD_IMAGE} \
-    ${DOCKERFILE} \
+    -f ${DOCKERFILE}/Dockerfile \
+    . \
     || die "docker build failed"
 
 if [[ -n "$MOUNT_HOME_ARGS" ]]; then
