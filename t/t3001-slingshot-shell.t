@@ -73,6 +73,7 @@ test_expect_success 'run a job with broker SLINGSHOT_ environment' '
 	    --env=SLINGSHOT_VNIS=999 \
 	    --env=SLINGSHOT_DEVICES=cxi0,cxi1 \
 	    --env=SLINGSHOT_SVC_IDS=42,43 \
+	    --env=SLINGSHOT_TCS=0x0a \
 	    sh -c "flux setattr conf.shell_initrc testrc.lua &&
 	    flux run -o verbose=2 printenv >inherit.out 2>inherit.err"
 '
@@ -82,7 +83,8 @@ test_expect_success 'job is running in inherited mode' '
 test_expect_success 'the slingshot environment is inherited' '
 	grep SLINGSHOT_VNIS=999 inherit.out &&
 	grep SLINGSHOT_DEVICES=cxi0,cxi1 inherit.out &&
-	grep SLINGSHOT_SVC_IDS=42,43 inherit.out
+	grep SLINGSHOT_SVC_IDS=42,43 inherit.out &&
+	grep SLINGSHOT_TCS=0x0a inherit.out
 '
 
 ##
@@ -101,6 +103,9 @@ test_expect_success 'job is running in reservation mode' '
 # CI: SLINGSHOST_VNIS will be set even if there are no devices present
 test_expect_success 'SLINGSHOT_VNIS=1024' '
 	grep SLINGSHOT_VNIS=1024 rez.out
+'
+test_expect_success 'SLINGSHOT_TCS=0xf' '
+	grep SLINGSHOT_TCS=0xf rez.out
 '
 test_expect_success 'run a job that requests two vnis' '
 	flux run -o verbose=2 -o cray-slingshot.vnicount=2 \
@@ -121,6 +126,9 @@ test_expect_success 'job is running in reservation mode' '
 '
 test_expect_success 'SLINGSHOT_VNIS is not set' '
 	test_must_fail grep SLINGSHOT_VNIS rez0.out
+'
+test_expect_success 'SLINGSHOT_TCS=0xf' '
+	grep SLINGSHOT_TCS=0xf rez0.out
 '
 
 test_done
