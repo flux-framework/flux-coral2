@@ -12,3 +12,4 @@ extend-exclude = [
 # commonly used names/variables that aren't typos
 BA = "BA"
 HPE = "HPE"
+SHS = "SHS"
