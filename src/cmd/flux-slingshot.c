@@ -20,6 +20,7 @@
 #include <flux/core.h>
 #include <flux/optparse.h>
 #include <flux/idset.h>
+#include <flux/hostlist.h>
 #ifdef HAVE_LIBCXI_LIBCXI_H
 #include <libcxi/libcxi.h>
 #endif
@@ -34,6 +35,7 @@
 #include "src/common/libutil/fsd.h"
 #include "src/common/libutil/monotime.h"
 #include "ccan/str/str.h"
+#include "ccan/list/list.h"
 
 #ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -101,6 +103,11 @@ static struct optparse_option list_opts[] = {
         .key = 'n',
         .has_arg = 0,
         .usage = "Suppress printing of header line",
+    },
+    {
+        .name = "max",
+        .has_arg = 0,
+        .usage = "Show resource max instead of reserved values",
     },
     OPTPARSE_TABLE_END,
 };
@@ -695,46 +702,172 @@ static int cmd_clean (optparse_t *p, int argc, char **argv)
 }
 
 #if HAVE_CXI
-static void count_services (int dev_id, int *def, int *sys, int *usr)
+struct service_entry {
+    struct hostlist *devices;
+    int svc_id;
+    bool enable;
+    bool is_system_svc;
+    bool restricted_members;
+    bool restricted_vnis;
+    bool resource_limits;
+    int uid;
+    struct idset *vnis;
+    struct cxi_rsrc_limits limits;
+    struct list_node list;
+};
+
+// ignore e1 devices - this is for combining entries for multiple devices
+bool service_entry_equal (struct service_entry *e1, struct service_entry *e2)
 {
-    int e;
-    struct cxil_dev *dev;
-    struct cxil_svc_list *svc_list;
-
-    if ((e = cxil_open_device (dev_id, &dev)) < 0) {
-        warn ("cxi%u: cxil_open_device: %s", dev_id, strerror (-e));
-        return;
+    if (e1->svc_id != e2->svc_id || e1->is_system_svc != e2->is_system_svc
+        || e1->restricted_members != e2->restricted_members
+        || e1->restricted_vnis != e2->restricted_vnis || e1->resource_limits != e2->resource_limits
+        || e1->enable != e2->enable)
+        return false;
+    if (e1->restricted_members) {
+        if (e1->uid != e2->uid)
+            return false;
     }
-    if ((e = cxil_get_svc_list (dev, &svc_list)) < 0) {
-        warn ("cxi%u: cxil_get_svc_list", dev_id, strerror (-e));
-        goto done;
+    if (e1->restricted_vnis) {
+        if (!idset_equal (e1->vnis, e2->vnis))
+            return false;
     }
-    for (int i = 0; i < svc_list->count; i++) {
-        struct cxi_svc_desc *desc = &svc_list->descs[i];
-
-        if (desc->enable) {
-            if (desc->svc_id == CXI_DEFAULT_SVC_ID)
-                (*def)++;
-            else if (desc->is_system_svc)
-                (*sys)++;
-            else
-                (*usr)++;
+    if (e1->resource_limits) {
+        for (int i = 0; i < CXI_RSRC_TYPE_MAX; i++) {
+            if (e1->limits.type[i].max != e2->limits.type[i].max
+                || e1->limits.type[i].res != e2->limits.type[i].res)
+                return false;
         }
     }
-    cxil_free_svc_list (svc_list);
-done:
-    cxil_close_device (dev);
+    return true;
+}
+
+void service_entry_destroy (struct service_entry *entry)
+{
+    if (entry) {
+        int saved_errno = errno;
+        hostlist_destroy (entry->devices);
+        idset_destroy (entry->vnis);
+        free (entry);
+        errno = saved_errno;
+    }
+}
+
+struct service_entry *service_entry_create (const char *device_name, struct cxi_svc_desc *desc)
+{
+    struct service_entry *entry;
+    if (!(entry = calloc (1, sizeof (*entry))) || !(entry->devices = hostlist_decode (device_name))
+        || !(entry->vnis = idset_create (0, IDSET_FLAG_AUTOGROW)))
+        goto error;
+    entry->enable = desc->enable;
+    entry->is_system_svc = desc->is_system_svc;
+    entry->svc_id = desc->svc_id;
+    // we only display the first uid restriction, if any
+    if (desc->restricted_members) {
+        for (int i = 0; i < CXI_SVC_MAX_MEMBERS; i++) {
+            if (desc->members[i].type == CXI_SVC_MEMBER_UID) {
+                entry->uid = desc->members[i].svc_member.uid;
+                entry->restricted_members = true;
+                break;
+            }
+        }
+    }
+    if (desc->restricted_vnis) {
+        for (int i = 0; i < desc->num_vld_vnis; i++) {
+            if (idset_set (entry->vnis, desc->vnis[i]) < 0)
+                goto error;
+        }
+        entry->restricted_vnis = true;
+    }
+    entry->resource_limits = desc->resource_limits;
+    entry->limits = desc->limits;
+
+    list_node_init (&entry->list);
+    return entry;
+error:
+    service_entry_destroy (entry);
+    return NULL;
+}
+
+static void insert_services_entry (struct list_head *services, struct service_entry *entry)
+{
+    struct service_entry *old = NULL;
+
+    list_for_each (services, old, list)
+    {
+        if (service_entry_equal (old, entry)) {
+            char *device = NULL;
+
+            if (!(device = hostlist_encode (entry->devices))
+                || hostlist_append (old->devices, device) < 0) {
+                free (device);
+                break;  // not fatal - just append without combining
+            }
+            service_entry_destroy (entry);
+            free (device);
+            return;
+        }
+    }
+    list_add_tail (services, &entry->list);
+}
+
+static void service_entry_print (struct service_entry *entry, optparse_t *p)
+{
+    char *name;
+    char *vnis;
+    char id[16];
+    char uid[16] = "-";
+
+    if (!(name = hostlist_encode (entry->devices)))
+        fatal ("hostlist_encode: %s", strerror (errno));
+    if (!(vnis = idset_encode (entry->vnis, IDSET_FLAG_RANGE)))
+        fatal ("idset_encode: %s", strerror (errno));
+
+    snprintf (id,
+              sizeof (id),
+              "%d%s%s",
+              entry->svc_id,
+              entry->is_system_svc ? "/sys" : "",
+              entry->enable ? "" : "-");
+    if (entry->restricted_members)
+        snprintf (uid, sizeof (uid), "%d", entry->uid);
+
+    printf ("%-8s %-6s %-5s %-9s", name, id, uid, vnis);
+    for (int i = 0; i < CXI_RSRC_TYPE_MAX; i++) {
+        if (optparse_hasopt (p, "max"))
+            printf (" %-5d", entry->limits.type[i].max);
+        else
+            printf (" %-5d", entry->limits.type[i].res);
+    }
+    printf ("\n");
+
+    free (vnis);
+    free (name);
 }
 #endif
 
+static void service_entry_header_print (void)
+{
+    printf ("%-8s %-6s %-5s %-9s", "Name", "Svc", "UID", "VNIs");
+#if HAVE_CXI
+    for (int i = 0; i < CXI_RSRC_TYPE_MAX; i++)
+        printf (" %-5s", cxi_rsrc_type_strs[i]);
+#endif
+    printf ("\n");
+}
+
 static int cmd_list (optparse_t *p, int argc, char **argv)
 {
+    struct list_head services;
     int optindex = optparse_option_index (p);
+
     if (optindex < argc)
         fatal ("free arguments are not supported");
-    if (!optparse_hasopt (p, "no-header")) {
-        printf ("%-5s %-8s %-8s %-8s %-8s\n", "Name", "Status", "Default", "System", "User");
-    }
+    list_head_init (&services);
+
+    if (!optparse_hasopt (p, "no-header"))
+        service_entry_header_print ();
+
 #if HAVE_CXI
     struct cxil_device_list *dev_list;
     int e;
@@ -742,20 +875,40 @@ static int cmd_list (optparse_t *p, int argc, char **argv)
     if ((e = cxil_get_device_list (&dev_list)) < 0)
         fatal ("cxil_get_device_list: %s", strerror (-e));
     for (int i = 0; i < dev_list->count; i++) {
-        int def = 0;
-        int sys = 0;
-        int usr = 0;
+        struct cxil_devinfo *info = &dev_list->info[i];
+        struct cxil_dev *dev;
+        struct cxil_svc_list *svc_list;
+        if ((e = cxil_open_device (info->dev_id, &dev)) < 0) {
+            warn ("%s: cxil_open_device: %s", info->device_name, strerror (-e));
+            continue;
+        }
+        if ((e = cxil_get_svc_list (dev, &svc_list)) < 0) {
+            warn ("%s: cxil_get_svc_list", info->device_name, strerror (-e));
+            cxil_close_device (dev);
+            continue;
+        }
+        for (int i = 0; i < svc_list->count; i++) {
+            struct cxi_svc_desc *desc = &svc_list->descs[i];
+            struct service_entry *entry;
 
-        count_services (dev_list->info[i].dev_id, &def, &sys, &usr);
+            if (!(entry = service_entry_create (info->device_name, desc)))
+                fatal ("error creating service entry: %s", strerror (errno));
 
-        printf ("%-5s %-8s %-8d %-8d %-8d\n",
-                dev_list->info[i].device_name,
-                cxil_rh_running (&dev_list->info[i]) ? "up" : "down",
-                def,
-                sys,
-                usr);
+            insert_services_entry (&services, entry);
+        }
+        cxil_free_svc_list (svc_list);
+        cxil_close_device (dev);
     }
     cxil_free_device_list (dev_list);
+
+    struct service_entry *entry = NULL;
+    struct service_entry *next;
+    list_for_each_safe (&services, entry, next, list)
+    {
+        service_entry_print (entry, p);
+        list_del (&entry->list);
+        service_entry_destroy (entry);
+    }
 #endif
     return 0;
 }
