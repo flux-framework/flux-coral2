@@ -3,6 +3,9 @@ FROM fluxrm/flux-sched:el9
 ARG USER=fluxuser
 ARG UID=1000
 
+# Copy scripts into image
+COPY scripts/ /scripts
+
 RUN \
  if test "$USER" != "fluxuser"; then  \
       sudo groupadd -g $UID $USER \
@@ -13,11 +16,8 @@ RUN \
 
 RUN sudo pip3 install kubernetes
 
-COPY ./kubectl.sh ./sync-kube-config.sh /usr/local/share/
-RUN sudo chmod 755 /usr/local/share/kubectl.sh \
-  && sudo chmod 755 /usr/local/share/sync-kube-config.sh \
-  && sudo /usr/local/share/kubectl.sh \
-  && echo "source /usr/local/share/sync-kube-config.sh" | sudo tee -a /etc/profile.d/99-sync-kube-config.sh \
+RUN sudo /scripts/kubectl.sh \
+  && echo "source /scripts/sync-kube-config.sh" | sudo tee -a /etc/profile.d/99-sync-kube-config.sh \
   && sudo chmod 755 /etc/profile.d/99-sync-kube-config.sh
 
 USER $USER

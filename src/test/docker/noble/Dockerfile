@@ -4,6 +4,9 @@ ARG USER=fluxuser
 ARG UID=1000
 ARG KUBECTL_VERSION=latest
 
+# Copy scripts into image
+COPY scripts/ /scripts
+
 RUN \
  if test "$USER" != "fluxuser"; then  \
       sudo groupadd -g $UID $USER \
@@ -15,11 +18,8 @@ RUN \
 RUN sudo apt-get update \
     && sudo apt install -y python3-pip curl python3-kubernetes
 
-COPY ./kubectl.sh ./sync-kube-config.sh /usr/local/share/
-RUN sudo chmod 755 /usr/local/share/kubectl.sh \
-  && sudo chmod 755 /usr/local/share/sync-kube-config.sh \
-  && sudo /usr/local/share/kubectl.sh \
-  && echo "source /usr/local/share/sync-kube-config.sh" | sudo tee -a /etc/bash.bashrc \
+RUN sudo /scripts/kubectl.sh \
+  && echo "source /scripts/sync-kube-config.sh" | sudo tee -a /etc/bash.bashrc \
   && sudo chmod 755 /etc/bash.bashrc
 
 
