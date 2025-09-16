@@ -30,6 +30,13 @@ man_pages = [
         1,
     ),
     (
+        "man1/flux-shell-cray-slingshot",
+        "flux-shell-cray-slingshot",
+        "Flux slingshot shell plugin",
+        [author],
+        1,
+    ),
+    (
         "man1/flux-rabbitmapping",
         "flux-rabbitmapping",
         "flux-coral2 commands",
