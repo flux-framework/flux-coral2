@@ -72,7 +72,7 @@ AM_CONDITIONAL([ENABLE_PYLINT], [test "x$PYLINT" = "xpylint"])
 AM_CHECK_PYMOD(kubernetes,
                   [Version(kubernetes.__version__) >= Version('11.0.0')],
                   ,
-                  [AC_MSG_ERROR([could not find python module kubernetes, version 11.0.0+ required])]
+                  [AC_MSG_WARN([could not find python module kubernetes, version 11.0.0+ required])]
                 )
 
 AS_IF([test "x$enable_docs" != "xno"], [
