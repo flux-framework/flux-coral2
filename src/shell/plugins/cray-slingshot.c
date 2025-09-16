@@ -68,6 +68,10 @@ struct cray_slingshot {
     struct cray_slingshot_options opt;
 };
 
+/* See tcmask_from_desc().
+ */
+static const int tcmask_default = 0xf;
+
 /* Maximum time to wait for cray-slingshot event or a surpassing
  * event to be posted to the job eventlog.
  */
@@ -128,6 +132,24 @@ static int setenv_json_string_array (flux_shell_t *shell, const char *name, json
 }
 
 #ifdef HAVE_CXI
+/* Convert traffic class flag array to bitmask.  This specific mapping is
+ * required by Cray MPICH.
+ */
+static int tcmask_from_desc (struct cxi_svc_desc *desc)
+{
+    int map[CXI_TC_MAX] = {0};
+    map[CXI_TC_DEDICATED_ACCESS] = 0x1;
+    map[CXI_TC_LOW_LATENCY] = 0x2;
+    map[CXI_TC_BULK_DATA] = 0x4;
+    map[CXI_TC_BEST_EFFORT] = 0x8;
+
+    int mask = 0;
+    for (int i = 0; i < CXI_TC_MAX; i++)
+        if (desc->tcs[i])
+            mask |= map[i];
+    return mask;
+}
+
 static int array_append_int (json_t *array, int val)
 {
     json_t *o;
@@ -172,13 +194,15 @@ static bool match_cxi_service (struct cxi_svc_desc *desc, json_t *vnis)
 /* Find the first CXI service on the specified interface that has
  * VNIs matching the vnis array.  When found, append the service
  * ID to the svcs array.  If not found, append -1.
+ * Any traffic classes not permitted by a CXI service are removed from tcmask.
  */
-static int append_cxi_service_match (json_t *svcs, uint32_t dev_id, json_t *vnis)
+static int append_cxi_service_match (json_t *svcs, uint32_t dev_id, json_t *vnis, int *tcmask)
 {
     int e;
     struct cxil_dev *dev;
     struct cxil_svc_list *svc_list = NULL;
     int match = -1;
+    int match_tcmask = tcmask_default;
     int rc = -1;
 
     if ((e = cxil_open_device (dev_id, &dev)) < 0) {
@@ -192,6 +216,7 @@ static int append_cxi_service_match (json_t *svcs, uint32_t dev_id, json_t *vnis
     for (int i = 0; i < svc_list->count; i++) {
         if (match_cxi_service (&svc_list->descs[i], vnis)) {
             match = svc_list->descs[i].svc_id;
+            match_tcmask = tcmask_from_desc (&svc_list->descs[i]);
             break;
         }
     }
@@ -201,6 +226,7 @@ static int append_cxi_service_match (json_t *svcs, uint32_t dev_id, json_t *vnis
     }
     if (array_append_int (svcs, match) < 0)
         goto done;
+    *tcmask &= match_tcmask;
     rc = 0;
 done:
     cxil_free_svc_list (svc_list);
@@ -210,8 +236,9 @@ done:
 
 /* Find Cassini devices and add their names (e.g. "cxi0")
  * to the devs array and matching CXI service IDs to the svcs array.
+ * Any traffic classes not permitted by a CXI service are removed from tcmask.
  */
-static int add_devices (json_t *devs, json_t *svcs, json_t *vnis)
+static int add_devices (json_t *devs, json_t *svcs, json_t *vnis, int *tcmask)
 {
     struct cxil_device_list *dev_list;
     int e;
@@ -224,7 +251,7 @@ static int add_devices (json_t *devs, json_t *svcs, json_t *vnis)
             cxil_free_device_list (dev_list);
             return -1;
         }
-        if (append_cxi_service_match (svcs, dev_list->info[i].dev_id, vnis) < 0) {
+        if (append_cxi_service_match (svcs, dev_list->info[i].dev_id, vnis, tcmask) < 0) {
             cxil_free_device_list (dev_list);
             return -1;
         }
@@ -247,6 +274,7 @@ static int cray_slingshot_reserved (struct cray_slingshot *ctx)
     json_error_t jerror;
     json_t *devices = NULL;
     json_t *cxi_svc = NULL;
+    int tcmask = tcmask_default;
     int rc = -1;
 
     if (eventlog_wait_for (ctx->f_event, "cray-slingshot", eventlog_timeout, &res, &error) < 0) {
@@ -264,16 +292,16 @@ static int cray_slingshot_reserved (struct cray_slingshot *ctx)
         goto done;
     }
 #ifdef HAVE_CXI
-    if (add_devices (devices, cxi_svc, vnis) < 0)
+    if (add_devices (devices, cxi_svc, vnis, &tcmask) < 0)
         goto done;
 #endif
     if (json_array_size (devices) == 0)
         shell_warn ("no slingshot devices were found");
     if (setenv_json_int_array (ctx->shell, "SLINGSHOT_VNIS", vnis) < 0
         || setenv_json_string_array (ctx->shell, "SLINGSHOT_DEVICES", devices) < 0
-        || setenv_json_int_array (ctx->shell, "SLINGSHOT_SVC_IDS", cxi_svc) < 0)
+        || setenv_json_int_array (ctx->shell, "SLINGSHOT_SVC_IDS", cxi_svc) < 0
+        || flux_shell_setenvf (ctx->shell, 1, "SLINGSHOT_TCS", "0x%x", tcmask) < 0)
         goto done;
-    // eh what about SLINGSHOT_TCS?
     shell_debug ("setting environment for VNI reservation");
     rc = 0;
 done:

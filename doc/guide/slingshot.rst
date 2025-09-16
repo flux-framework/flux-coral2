@@ -203,7 +203,10 @@ This is reflected in the job environment:
 
 .. envvar:: SLINGSHOT_TCS
 
-   Hex bitmask of allowed traffic classes.
+   Bitmask of allowed traffic classes. The bit encoding is
+   :const:`DEDICATED ACCESS` (1), :const:`LOW_LATENCY` (2),
+   :const:`BULK_DATA` (4), :const:`BEST_EFFORT` (8).  This environment
+   variable is interpreted by Cray MPICH.
 
 Example::
 
