@@ -74,7 +74,22 @@ test_expect_success 'flux-slingshot epilog --retry-busy=badfsd fails' '
 	    --jobid=$(flux job last) --retry-busy=badfsd
 '
 test_expect_success 'flux-slingshot clean --dry-run works' '
-	$SLINGSHOT_CMD clean --dry-run
+	$SLINGSHOT_CMD clean --dry-run 2>clean.err
+'
+test_expect_success 'the default vnipool was logged' '
+	grep "vnipool = 1024-65535" clean.err
+'
+test_expect_success 'reconfigure the vnipool' '
+	flux config load <<-EOT
+	[cray-slingshot]
+	vni-pool = "1000-1001"
+	EOT
+'
+test_expect_success 'flux-slingshot clean --dry-run works' '
+	$SLINGSHOT_CMD clean --dry-run 2>clean2.err
+'
+test_expect_success 'the new vnipool was logged' '
+	grep "vnipool = 1000-1001" clean2.err
 '
 
 test_done
