@@ -71,4 +71,11 @@ man_pages = [
         [author],
         1,
     ),
+    (
+        "man5/flux-config-slingshot",
+        "flux-config-slingshot",
+        "Flux Slingshot Configuration",
+        [author],
+        5,
+    ),
 ]
