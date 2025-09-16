@@ -9,6 +9,7 @@ MAN1_FILES = $(MAN1_FILES_PRIMARY)
 MAN1_FILES_PRIMARY = \
 	man1/flux-shell-cray-pals.1 \
 	man1/flux-shell-cray-slingshot.1 \
+	man1/flux-slingshot.1 \
 	man1/flux-rabbitmapping.1 \
 	man1/flux-getrabbit.1 \
 	man1/flux-dws2jgf.1 \

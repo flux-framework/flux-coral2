@@ -64,4 +64,11 @@ man_pages = [
         [author],
         1,
     ),
+    (
+        "man1/flux-slingshot",
+        "flux-slingshot",
+        "Slingshot NIC utility for Flux",
+        [author],
+        1,
+    ),
 ]
