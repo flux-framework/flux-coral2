@@ -30,6 +30,13 @@ man_pages = [
         1,
     ),
     (
+        "man1/flux-shell-cray-slingshot",
+        "flux-shell-cray-slingshot",
+        "Flux slingshot shell plugin",
+        [author],
+        1,
+    ),
+    (
         "man1/flux-rabbitmapping",
         "flux-rabbitmapping",
         "flux-coral2 commands",
@@ -56,5 +63,19 @@ man_pages = [
         "flux-coral2 commands",
         [author],
         1,
+    ),
+    (
+        "man1/flux-slingshot",
+        "flux-slingshot",
+        "Slingshot NIC utility for Flux",
+        [author],
+        1,
+    ),
+    (
+        "man5/flux-config-slingshot",
+        "flux-config-slingshot",
+        "Flux Slingshot Configuration",
+        [author],
+        5,
     ),
 ]
