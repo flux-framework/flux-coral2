@@ -16,6 +16,8 @@
 #include <jansson.h>
 #include <flux/core.h>
 
+#define VNIPOOL_DEFAULT "1024-65535"
+
 struct vnipool *vnipool_create (void);
 void vnipool_destroy (struct vnipool *vp);
 
