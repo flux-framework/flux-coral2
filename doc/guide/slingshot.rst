@@ -1,3 +1,5 @@
+.. _slingshot_interconnect:
+
 ######################
 Slingshot Interconnect
 ######################
