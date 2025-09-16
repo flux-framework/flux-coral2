@@ -63,7 +63,7 @@ struct cray_slingshot {
     bool vni_reserve_fatal;
 };
 
-static const char *vni_pool_default = "1024-65535";
+static const char *vni_pool_default = VNIPOOL_DEFAULT;
 static const int vnis_per_job_default = 1;
 static const bool vni_reserve_fatal_default = true;
 
