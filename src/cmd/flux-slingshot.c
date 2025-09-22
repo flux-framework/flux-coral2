@@ -36,6 +36,7 @@
 #include "src/common/libutil/monotime.h"
 #include "ccan/str/str.h"
 #include "ccan/list/list.h"
+#include "src/job-manager/plugins/vnipool.h"
 
 #ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -654,7 +655,7 @@ done:
     return 0;
 }
 
-static struct idset *lookup_vnipool (flux_t *h)
+static struct idset *lookup_vnipool (flux_t *h, optparse_t *p)
 {
     flux_future_t *f;
     json_t *config;
@@ -664,10 +665,16 @@ static struct idset *lookup_vnipool (flux_t *h)
     if (!(f = flux_rpc (h, "config.get", NULL, FLUX_NODEID_ANY, 0))
         || flux_rpc_get_unpack (f, "o", &config) < 0)
         fatal ("Error fetching config object: %s", future_strerror (f, errno));
-    if (json_unpack (config, "{s:{s:s}}", "cray-slingshot", "vni-pool", &vnipool) == 0) {
-        if (!(ids = idset_decode (vnipool)))
-            fatal ("error decoding cray-slingshot.vni-pool config");
-    }
+
+    if (json_unpack (config, "{s:{s:s}}", "cray-slingshot", "vni-pool", &vnipool) < 0)
+        vnipool = VNIPOOL_DEFAULT;
+
+    if (!(ids = idset_decode (vnipool)))
+        fatal ("error decoding cray-slingshot.vni-pool config");
+
+    if (optparse_hasopt (p, "dry-run"))
+        warn ("vnipool = %s", vnipool);
+
     flux_future_destroy (f);
     return ids;
 }
@@ -690,7 +697,7 @@ static int cmd_clean (optparse_t *p, int argc, char **argv)
     }
     if (!(h = flux_open (NULL, 0)))
         fatal ("could not contact Flux broker");
-    if (!(vnipool = lookup_vnipool (h)))
+    if (!(vnipool = lookup_vnipool (h, p)))
         return 0;
     monotime (&t0);
     do {
