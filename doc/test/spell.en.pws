@@ -228,3 +228,10 @@ vnis
 vnicount
 eventlogs
 undrained
+uid
+userid
+jobinfo
+FSD
+EBUSY
+idset
+vni

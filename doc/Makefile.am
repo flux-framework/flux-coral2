@@ -2,25 +2,35 @@
 
 SUBDIRS = . test
 
-MAN_FILES = $(MAN1_FILES)
+MAN_FILES = $(MAN1_FILES) $(MAN5_FILES)
 
 MAN1_FILES = $(MAN1_FILES_PRIMARY)
 
 MAN1_FILES_PRIMARY = \
 	man1/flux-shell-cray-pals.1 \
+	man1/flux-shell-cray-slingshot.1 \
+	man1/flux-slingshot.1 \
 	man1/flux-rabbitmapping.1 \
 	man1/flux-getrabbit.1 \
 	man1/flux-dws2jgf.1 \
 	man1/flux-jobtap-dws.1
 
+MAN5_FILES = $(MAN5_FILES_PRIMARY)
+
+MAN5_FILES_PRIMARY = \
+	man5/flux-config-slingshot.5
+
 RST_FILES  = \
-	$(MAN1_FILES_PRIMARY:.1=.rst)
+	$(MAN1_FILES_PRIMARY:.1=.rst) \
+	$(MAN5_FILES_PRIMARY:.5=.rst)
 
 if ENABLE_DOCS
-man_MANS = $(MAN1_FILES)
+man_MANS = \
+	$(MAN1_FILES) \
+	$(MAN5_FILES)
 endif
 
-SUFFIXES = .rst .1
+SUFFIXES = .rst .1 .5
 
 sphinx_man = $(sphinx_man_$(V))
 sphinx_man_ = $(sphinx_man_$(AM_DEFAULT_VERBOSITY))
@@ -46,7 +56,7 @@ $(MAN_FILES): manpages.py conf.py $(RST_FILES)
 		-m sphinx $(sphinx_verbose_flags) -b man $(srcdir) ./man \
 		$(STDERR_DEVNULL)
 	@echo "  MV        manpages"; \
-	for sec in 1; do \
+	for sec in 1 5; do \
 	  $(MKDIR_P) man$$sec && \
 	  mv -f $(abs_builddir)/man/*.$$sec man$$sec/; \
 	done
@@ -69,7 +79,8 @@ EXTRA_DIST = \
 	guide/images/dragonfly.png \
 	guide/slingshot.rst \
 	$(RST_FILES) \
-	man1/index.rst
+	man1/index.rst \
+	man5/index.rst
 
 CLEANFILES = \
 	$(MAN_FILES)
