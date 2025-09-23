@@ -1,6 +1,9 @@
 import logging
+import sys
+import os 
 
-import flux_k8s.operator.defaults as defaults
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import defaults
 
 LOGGER = logging.getLogger(__name__)
 
