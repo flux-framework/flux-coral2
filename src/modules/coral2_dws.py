@@ -48,10 +48,7 @@ from flux_k8s.workflow import (
     WorkflowState,
 )
 
-# IMPORTANT: this might eventually move into flux_k8s. I understand we might not be able to change this right away, so currently I
-# am including as a local module
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-import flux_operator
+import flux_k8s.operator.minicluster as flux_operator
 
 
 LOGGER = logging.getLogger(__name__)
@@ -245,7 +242,6 @@ def create_cb(handle, _t, msg, k8s_api):
         },
     }
     try:
-        # Let's assume we want to inspect this for the MiniCluster
         k8s_api.create_namespaced_custom_object(
             *crd.WORKFLOW_CRD,
             body,
@@ -389,11 +385,16 @@ def setup_cb(handle, _t, msg, k8s_api):
 
     # --setattr=rabbit.mpi being set to anything triggers a minicluster
     # A rabbit minicluster is expected to be created with a workflow
-    # TODO: what metadata do we want to return back?
-    # TODO: what other metadata do we need?
-    if flux_operator.MiniCluster.is_requested(jobspec):
-        minicluster = flux_operator.RabbitMiniCluster(handle, jobid)
-        minicluster.generate(jobspec, workflow, list(hlist))
+    if flux_operator.MiniCluster.is_requested(
+        jobspec
+    ) and flux_operator.MiniCluster.is_allowed(jobspec):
+        minicluster = flux_operator.RabbitMiniCluster(
+            handle=handle,
+            jobid=jobid,
+            name=workflow["metadata"]["name"],
+            namespace=workflow["metadata"].get("namespace"),
+        )
+        minicluster.generate(jobspec, list(hlist))
 
 
 def drain_nodes_with_mounts(handle, k8s_api, winfo):

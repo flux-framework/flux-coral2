@@ -1,23 +1,16 @@
 #!/usr/bin/env python3
 
-import random
 import argparse
 import logging
+import random
 import sys
-import os
 
 try:
     import flux
 except ImportError:
     sys.exit("'flux hop' must be run in the context of a Flux instance")
 
-
-# Assume we are operating from the same location as the flux-coral2 repository
-here = os.path.abspath(os.path.dirname(__file__))
-parent = os.path.dirname(here)
-sys.path.insert(0, os.path.abspath(os.path.join(parent, "modules")))
-
-import flux_operator  # noqa
+import flux_k8s.operator.minicluster as flux_operator
 
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -326,8 +319,8 @@ def main():
 
     # Generate a regular MiniCluster
     handle = flux.Flux()
-    minicluster = flux_operator.MiniCluster(handle)
-    minicluster.generate(rabbit_job, name, args.namespace)
+    minicluster = flux_operator.MiniCluster(handle, name=name, namespace=args.namespace)
+    minicluster.generate(rabbit_job)
 
     LOGGER.info("Rabbit MPI jobspec processed successfully.")
 

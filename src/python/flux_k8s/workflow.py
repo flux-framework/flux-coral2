@@ -9,7 +9,7 @@ import flux.job
 from flux.hostlist import Hostlist
 
 from flux_k8s import cleanup, crd
-
+import flux_k8s.operator.minicluster as flux_operator
 
 LOGGER = logging.getLogger(__name__)
 
@@ -102,6 +102,7 @@ class WorkflowInfo:
         datamovements = self._get_datamovements(k8s_api)
         save_workflow_to_kvs(handle, self.jobid, workflow, datamovements)
         cleanup.teardown_workflow(workflow)
+        flux_operator.teardown_minicluster(handle, self)
         self.toredown = True
 
     def _get_datamovements(self, k8s_api):
