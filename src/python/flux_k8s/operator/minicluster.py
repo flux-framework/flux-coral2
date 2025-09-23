@@ -211,7 +211,6 @@ class MiniCluster:
         return {
             "group": defaults.group,
             "version": defaults.version,
-            "name": self.name,
             "namespace": self.namespace,
             "plural": defaults.plural,
         }
