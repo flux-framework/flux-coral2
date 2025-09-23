@@ -4,13 +4,8 @@ import random
 
 import flux_k8s.operator.defaults as defaults
 from flux_k8s import cleanup
+from flux_k8s.operator.rabbits import RabbitMPI
 from kubernetes import client
-
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import defaults
 
 LOGGER = logging.getLogger(__name__)
 

@@ -48,7 +48,7 @@ from flux_k8s.workflow import (
     WorkflowState,
 )
 
-import flux_k8s.operator as flux_operator
+import flux_k8s.operator.minicluster as flux_operator
 
 
 LOGGER = logging.getLogger(__name__)
