@@ -151,6 +151,7 @@ class MiniCluster:
         if job.always_succeed:
             labels["always-succeed"] = "1"
 
+
         # The main spec needs the job container, sizes, and the podspec
         spec = {
             "containers": [container],
@@ -168,6 +169,10 @@ class MiniCluster:
         # E.g., normally this is an issue for ubuntu OS differences and platform
         if not job.add_flux():
             spec["flux"] = {"container": {"disable": True}}
+
+        # Ask for exclusive nodes
+        if job.exclusive:
+            spec['flux']['optionFlags'] = "--exclusive"
 
         # Make this bad boi.
         minicluster = {

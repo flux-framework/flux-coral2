@@ -1,9 +1,6 @@
 import logging
-import sys
-import os 
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import defaults
+import flux_k8s.operator.defaults as defaults
 
 LOGGER = logging.getLogger(__name__)
 
@@ -104,6 +101,16 @@ class RabbitMPI:
           --setattr=rabbit.mpi.command='lmp -x1 -x2 -x3'
         """
         return self.get_attribute("command")
+
+    @property
+    def exclusive(self):
+        """
+        User requested exclusive nodes
+
+        Example:
+          --setattr=rabbit.mpi.exclusive=true
+        """
+        return self.get_attribute("exclusive") is not None
 
     def add_flux(self):
         """
