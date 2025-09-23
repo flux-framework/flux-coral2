@@ -169,7 +169,7 @@ class MiniCluster:
         # TODO: we will need to understand if the view should be customized.
         # E.g., normally this is an issue for ubuntu OS differences and platform
         if not job.add_flux():
-            spec["flux"] = {"container": {"disable": True}}
+            spec["flux"]["container"] = {"disable": True}
 
         # Ask for exclusive nodes
         if job.exclusive:
