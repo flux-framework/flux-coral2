@@ -162,6 +162,7 @@ class MiniCluster:
             "size": len(nodes),
             "tasks": job.tasks,
             "pod": self.podspec,
+            "flux": {},
         }
 
         # Add the Flux view? Defaults to yes
