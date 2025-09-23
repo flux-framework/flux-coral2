@@ -422,7 +422,7 @@ def drain_nodes_with_mounts(handle, k8s_api, winfo):
 def check_existence_and_move_to_teardown(handle, k8s_api, winfo):
     """Check that a workflow exists and move it to Teardown if so."""
     teardown_workflow(handle, k8s_api, winfo)
-
+    teardown_minicluster(handle, winfo)
 
 def teardown_minicluster(handle, winfo):
     """

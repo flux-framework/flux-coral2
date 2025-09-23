@@ -166,7 +166,7 @@ class RabbitMPI:
         Example:
           --setattr=rabbit.mpi.tasks=96
         """
-        return self.get_attribute("tasks")
+        return self.get_attribute("tasks") or 0
 
     @property
     def environment(self):

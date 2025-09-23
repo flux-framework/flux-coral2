@@ -153,6 +153,9 @@ class MiniCluster:
 
 
         # The main spec needs the job container, sizes, and the podspec
+        LOGGER.warning("STUFF IS HERE")
+        LOGGER.warning(job.tasks)
+        LOGGER.warning(len(nodes))
         spec = {
             "containers": [container],
             "interactive": job.interactive,
