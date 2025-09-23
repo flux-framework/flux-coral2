@@ -48,10 +48,7 @@ from flux_k8s.workflow import (
     WorkflowState,
 )
 
-# IMPORTANT: this might eventually move into flux_k8s. I understand we might not be able to change this right away, so currently I
-# am including as a local module
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-import flux_operator
+import flux_k8s.operator as flux_operator
 
 
 LOGGER = logging.getLogger(__name__)
@@ -245,7 +242,6 @@ def create_cb(handle, _t, msg, k8s_api):
         },
     }
     try:
-        # Let's assume we want to inspect this for the MiniCluster
         k8s_api.create_namespaced_custom_object(
             *crd.WORKFLOW_CRD,
             body,
@@ -389,11 +385,16 @@ def setup_cb(handle, _t, msg, k8s_api):
 
     # --setattr=rabbit.mpi being set to anything triggers a minicluster
     # A rabbit minicluster is expected to be created with a workflow
-    # TODO: what metadata do we want to return back?
-    # TODO: what other metadata do we need?
-    if flux_operator.MiniCluster.is_requested(jobspec):
-        minicluster = flux_operator.RabbitMiniCluster(handle, jobid)
-        minicluster.generate(jobspec, workflow, list(hlist))
+    if flux_operator.MiniCluster.is_requested(
+        jobspec
+    ) and flux_operator.MiniCluster.is_allowed(jobspec):
+        minicluster = flux_operator.RabbitMiniCluster(
+            handle=handle,
+            jobid=jobid,
+            name=workflow["metadata"]["name"],
+            namespace=workflow["metadata"].get("namespace"),
+        )
+        minicluster.generate(jobspec, list(hlist))
 
 
 def drain_nodes_with_mounts(handle, k8s_api, winfo):
@@ -420,6 +421,39 @@ def drain_nodes_with_mounts(handle, k8s_api, winfo):
 
 def check_existence_and_move_to_teardown(handle, k8s_api, winfo):
     """Check that a workflow exists and move it to Teardown if so."""
+    teardown_workflow(handle, k8s_api, winfo)
+
+
+def teardown_minicluster(handle, winfo):
+    """
+    Tear down the MiniCluster, first saving the lead broker log to KVS
+    """
+    minicluster = flux_operator.RabbitMiniCluster(
+        handle=handle,
+        jobid=winfo.jobid,
+        name=winfo["metadata"]["name"],
+        namespace=winfo["metadata"].get("namespace"),
+    )
+
+    # Cut out early if we don't exist.
+    if not minicluster.exists():
+        return
+
+    # Get the lead broker logs and save to KVS
+    log = minicluster.logs()
+    if not log:
+        return
+    with flux.job.job_kvs(handle, winfo.jobid) as kvsdir:
+        kvsdir["rabbitmpi_container_log"] = log[-50000:]
+
+    # And finally, cleanup
+    minicluster.delete()
+
+
+def teardown_workflow(handle, k8s_api, winfo):
+    """
+    Cleanup workflow abstraction
+    """
     jobid = winfo.jobid
     try:
         workflow = k8s_api.get_namespaced_custom_object(*crd.WORKFLOW_CRD, winfo.name)
