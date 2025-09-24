@@ -6,7 +6,7 @@ import flux_k8s.operator.defaults as defaults
 from flux_k8s import cleanup
 from flux_k8s.operator.rabbits import RabbitMPI
 from flux_k8s.crd import DEFAULT_NAMESPACE
-from kubernetes import client
+from kubernetes import client, config
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,15 +21,15 @@ def teardown_minicluster(handle, winfo):
     minicluster = RabbitMiniCluster(
         handle=handle,
         jobid=winfo.jobid,
-        name=winfo.jobid,
+        name=winfo.name,
         namespace=DEFAULT_NAMESPACE,
     )
 
     # Cut out early if we don't exist.
-    # LOGGER.warning("CHECKING EXISTS")
-    # if not minicluster.exists():
-    #     return
-    # LOGGER.warning("I AM EXISTS")
+    LOGGER.warning("CHECKING EXISTS")
+    if not minicluster.exists():
+         return
+    LOGGER.warning("I AM EXISTS")
 
     # Get the lead broker logs and save to KVS
     log = minicluster.logs()
@@ -52,14 +52,15 @@ def delete_minicluster(handle, name, namespace):
     We can make this asynchronous with retry in a loop if needed.
     Kubernetes should not need that, so let's test without first.
     """
-    crd_api = cleanup.get_k8s_api(handle.conf_get("rabbit.kubeconfig"))
+    
+    k8s_api = client.CoreV1Api(config.new_client_from_config(handle.conf_get("rabbit.kubeconfig")))
 
     # No grace period - be ruthless!
     delete_options = client.V1DeleteOptions(
         propagation_policy="Background", grace_period_seconds=0
     )
     try:
-        crd_api.delete_namespaced_custom_object(
+        k8s_api.delete_namespaced_custom_object(
             group=defaults.group,
             version=defaults.version,
             namespace=namespace,
