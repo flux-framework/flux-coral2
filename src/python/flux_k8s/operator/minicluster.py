@@ -268,7 +268,8 @@ class MiniCluster:
             found = self.k8s_api.get_namespaced_custom_object(self.name, **self.crd_info)
             LOGGER.warning(found)
             return True
-        except Exception:
+        except Exception as e:
+            LOGGER.warning(f"Exception: {e}")
             return False
 
     def logs(self):
