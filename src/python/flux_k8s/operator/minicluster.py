@@ -5,9 +5,38 @@ import random
 import flux_k8s.operator.defaults as defaults
 from flux_k8s import cleanup
 from flux_k8s.operator.rabbits import RabbitMPI
+from flux_k8s.crd import DEFAULT_NAMESPACE
 from kubernetes import client
 
 LOGGER = logging.getLogger(__name__)
+
+import flux
+import flux.job
+
+def teardown_minicluster(handle, winfo):
+    """
+    Tear down the MiniCluster, first saving the lead broker log to KVS
+    """
+    minicluster = RabbitMiniCluster(
+        handle=handle,
+        jobid=winfo.jobid,
+        name=winfo.name,
+        namespace=DEFAULT_NAMESPACE,
+    )
+
+    # Cut out early if we don't exist.
+    if not minicluster.exists():
+        return
+
+    # Get the lead broker logs and save to KVS
+    log = minicluster.logs()
+    if not log:
+        return
+    with flux.job.job_kvs(handle, winfo.jobid) as kvsdir:
+        kvsdir["rabbitmpi_container_log"] = log[-50000:]
+
+    # And finally, cleanup
+    minicluster.delete()
 
 
 def delete_minicluster(handle, name, namespace):

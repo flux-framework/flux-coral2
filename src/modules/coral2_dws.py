@@ -421,39 +421,6 @@ def drain_nodes_with_mounts(handle, k8s_api, winfo):
 
 def check_existence_and_move_to_teardown(handle, k8s_api, winfo):
     """Check that a workflow exists and move it to Teardown if so."""
-    teardown_workflow(handle, k8s_api, winfo)
-    teardown_minicluster(handle, winfo)
-
-def teardown_minicluster(handle, winfo):
-    """
-    Tear down the MiniCluster, first saving the lead broker log to KVS
-    """
-    minicluster = flux_operator.RabbitMiniCluster(
-        handle=handle,
-        jobid=winfo.jobid,
-        name=winfo["metadata"]["name"],
-        namespace=winfo["metadata"].get("namespace"),
-    )
-
-    # Cut out early if we don't exist.
-    if not minicluster.exists():
-        return
-
-    # Get the lead broker logs and save to KVS
-    log = minicluster.logs()
-    if not log:
-        return
-    with flux.job.job_kvs(handle, winfo.jobid) as kvsdir:
-        kvsdir["rabbitmpi_container_log"] = log[-50000:]
-
-    # And finally, cleanup
-    minicluster.delete()
-
-
-def teardown_workflow(handle, k8s_api, winfo):
-    """
-    Cleanup workflow abstraction
-    """
     jobid = winfo.jobid
     try:
         workflow = k8s_api.get_namespaced_custom_object(*crd.WORKFLOW_CRD, winfo.name)
