@@ -26,15 +26,16 @@ def teardown_minicluster(handle, winfo):
     )
 
     # Cut out early if we don't exist.
-    LOGGER.warning("CHECKING EXISTS")
-    if not minicluster.exists():
-        return
-    LOGGER.warning("I AM EXISTS")
+    # LOGGER.warning("CHECKING EXISTS")
+    # if not minicluster.exists():
+    #     return
+    # LOGGER.warning("I AM EXISTS")
 
     # Get the lead broker logs and save to KVS
     log = minicluster.logs()
     if not log:
         return
+    LOGGER.warning(log)
     LOGGER.warning("WE HAAWDSADAD LOG")
 
     with flux.job.job_kvs(handle, winfo.jobid) as kvsdir:
