@@ -280,13 +280,13 @@ class MiniCluster:
         k8s_api = client.CoreV1Api(config.new_client_from_config(self.handle.conf_get("rabbit.kubeconfig")))
 
         # Get pods associated with the jobid
-        selector = f"batch.kubernetes.io/job-name={self.jobid}"
+        selector = f"batch.kubernetes.io/job-name={self.name}"
         pods = k8s_api.list_namespaced_pod(
             label_selector=selector, namespace=self.namespace
         ).items
 
         # Just save the lead broker for now - should be the first one
-        lead_broker = [x for x in pods if f"{self.jobid}-0-" in x.metadata.name]
+        lead_broker = [x for x in pods if f"{self.name}-0-" in x.metadata.name]
         if not lead_broker:
             LOGGER.warning(f"Cannot find pods for {selector}")
             return
