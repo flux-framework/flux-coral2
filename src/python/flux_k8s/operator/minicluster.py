@@ -262,6 +262,7 @@ class MiniCluster:
         """
         Determine if a MiniCluster exists.
         """
+        LOGGER.warning(self.crd_info)
         try:
             self.k8s_api.get_namespaced_custom_object(self.name, **self.crd_info)
             return True
