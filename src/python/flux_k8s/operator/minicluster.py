@@ -299,7 +299,7 @@ class MiniCluster:
                 follow=False,
                 timestamps=True,
             )
-        except client.exceptions.ApiException as e:
+        except client.rest.ApiException as e:
             LOGGER.warning(f"Error getting logs: {e}")
 
     def calculate_nodes(self, job):
