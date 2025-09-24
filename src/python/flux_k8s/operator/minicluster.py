@@ -21,7 +21,7 @@ def teardown_minicluster(handle, winfo):
     minicluster = RabbitMiniCluster(
         handle=handle,
         jobid=winfo.jobid,
-        name=winfo.name,
+        name=winfo.jobid,
         namespace=DEFAULT_NAMESPACE,
     )
 
