@@ -144,7 +144,7 @@ class RabbitMPI:
         Determine if the minicluster should be interactive.
         This is based on a command being set or not.
         """
-        return self.command is not None
+        return self.command is None
 
     @property
     def always_succeed(self):
