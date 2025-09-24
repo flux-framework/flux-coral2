@@ -265,7 +265,7 @@ class MiniCluster:
         LOGGER.warning(self.crd_info)
         LOGGER.warning(self.name)
         try:
-            found = self.k8s_api.get_namespaced_custom_object(self.name, **self.crd_info)
+            found = self.k8s_api.get_namespaced_custom_object(name=self.name, **self.crd_info)
             LOGGER.warning(found)
             return True
         except Exception as e:
