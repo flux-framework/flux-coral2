@@ -51,8 +51,7 @@ def delete_minicluster(handle, name, namespace):
 
     We can make this asynchronous with retry in a loop if needed.
     Kubernetes should not need that, so let's test without first.
-    """
-    
+    """    
     k8s_api = client.CoreV1Api(config.new_client_from_config(handle.conf_get("rabbit.kubeconfig")))
 
     # No grace period - be ruthless!
@@ -278,9 +277,11 @@ class MiniCluster:
         """
         Get the lead broker log.
         """
+        k8s_api = client.CoreV1Api(config.new_client_from_config(self.handle.conf_get("rabbit.kubeconfig")))
+
         # Get pods associated with the jobid
         selector = f"batch.kubernetes.io/job-name={self.jobid}"
-        pods = self.k8s_api.list_namespaced_pod(
+        pods = k8s_api.list_namespaced_pod(
             label_selector=selector, namespace=self.namespace
         ).items
 
@@ -292,7 +293,7 @@ class MiniCluster:
         lead_broker = lead_broker[0]
 
         try:
-            return self.k8s_api.read_namespaced_pod_log(
+            return k8s_api.read_namespaced_pod_log(
                 name=lead_broker,
                 namespace=self.namespace,
                 follow=False,
