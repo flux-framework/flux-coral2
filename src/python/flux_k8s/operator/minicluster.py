@@ -45,15 +45,13 @@ def teardown_minicluster(handle, winfo):
     minicluster.delete()
 
 
-def delete_minicluster(handle, name, namespace):
+def delete_minicluster(k8s_api, name, namespace):
     """
     Delete a MiniCluster by name and namespace.
 
     We can make this asynchronous with retry in a loop if needed.
     Kubernetes should not need that, so let's test without first.
-    """    
-    k8s_api = client.CoreV1Api(config.new_client_from_config(handle.conf_get("rabbit.kubeconfig")))
-
+    """
     # No grace period - be ruthless!
     delete_options = client.V1DeleteOptions(
         propagation_policy="Background", grace_period_seconds=0
@@ -245,7 +243,7 @@ class MiniCluster:
         """
         Basic deletion function for an instance
         """
-        return delete_minicluster(self.handle, self.name, self.namespace)
+        return delete_minicluster(self.k8s_api, self.name, self.namespace)
 
     @property
     def crd_info(self):
