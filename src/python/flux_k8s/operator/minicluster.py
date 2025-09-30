@@ -281,6 +281,7 @@ class MiniCluster:
 
         # Get pods associated with the jobid
         selector = f"batch.kubernetes.io/job-name={self.name}"
+        LOGGER.warning(selector)
         pods = k8s_api.list_namespaced_pod(
             label_selector=selector, namespace=self.namespace
         ).items
