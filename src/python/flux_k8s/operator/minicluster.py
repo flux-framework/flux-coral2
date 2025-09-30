@@ -245,7 +245,7 @@ class MiniCluster:
         """
         Basic deletion function for an instance
         """
-        return delete_minicluster(self.handle)
+        return delete_minicluster(self.handle, self.name, self.namespace)
 
     @property
     def crd_info(self):
