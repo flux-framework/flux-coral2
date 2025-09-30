@@ -1,5 +1,6 @@
 queue_rules:
   - name: default
+    batch_size: 1
     queue_conditions:
       - base=master
       - label="merge-when-passing"
@@ -18,6 +19,12 @@ queue_rules:
       - -title~=^\[*[Ww][Ii][Pp]
     merge_method: merge
     update_method: rebase
+
+# Avoid temporary branches created by mergify for parallel checks.
+# These do not work with the pr-validator since the temporary PR
+# branch is updated with a merge commit.
+merge_queue:
+  max_parallel_checks: 1
 
 pull_request_rules:
   - name: remove outdated approved reviews
