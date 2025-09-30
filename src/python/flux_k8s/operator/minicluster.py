@@ -295,7 +295,7 @@ class MiniCluster:
 
         try:
             return k8s_api.read_namespaced_pod_log(
-                name=lead_broker,
+                name=lead_broker.metadata.name,
                 namespace=self.namespace,
                 follow=False,
                 timestamps=True,
