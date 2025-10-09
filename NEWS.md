@@ -1,3 +1,26 @@
+flux-coral2 0.28.0 - 2025-10-09
+-------------------------------
+
+### New Features
+ * dws: rename `rack` vertices to `chassis` (#406)
+ * flux-slingshot: improve list subcommand (#416)
+ * set SLINGSHOT_TCS in job environment (#418)
+
+### Fixes
+ * fix slingshot CXI service resource request and improve error messages
+   (#408)
+ * coral2_dws: add missing return statement (#405)
+ * flux-slingshot clean: fall back to default pool config (#421)
+
+### Build/Testsuite/Cleanup
+ * mergify: disable temporary PR branches (#422)
+ * ci: add libcxi to one of the docker builds (#415)
+ * docker: run scripts from ${top_srcdir}/scripts (#417)
+
+### Documentation
+ * doc: add slingshot man pages (#419)
+
+
 flux-coral2 0.27.0 - 2025-09-05
 -------------------------------
 
