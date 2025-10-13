@@ -78,4 +78,11 @@ man_pages = [
         [author],
         5,
     ),
+    (
+        "man5/flux-config-rabbit",
+        "flux-config-rabbit",
+        "Flux Rabbit Configuration",
+        [author],
+        5,
+    ),
 ]

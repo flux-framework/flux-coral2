@@ -59,6 +59,5 @@ Table of Contents
    guide/admin.rst
    guide/slingshot.rst
    guide/rabbit.rst
-   guide/rabbit_config.rst
    guide/glossary.rst
    guide/reference.rst

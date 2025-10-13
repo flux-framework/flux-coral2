@@ -80,7 +80,7 @@ is loaded automatically via ``/etc/flux/rc1.d/01-coral2-rc``.
 Rabbits
 *******
 
-To configure Flux with rabbits, see :ref:`rabbitconfig`.
+To configure Flux with rabbits, see :man5:`flux-config-rabbit`.
 
 -----------------
 Stuck Rabbit Jobs
@@ -98,7 +98,7 @@ if the reason the job is stuck is a hung unmount or a rabbit file system that
 won't clean up, canceling the job will not help.
 
 In ``flux-coral2`` version ``0.22.0`` and greater, Flux can be configured to
-end the epilog after a timeout (see :ref:`rabbitconfig`). To remove the
+end the epilog after a timeout (see :man5:`flux-config-rabbit`). To remove the
 epilog manually without waiting for the timeout, run
 ``flux job raise --type=dws-epilog-timeout $JOBID``.
 
