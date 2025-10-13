@@ -12,6 +12,9 @@ HPE rabbit software. No configuration is necessary in Flux sub-instances.
 COMPONENTS
 ==========
 
+Jobtap Plugin
+-------------
+
 In order for a Flux system instance to be able to allocate
 rabbit storage, the :man1:`flux-jobtap-dws` plugin must be loaded
 in the leader broker of the Flux system instance. The plugin can
@@ -24,6 +27,9 @@ be loaded in a config file like so:
       { load = "dws-jobtap.so", conf = { epilog-timeout = 0.0 }}
     ]
 
+Systemd Service
+---------------
+
 Also, the ``flux-coral2-dws`` systemd service must be started
 on the same node as the rank 0 broker of the system instance.
 The ``flux`` user must have a kubeconfig file in its home directory granting
@@ -33,7 +39,10 @@ dataworkflowservices). There are instructions for how to grant Flux
 the minimum permissions necessary by setting up role-based access control
 `here <https://nearnodeflash.github.io/latest/guides/rbac-for-users/readme/#rbac-for-workload-manager-wlm>`__.
 
-Lastly, the Fluxion scheduler must be configured to recognize rabbit
+Fluxion Configuration
+---------------------
+
+The Fluxion scheduler must be configured to recognize rabbit
 resources. This can be done by generating a file describing the rabbit layout
 for the cluster and then running ``flux dws2jgf`` like so:
 
@@ -56,6 +65,20 @@ For example, in a config file:
 
     [sched-fluxion-resource]
     match-format = "rv1"
+
+Prolog/Epilog Scripts
+---------------------
+
+Prolog and epilog scripts, provided by the flux-coral2 package,
+automatically run during those phases of a job.  The scripts stop and start
+the `nnf-clientmount` service, respectively. The prolog script also holds
+the job in that state until the rabbit file systems have been mounted.
+
+Shell Plugin
+------------
+
+A ``dws_environment`` shell plugin, responsible for managing the rabbit
+environment presented to applications, is loaded automatically for each job.
 
 
 KEYS
@@ -111,6 +134,10 @@ Flux's interactions with the rabbits. The following keys are valid:
 **restrict_persistent_creation** (boolean)
   (optional) Restrict the creation of persistent file systems to the instance owner
   (in most cases the ``flux`` user).
+
+**prolog_timeout** (FSD)
+  (optional) Maximum time in Flux Standard Duration format to wait for the
+  `dws_environment` event in the prolog script.
 
 **policy.maximums** (table)
   (optional) The maximum filesystem capacity per node, in GiB, that users may
