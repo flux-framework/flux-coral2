@@ -318,15 +318,23 @@ test_expect_success 'job submission with multiple valid DW strings on the same l
 	job_epilog_start_finish_clean $jobid
 '
 
-test_expect_success 'job submission with multiple valid DW strings in a JSON file works' '
+test_expect_success 'job submission with multiple valid DW strings in a JSON file works, with chassis' '
+	jq .scheduling R.local > jgf &&
+	echo "
+[resource]
+path = \"$(pwd)/R.local\"
+scheduling = \"$(pwd)/jgf\"
+" 	| flux config load &&
+	export FLUX_CLI_PLUGINPATH=${FLUX_SOURCE_DIR}/etc/cli/plugins &&
 	jobid=$(flux submit --setattr=^system.dw="${DATADIR}/two_directives.json" \
-			-N1 -n1 hostname) &&
+			-N1 -n1 --coral2-chassis=1 hostname) &&
 	walk_job_through_prolog $jobid &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success 'job submission with invalid copy_in DW directive fails' '
+	unset FLUX_CLI_PLUGINPATH
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=lustre name=project2 \
 			#DW copy_in source=/some/fake/dir destination=\$DW_JOB_project2/" \
 		-N1 -n1 hostname) &&
@@ -377,13 +385,13 @@ test_expect_success 'dws service kills workflows in Error properly' '
 test_expect_success 'dws service handles jobs being canceled repeatedly' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
-	for i in $(seq 1 10); do flux cancel $jobid ; done &&
+	(for i in $(seq 1 10); do flux cancel $jobid ; done || true) &&
 	flux job wait-event -vt 10 ${jobid} clean &&
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-N1 -n1 hostname) &&
 	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
 		${jobid} dependency-remove &&
-	for i in $(seq 1 10); do flux cancel $jobid ; done &&
+	(for i in $(seq 1 10); do flux cancel $jobid ; done || true) &&
 	flux job wait-event -vt 10 ${jobid} clean &&
 	${RPC} "dws.status" | jq -e ".workflows | length == 0"
 '
