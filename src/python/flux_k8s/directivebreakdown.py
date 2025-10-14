@@ -5,6 +5,7 @@ import copy
 import functools
 import math
 import collections
+import abc
 
 from flux_k8s.crd import DIRECTIVEBREAKDOWN_CRD
 
@@ -152,48 +153,143 @@ def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_
     return allocation_sets
 
 
-def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
+class JobspecModifier(abc.ABC):
+    """Base class for modifying Jobspecs to add rabbit resources."""
+
+    def __init__(self, resources, min_size):
+        self.resources = copy.deepcopy(resources)
+        self._min_size = min_size
+        self.ssd_resources = {"type": "ssd", "count": 0, "exclusive": True}
+        self.limits = ResourceLimits()
+        self.nodecount = 1
+
+    def _get_capacity_per_node(self, allocation):
+        """Parse a single 'allocationSet' and turn it into a per-node capacity."""
+        expected_alloc_strats = {
+            "xfs": AllocationStrategy.PER_COMPUTE.value,
+            "raw": AllocationStrategy.PER_COMPUTE.value,
+            "gfs2": AllocationStrategy.PER_COMPUTE.value,
+            "ost": AllocationStrategy.ACROSS_SERVERS.value,
+            "mdt": AllocationStrategy.ACROSS_SERVERS.value,
+            "mgt": AllocationStrategy.SINGLE_SERVER.value,
+            "mgtmdt": AllocationStrategy.ACROSS_SERVERS.value,
+        }
+        capacity_gb = max(
+            self._min_size, math.ceil(allocation["minimumCapacity"] / (1024**3))
+        )
+        if (
+            allocation["allocationStrategy"]
+            != expected_alloc_strats[allocation["label"]]
+        ):
+            raise ValueError(
+                f"{allocation['label']} allocationStrategy "
+                f"must be {expected_alloc_strats[allocation['label']]!r} "
+                f"but got {allocation['allocationStrategy']!r}"
+            )
+        self.limits.increment(allocation["label"], capacity_gb)
+        if allocation["label"] in PER_COMPUTE_TYPES:
+            return capacity_gb
+        return math.ceil(capacity_gb / self.nodecount)
+
+    def apply_allocation(self, allocation):
+        """Apply a directivebreakdown to the jobspec."""
+
+    def get_new_resources(self):
+        """Return the newly modified jobspec resources."""
+
+
+class NodeJobspecModifier(JobspecModifier):
+    """Modifier class for jobspecs with top-level 'node' entries."""
+
+    def __init__(self, resources, min_size):
+        super().__init__(resources, min_size)
+        self.nodecount = self.resources[0]["count"]
+
+    def apply_allocation(self, allocation):
+        """Apply a directivebreakdown to the jobspec."""
+        self.ssd_resources["count"] += self._get_capacity_per_node(allocation)
+
+    def get_new_resources(self):
+        """Return the newly modified jobspec resources."""
+        if self.ssd_resources["count"] <= 0:
+            return None
+        self.limits.validate(self.nodecount)
+        self.resources[0]["count"] = 1
+        return [
+            {
+                "type": "slot",
+                "count": self.nodecount,  # the old nodecount, now for slots
+                "label": "rabbit",
+                "with": [
+                    self.resources[0],
+                    self.ssd_resources,
+                ],
+            }
+        ]
+
+
+class ChassisJobspecModifier(JobspecModifier):
+    """Modifier class for jobspecs with top-level 'chassis' entries."""
+
+    def __init__(self, resources, min_size):
+        super().__init__(resources, min_size)
+        if resources[0]["with"][0]["type"] != "node":
+            raise ValueError(
+                f"Expected 'node' type below 'chassis, got "
+                f"{resources[0]['with'][0]['type']}"
+            )
+        self.nodes_per_chassis = resources[0]["with"][0]["count"]
+        self.nodecount = self.nodes_per_chassis * resources[0]["count"]
+
+    def get_new_resources(self):
+        """Return the newly modified jobspec resources."""
+        if self.ssd_resources["count"] <= 0:
+            return None
+        self.limits.validate(self.nodecount)
+        self.resources[0]["with"].append(self.ssd_resources)
+        return self.resources
+
+    def apply_allocation(self, allocation):
+        """Apply a directivebreakdown to the jobspec."""
+        capacity_gb = self._get_capacity_per_node(allocation)
+        self.ssd_resources["count"] += capacity_gb * self.nodes_per_chassis
+
+
+def apply_breakdowns(k8s_api, workflow, resources, min_size):
     """Apply all of the directive breakdown information to a jobspec's `resources`.
 
     Return the modified resources, or, if it appears that the modification has already
     been applied, return None.
     """
-    limits = ResourceLimits()
-    resources = copy.deepcopy(old_resources)
     breakdown_list = list(fetch_breakdowns(k8s_api, workflow))
     if not resources:
         raise ValueError("jobspec resources empty")
-    # update ssd_resources to the right number
-    if resources[0]["type"] == "slot" and len(resources[0]["with"]) == 2:
+    # check if jobspec already has `ssd` entries
+    if resources[0]["type"] in ("slot", "chassis") and len(resources[0]["with"]) == 2:
         for subresource in resources[0]["with"]:
             if subresource["type"] not in ("ssd", "node"):
                 raise ValueError(
-                    "jobspec resources has top level 'slot' entry with "
-                    f"{subresource['type']} below it"
+                    f"jobspec resources has top level '{resources[0]['type']}' entry "
+                    f"with {subresource['type']} below it"
                 )
+        # if we've reached here, jobspec has `ssd` entries, assume it was already
+        # updated; return None.
         return None
-    if len(resources) > 1 or resources[0]["type"] != "node":
+    if len(resources) > 1:
         raise ValueError(
-            "jobspec resources must have a single top-level 'node' entry, "
-            f"got {len(resources)} entries, first entry {resources[0]['type']!r}"
+            "jobspec resources must have a single top-level 'node' or 'chassis' entry,"
+            f" got {len(resources)} entries"
         )
-    ssd_resources = {"type": "ssd", "count": 0, "exclusive": True}
-    nodecount = resources[0]["count"]
-    resources[0]["count"] = 1
-    # construct a new jobspec resources with top-level 'slot' resources
-    new_resources = [
-        {
-            "type": "slot",
-            "count": nodecount,  # the old nodecount, now for slots
-            "label": "rabbit",
-            "with": [
-                resources[0],
-                ssd_resources,
-            ],
-        }
-    ]
-    allocation_applied = False
-    # update ssd_resources to the right number
+    if resources[0]["type"] == "chassis":
+        modifier = ChassisJobspecModifier(resources, min_size)
+    elif resources[0]["type"] == "node":
+        modifier = NodeJobspecModifier(resources, min_size)
+    else:
+        raise ValueError(
+            "jobspec resources must have a single top-level 'node' or 'chassis' entry,"
+            f" got {resources[0]['type']!r}"
+        )
+    # go through all the breakdowns and apply their resources to the jobspec
     for breakdown in breakdown_list:
         if breakdown["kind"] != "DirectiveBreakdown":
             raise ValueError(f"unsupported breakdown kind {breakdown['kind']!r}")
@@ -201,13 +297,10 @@ def apply_breakdowns(k8s_api, workflow, old_resources, min_size):
             raise RuntimeError("Breakdown marked as not ready")
         if "storage" in breakdown["status"]:  # persistentdw directives have no storage
             for allocation in breakdown["status"]["storage"]["allocationSets"]:
-                _apply_allocation(
-                    allocation, ssd_resources, nodecount, min_size, limits
-                )
-                allocation_applied = True
-    limits.validate(nodecount)
-    if not allocation_applied:
-        return old_resources
+                modifier.apply_allocation(allocation)
+    new_resources = modifier.get_new_resources()
+    if new_resources is None:
+        return resources  # return the original jobspec's resources section
     return new_resources
 
 
@@ -223,28 +316,3 @@ def fetch_breakdowns(k8s_api, workflow):
             DIRECTIVEBREAKDOWN_CRD.plural,
             breakdown["name"],
         )
-
-
-def _apply_allocation(allocation, ssd_resources, nodecount, min_size, limits):
-    """Parse a single 'allocationSet' and apply to it a jobspec's ``resources``."""
-    expected_alloc_strats = {
-        "xfs": AllocationStrategy.PER_COMPUTE.value,
-        "raw": AllocationStrategy.PER_COMPUTE.value,
-        "gfs2": AllocationStrategy.PER_COMPUTE.value,
-        "ost": AllocationStrategy.ACROSS_SERVERS.value,
-        "mdt": AllocationStrategy.ACROSS_SERVERS.value,
-        "mgt": AllocationStrategy.SINGLE_SERVER.value,
-        "mgtmdt": AllocationStrategy.ACROSS_SERVERS.value,
-    }
-    capacity_gb = max(min_size, allocation["minimumCapacity"] // (1024**3))
-    if allocation["allocationStrategy"] != expected_alloc_strats[allocation["label"]]:
-        raise ValueError(
-            f"{allocation['label']} allocationStrategy "
-            f"must be {expected_alloc_strats[allocation['label']]!r} "
-            f"but got {allocation['allocationStrategy']!r}"
-        )
-    limits.increment(allocation["label"], capacity_gb)
-    if allocation["label"] in PER_COMPUTE_TYPES:
-        ssd_resources["count"] += capacity_gb
-    else:
-        ssd_resources["count"] += capacity_gb // nodecount
