@@ -8,7 +8,8 @@ epilogdir = $(fluxlibexecdir)/epilog.d
 housekeepingdir = $(fluxlibexecdir)/housekeeping.d
 
 nobase_dist_fluxconf_SCRIPTS = \
-	modprobe/rc1.d/coral2.py
+	modprobe/rc1.d/coral2.py \
+	cli/plugins/chassis.py
 
 dist_prolog_SCRIPTS = \
 	slingshot-cxi-alloc.sh \
