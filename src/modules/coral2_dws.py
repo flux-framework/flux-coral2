@@ -1100,6 +1100,7 @@ def validate_config(config):
         "prerun_timeout",
         "postrun_timeout",
         "teardown_after",
+        "prolog_timeout",
     }
     keys = set(config.keys())
     if not keys <= accepted_keys:
