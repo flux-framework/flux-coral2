@@ -27,6 +27,7 @@ TESTSCRIPTS = \
 	t1002-dws-workflow-obj.t \
 	t1003-dws-nnf-watch.t \
 	t1004-dws-environment.t \
+	t1005-chassis-cli-plugin.t \
 	t2000-dws2jgf.t \
 	t2001-getrabbit.t \
 	t2002-dws2jgf2.t \
