@@ -110,7 +110,37 @@ class TestDirectiveBreakdowns(unittest.TestCase):
             self.assertEqual(slot["with"][0]["count"], 1)
             ssds = slot["with"][1]
             self.assertEqual(ssds["type"], "ssd")
-            self.assertEqual(ssds["count"], 10241 // nodecount)
+            self.assertGreater(ssds["count"], 10241 // nodecount)
+            self.assertLess(ssds["count"], 10241 // nodecount * 1.01)
+
+    @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
+    def test_lustre10tb_chassis(self, patched_fetch):
+        patched_fetch.return_value = read_yaml_breakdown(YAMLDIR / "lustre10tb.yaml")
+        for chassis_count in (1, 2):
+            for nodecount in (4, 6, 8):
+                resources = [
+                    {
+                        "type": "chassis",
+                        "count": chassis_count,
+                        "with": [{"type": "node", "count": nodecount // chassis_count}],
+                    }
+                ]
+                new_resources = directivebreakdown.apply_breakdowns(
+                    None, None, resources, 1
+                )
+                patched_fetch.assert_called_with(None, None)
+                self.assertEqual(len(new_resources), 1)
+                chassis = new_resources[0]
+                self.assertEqual(chassis["type"], "chassis")
+                self.assertEqual(len(chassis["with"]), 2)
+                self.assertEqual(chassis["with"][0]["type"], "node")
+                self.assertEqual(
+                    chassis["with"][0]["count"], nodecount // chassis_count
+                )
+                ssds = chassis["with"][1]
+                self.assertEqual(ssds["type"], "ssd")
+                self.assertGreater(ssds["count"], 10240 // chassis_count)
+                self.assertLess(ssds["count"], 10240 // chassis_count * 1.01)
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_xfs10gb(self, patched_fetch):
@@ -131,6 +161,35 @@ class TestDirectiveBreakdowns(unittest.TestCase):
             ssds = slot["with"][1]
             self.assertEqual(ssds["type"], "ssd")
             self.assertEqual(ssds["count"], 10)
+
+    @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
+    def test_xfs10gb_chassis(self, patched_fetch):
+        patched_fetch.return_value = read_yaml_breakdown(YAMLDIR / "xfs10gb.yaml")
+        for chassis_count in (1, 2):
+            for nodecount in (4, 6, 8):
+                resources = [
+                    {
+                        "type": "chassis",
+                        "count": chassis_count,
+                        "with": [{"type": "node", "count": nodecount // chassis_count}],
+                    }
+                ]
+                new_resources = directivebreakdown.apply_breakdowns(
+                    None, None, resources, 1
+                )
+                patched_fetch.assert_called_with(None, None)
+                self.assertEqual(len(new_resources), 1)
+                chassis = new_resources[0]
+                self.assertEqual(chassis["type"], "chassis")
+                self.assertEqual(chassis["count"], chassis_count)
+                self.assertEqual(len(chassis["with"]), 2)
+                self.assertEqual(chassis["with"][0]["type"], "node")
+                self.assertEqual(
+                    chassis["with"][0]["count"], nodecount // chassis_count
+                )
+                ssds = chassis["with"][1]
+                self.assertEqual(ssds["type"], "ssd")
+                self.assertEqual(ssds["count"], 10 * (nodecount // chassis_count))
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_xfs10gb_aggregation(self, patched_fetch):
@@ -171,7 +230,42 @@ class TestDirectiveBreakdowns(unittest.TestCase):
         self.assertEqual(slot["with"][0]["count"], 1)
         ssds = slot["with"][1]
         self.assertEqual(ssds["type"], "ssd")
-        self.assertEqual(ssds["count"], 10241 + 10)
+        self.assertEqual(ssds["count"], 10242 + 10)
+
+    @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
+    def test_combination_xfs_lustre_chassis(self, patched_fetch):
+        patched_fetch.return_value = read_yaml_breakdown(
+            YAMLDIR / "xfs10gb.yaml",
+            YAMLDIR / "xfs10gb.yaml",
+            YAMLDIR / "lustre10tb.yaml",
+        )
+        for chassis_count in (1, 2):
+            for nodecount in (4, 6, 8):
+                resources = [
+                    {
+                        "type": "chassis",
+                        "count": chassis_count,
+                        "with": [{"type": "node", "count": nodecount // chassis_count}],
+                    }
+                ]
+            new_resources = directivebreakdown.apply_breakdowns(
+                None, None, resources, 1
+            )
+            patched_fetch.assert_called_with(None, None)
+            self.assertEqual(len(new_resources), 1)
+            chassis = new_resources[0]
+            self.assertEqual(chassis["type"], "chassis")
+            self.assertEqual(chassis["count"], chassis_count)
+            self.assertEqual(len(chassis["with"]), 2)
+            self.assertEqual(chassis["with"][0]["type"], "node")
+            self.assertEqual(chassis["with"][0]["count"], nodecount // chassis_count)
+            ssds = chassis["with"][1]
+            self.assertEqual(ssds["type"], "ssd")
+            expected_capacity = (10240 // chassis_count) + (10 + 10) * (
+                nodecount // chassis_count
+            )
+            self.assertGreater(ssds["count"], expected_capacity)
+            self.assertLess(ssds["count"], expected_capacity * 1.01)
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
     def test_bad_resources(self, patched_fetch):
@@ -180,7 +274,14 @@ class TestDirectiveBreakdowns(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, ".*jobspec resources empty.*"):
             directivebreakdown.apply_breakdowns(None, None, resources, 1)
         resources = [{"type": "slot", "count": 1, "with": []}]
-        with self.assertRaisesRegex(ValueError, ".*single top-level 'node' entry.*"):
+        with self.assertRaisesRegex(
+            ValueError, ".*single top-level 'node' or 'chassis' entry.*"
+        ):
+            directivebreakdown.apply_breakdowns(None, None, resources, 1)
+        resources = [{"type": "chassis", "count": 1, "with": [{"type": "foo"}]}]
+        with self.assertRaisesRegex(
+            ValueError, "Expected 'node' type below 'chassis'*"
+        ):
             directivebreakdown.apply_breakdowns(None, None, resources, 1)
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
@@ -188,6 +289,9 @@ class TestDirectiveBreakdowns(unittest.TestCase):
         patched_fetch.return_value = read_yaml_breakdown(YAMLDIR / "bad_label.yaml")
         resources = [{"type": "node", "count": 1}]
         with self.assertRaisesRegex(KeyError, "foo"):
+            directivebreakdown.apply_breakdowns(None, None, resources, 1)
+        resources = [{"type": "chassis", "count": 1, "with": [{"type": "foo"}]}]
+        with self.assertRaisesRegex(ValueError, "Expected 'node' type"):
             directivebreakdown.apply_breakdowns(None, None, resources, 1)
 
     @unittest.mock.patch("flux_k8s.directivebreakdown.fetch_breakdowns")
