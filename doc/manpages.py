@@ -72,6 +72,13 @@ man_pages = [
         1,
     ),
     (
+        "man1/flux-coral2-chassis",
+        "flux-coral2-chassis",
+        "Optional chassis flag for flux job submission",
+        [author],
+        1,
+    ),
+    (
         "man5/flux-config-slingshot",
         "flux-config-slingshot",
         "Flux Slingshot Configuration",

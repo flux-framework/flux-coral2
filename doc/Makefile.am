@@ -13,7 +13,8 @@ MAN1_FILES_PRIMARY = \
 	man1/flux-rabbitmapping.1 \
 	man1/flux-getrabbit.1 \
 	man1/flux-dws2jgf.1 \
-	man1/flux-jobtap-dws.1
+	man1/flux-jobtap-dws.1 \
+	man1/flux-coral2-chassis.1
 
 MAN5_FILES = $(MAN5_FILES_PRIMARY)
 
