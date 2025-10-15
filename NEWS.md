@@ -1,3 +1,15 @@
+flux-coral2 0.28.1 - 2025-10-14
+-------------------------------
+
+### New Features
+ * dws: directivebreakdown chassis support (#428)
+ * dws: chassis cli plugin (#427)
+ * etc: add clientmount prolog/epilog scripts (#426)
+
+ ### Documentation
+ * doc: move rabbit config guide to man5 page (#425)
+
+
 flux-coral2 0.28.0 - 2025-10-09
 -------------------------------
 
