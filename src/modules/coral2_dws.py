@@ -331,6 +331,8 @@ def setup_cb(handle, _t, msg, k8s_api):
     desiredState.
     """
     jobid = msg.payload["jobid"]
+    info = flux.job.get_job(handle, flux.job.JobID(jobid))
+    userid = info["userid"]
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
     workflow_name = WorkflowInfo.get_name(jobid)
     workflow = k8s_api.get_namespaced_custom_object(*crd.WORKFLOW_CRD, workflow_name)
@@ -385,12 +387,13 @@ def setup_cb(handle, _t, msg, k8s_api):
 
     # --setattr=rabbit.mpi being set to anything triggers a minicluster
     # A rabbit minicluster is expected to be created with a workflow
-    if flux_operator.MiniCluster.is_requested(
-        jobspec
-    ) and flux_operator.MiniCluster.is_allowed(jobspec):
+    is_requested = flux_operator.MiniCluster.is_requested(jobspec)
+    is_allowed = flux_operator.MiniCluster.is_allowed(jobspec)
+    if is_requested and is_allowed:
         minicluster = flux_operator.RabbitMiniCluster(
             handle=handle,
             jobid=jobid,
+            userid=userid,
             name=workflow["metadata"]["name"],
             namespace=workflow["metadata"].get("namespace"),
         )

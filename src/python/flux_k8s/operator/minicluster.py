@@ -1,17 +1,21 @@
 import copy
 import logging
 import random
+import os
 
 import flux_k8s.operator.defaults as defaults
 from flux_k8s import cleanup
 from flux_k8s.operator.rabbits import RabbitMPI
-from flux_k8s.crd import DEFAULT_NAMESPACE
+from flux_k8s.operator.volumes import VolumeManager, teardown_rabbit_volumes
+from flux_k8s.crd import DEFAULT_NAMESPACE, WORKFLOW_CRD
 from kubernetes import client, config
 
-LOGGER = logging.getLogger(__name__)
 
 import flux
 import flux.job
+
+LOGGER = logging.getLogger(__name__)
+
 
 def teardown_minicluster(handle, winfo):
     """
@@ -25,24 +29,27 @@ def teardown_minicluster(handle, winfo):
         namespace=DEFAULT_NAMESPACE,
     )
 
+    k8s_api = client.CoreV1Api(
+        config.new_client_from_config(handle.conf_get("rabbit.kubeconfig"))
+    )
+
     # Cut out early if we don't exist.
-    LOGGER.warning("CHECKING EXISTS")
+    LOGGER.warning("CHECKING EXIST")
     if not minicluster.exists():
-         return
+        return teardown_rabbit_volumes(k8s_api, winfo.jobid, DEFAULT_NAMESPACE)
     LOGGER.warning("I AM EXISTS")
 
     # Get the lead broker logs and save to KVS
     log = minicluster.logs()
-    if not log:
-        return
-    LOGGER.warning(log)
-    LOGGER.warning("WE HAAWDSADAD LOG")
-
-    with flux.job.job_kvs(handle, winfo.jobid) as kvsdir:
-        kvsdir["rabbitmpi_container_log"] = log[-50000:]
+    if log:
+        LOGGER.warning(log)
+        LOGGER.warning("WE HAAWDSADAD LOG")
+        with flux.job.job_kvs(handle, winfo.jobid) as kvsdir:
+            kvsdir["rabbitmpi_container_log"] = log[-50000:]
 
     # And finally, cleanup
     minicluster.delete()
+    return teardown_rabbit_volumes(k8s_api, winfo.jobid, namespace=DEFAULT_NAMESPACE)
 
 
 def delete_minicluster(k8s_api, name, namespace):
@@ -87,7 +94,9 @@ class MiniCluster:
     a populated job.
     """
 
-    def __init__(self, handle, name, namespace=defaults.namespace, jobid=None):
+    def __init__(
+        self, handle, name, namespace=defaults.namespace, jobid=None, userid=None
+    ):
         """
         A MiniCluster Family object is used for a scoped session in a Flux instance.
 
@@ -95,6 +104,7 @@ class MiniCluster:
         """
         self.handle = handle
         self.jobid = jobid
+        self.userid = userid
         self.name = name
         self.namespace = namespace
         self.k8s_api = cleanup.get_k8s_api(self.handle.conf_get("rabbit.kubeconfig"))
@@ -131,10 +141,50 @@ class MiniCluster:
            operator: Equal
            value: "true"
         """
-        return defaults.podspec
+        # Not necessary, but being pedantic and paranoid
+        podspec = copy.deepcopy(defaults.podspec)
+        podspec["securityContext"] = {"fsGroup": self.userid}
+        return podspec
 
     def generate(self, job):
         return self._generate(job)
+
+    @property
+    def security_context(self):
+        return {
+            "privileged": False,
+            "runAsUser": self.userid,
+            "runAsGroup": self.userid,
+            "runAsNonRoot": True,
+        }
+
+    @property
+    def resources(self):
+        """
+        Resources are required to request a cxi device via the device driver.
+        https://github.com/converged-computing/cxi-k8s-device-plugin
+        """
+        return {
+            "limits": {defaults.cxi_device_label: 1},
+            "requests": {defaults.cxi_device_label: 1},
+        }
+
+    def volumes(self, **kwargs):
+        """
+        Prepare volumes for job.
+
+        A default set of MiniCluster volumes assumes wanting the network fabric, but not
+        rabbits.
+
+        volumes:
+        devices:
+            hostPath: /sys/devices
+            path: /sys/devices
+        net:
+            hostPath: /sys/class/net
+            path: /sys/class/net
+        """
+        return defaults.volumes
 
     def _generate(self, job):
         """
@@ -156,13 +206,22 @@ class MiniCluster:
         # user requests for count and specific nodes
         nodes = self.calculate_nodes(job)
 
-        # TODO: this is what resources should look like, but with rabbit AMD, etc.
-        # resources = {"cpu": cores_per_task, "nvidia.com/gpu": gpus_per_task}
-        # return {"requests": resources, "limits": resources}
+        # The container security context is akin to pod, but we drop all caps.
+        # This is what the NNF container does - we should check if needed
+        sc = self.security_context
+        sc["capabilities"] = {
+            "add": [
+                "NET_BIND_SERVICE",
+                "SYS_CHROOT",
+                "AUDIT_WRITE",
+                "SETUID",
+                "SETGID",
+            ],
+            "drop": ["all"],
+        }
 
-        # TODO: how should a user specify a command?
-        # TODO: what about pull policy - allow to set?
-        # For now we can do interactive.
+        # The application container with or without Flux
+        # If the view is disabled, Flux must be installed.
         container = {
             "command": job.command,
             "image": job.container,
@@ -170,11 +229,10 @@ class MiniCluster:
             "name": self.name,
             "launcher": False,
             "environment": job.environment,
-            # TODO: talk about rabbit mounts / volumes that are needed here
-            "volumes": job.volumes,
-            # TODO: what about resource limits/requests?
-            "resources": {},
-            "securityContext": job.security_context,
+            "volumes": self.volumes(job),
+            "resources": self.resources,
+            "imagePullPolicy": job.pull_policy,
+            "securityContext": self.security_context,
         }
         LOGGER.warning(container)
 
@@ -184,11 +242,8 @@ class MiniCluster:
         if job.always_succeed:
             labels["always-succeed"] = "1"
 
-
         # The main spec needs the job container, sizes, and the podspec
-        LOGGER.warning("STUFF IS HERE")
-        LOGGER.warning(job.tasks)
-        LOGGER.warning(len(nodes))
+        LOGGER.warning(f"Generating spec for {nodes} nodes and {job.tasks} tasks.")
         spec = {
             "containers": [container],
             "interactive": job.interactive,
@@ -201,15 +256,16 @@ class MiniCluster:
             "flux": {},
         }
 
-        # Add the Flux view? Defaults to yes
-        # TODO: we will need to understand if the view should be customized.
-        # E.g., normally this is an issue for ubuntu OS differences and platform
+        # Flux container with required permissions
+        flux_container = {"securityContext": self.security_context}
+
         if not job.add_flux():
-            spec["flux"]["container"] = {"disable": True}
+            flux_container["disable"] = True
+        spec["flux"]["container"] = flux_container
 
         # Ask for exclusive nodes
         if job.exclusive:
-            spec['flux']['optionFlags'] = "--exclusive"
+            spec["flux"]["optionFlags"] = "--exclusive"
 
         # Make this bad boi.
         minicluster = {
@@ -261,10 +317,10 @@ class MiniCluster:
         """
         Determine if a MiniCluster exists.
         """
-        LOGGER.warning(self.crd_info)
-        LOGGER.warning(self.name)
         try:
-            found = self.k8s_api.get_namespaced_custom_object(name=self.name, **self.crd_info)
+            found = self.k8s_api.get_namespaced_custom_object(
+                name=self.name, **self.crd_info
+            )
             LOGGER.warning(found)
             return True
         except Exception as e:
@@ -275,7 +331,9 @@ class MiniCluster:
         """
         Get the lead broker log.
         """
-        k8s_api = client.CoreV1Api(config.new_client_from_config(self.handle.conf_get("rabbit.kubeconfig")))
+        k8s_api = client.CoreV1Api(
+            config.new_client_from_config(self.handle.conf_get("rabbit.kubeconfig"))
+        )
 
         # Get pods associated with the jobid
         selector = f"batch.kubernetes.io/job-name={self.name}"
@@ -334,8 +392,46 @@ class RabbitMiniCluster(MiniCluster):
     """
     Handle to interact with and generate Flux Operator MiniClusters.
 
-    This MiniCluster is created with an official rabbit job and Flux
+    This MiniCluster is created with an official rabbit job and Flux.
+    We have a volume manager added to the standard MiniCluster class.
     """
+
+    def volumes(self, job):
+        """
+        Prepare volumes for job.
+
+        A default set of MiniCluster volumes assumes wanting the network fabric, but not
+        rabbits.
+
+        volumes:
+        devices:
+            hostPath: /sys/devices
+            path: /sys/devices
+        net:
+            hostPath: /sys/class/net
+            path: /sys/class/net
+        """
+        # TODO this needs an index (and number that increments up with count)
+        # e.g., <workflow-uid-0>
+        volumes = defaults.volumes
+        rabbit_path = os.path.join("/mnt", "nnf", self.get_rabbit_volume_name())
+        volumes["rabbit"] = {"hostPath": rabbit_path, "path": job.rabbit_mount}
+        return volumes
+
+    def get_rabbit_volume_name(self, count=0):
+        """
+        Get the rabbit volume name, which is the UID associated with the workflow object.
+        TODO: how would this represent multiple rabbits?
+        """
+        workflow = self.k8s_api.get_namespaced_custom_object(
+            name=self.name,
+            namespace=self.namespace,
+            group=WORKFLOW_CRD.group,
+            version=WORKFLOW_CRD.version,
+            plural=WORKFLOW_CRD.plural,
+        )
+        LOGGER.warning(workflow)
+        return workflow["metadata"]["uid"] + f"-{count}"
 
     def generate(self, jobspec, wabbits):
         """
@@ -357,6 +453,20 @@ class RabbitMiniCluster(MiniCluster):
         LOGGER.warning(f"handle: {self.handle}")
         LOGGER.warning(f"jobid: {self.jobid}")
         LOGGER.warning(f"wabbits: {wabbits}")
+
+        # Generate the volumes first, oriented for the manager
+        k8s_api = client.CoreV1Api(
+            config.new_client_from_config(self.handle.conf_get("rabbit.kubeconfig"))
+        )
+        manager = VolumeManager(k8s_api, jobid=self.jobid, namespace=self.namespace)
+
+        client.CoreV1Api(
+            config.new_client_from_config(self.handle.conf_get("rabbit.kubeconfig"))
+        )
+
+        # A PV is a "persistent volume" and a pvc is a "persistent volume claim"
+        manager.create_persistent_volume()
+        manager.create_persistent_volume_claim()
 
         # This serves as easy access to job metadata
         job = RabbitMPI(jobspec, wabbits)

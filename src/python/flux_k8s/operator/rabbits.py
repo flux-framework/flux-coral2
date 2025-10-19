@@ -93,6 +93,16 @@ class RabbitMPI:
         return self.get_attribute("workdir")
 
     @property
+    def pull_policy(self):
+        """
+        User specified pull policy (defaults to IfNotPresent)
+
+        Example:
+          --setattr=rabbit.mpi.pull_policy=Always
+        """
+        return self.get_attribute("pull_policy")
+
+    @property
     def command(self):
         """
         User specified command (tested, this works)!
@@ -178,44 +188,11 @@ class RabbitMPI:
         Example:
           --setattr=rabbit.mpi.env.one=ketchup --setattr=rabbit.mpi.env.two=mustard
         """
-        environ = {
-            "OMPI_MCA_orte_base_help_aggregate": "0",
-            "OMPI_MCA_btl": "^openib",
-        }
+        environ = defaults.environment
+
         # User preferences override
         environ.update(self.get_attribute("env") or {})
         return environ
-
-    @property
-    def volumes(self):
-        """
-        Get default rabbit volumes.
-
-        volumes:
-          devices:
-            hostPath: /sys/devices
-            path: /sys/devices
-          net:
-            hostPath: /sys/class/net
-            path: /sys/class/net
-        """
-        # TODO: should we be binding other volumes from the host?
-        return {
-            "devices": {"hostPath": defaults.device_path, "path": defaults.device_path},
-            "net": {"hostPath": defaults.net_path, "path": defaults.net_path},
-        }
-
-    @property
-    def security_context(self):
-        """
-        Get default security context for MiniCluster
-
-        securityContext:
-          privileged: true
-
-        This will need to be further tweaked I suspect.
-        """
-        return {"privileged": True}
 
     @property
     def rabbits(self):
@@ -226,6 +203,16 @@ class RabbitMPI:
           --setattr=rabbit.mpi.rabbits=hetchy201,hetchy202
         """
         return self.get_attribute("rabbits")
+
+    @property
+    def rabbit_mount(self):
+        """
+        The user can request specific rabbit mount for inside the container
+
+        Example:
+          --setattr=rabbit.mpi.rabbit_mount=/mnt/wabbit
+        """
+        return self.get_attribute("rabbit_mount") or defaults.rabbit_mount
 
     @property
     def nodes(self):
