@@ -72,11 +72,6 @@ struct cray_slingshot {
  */
 static const int tcmask_default = 0xf;
 
-/* Maximum time to wait for cray-slingshot event or a surpassing
- * event to be posted to the job eventlog.
- */
-static const double eventlog_timeout = 30.;
-
 /* Convert json string array to a single string, e.g.
  * ["cxi0","cxi1"] => "cxi0,cxi1"
  */
@@ -277,7 +272,7 @@ static int cray_slingshot_reserved (struct cray_slingshot *ctx)
     int tcmask = tcmask_default;
     int rc = -1;
 
-    if (eventlog_wait_for (ctx->f_event, "cray-slingshot", eventlog_timeout, &res, &error) < 0) {
+    if (eventlog_wait_for (ctx->f_event, "cray-slingshot", -1., &res, &error) < 0) {
         shell_log_error ("waiting for eventlog: %s", error.text);
         return -1;
     }
