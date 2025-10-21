@@ -18,7 +18,8 @@ MAN1_FILES_PRIMARY = \
 MAN5_FILES = $(MAN5_FILES_PRIMARY)
 
 MAN5_FILES_PRIMARY = \
-	man5/flux-config-slingshot.5
+	man5/flux-config-slingshot.5 \
+	man5/flux-config-rabbit.5
 
 RST_FILES  = \
 	$(MAN1_FILES_PRIMARY:.1=.rst) \
@@ -78,6 +79,7 @@ EXTRA_DIST = \
 	guide/admin.rst \
 	guide/images/dragonfly.png \
 	guide/slingshot.rst \
+	guide/rabbit.rst \
 	$(RST_FILES) \
 	man1/index.rst \
 	man5/index.rst
