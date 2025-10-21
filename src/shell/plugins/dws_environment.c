@@ -59,7 +59,7 @@ static int read_future (flux_shell_t *shell, flux_future_t *fut)
     json_t *context, *env;
     flux_error_t error;
 
-    if (eventlog_wait_for (fut, "dws_environment", 30.0, &context, &error) < 0) {
+    if (eventlog_wait_for (fut, "dws_environment", -1, &context, &error) < 0) {
         shell_log_error ("waiting for eventlog: %s", error.text);
         return -1;
     }
