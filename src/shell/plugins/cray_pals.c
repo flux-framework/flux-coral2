@@ -84,7 +84,6 @@ struct cray_pals {
     int apinfo_version;
     char apinfo_path[1024];
     int no_edit_env;  // If true, don't edit LD_LIBRARY_PATH
-    int timeout;
     struct pmi_bootstrap_info pmi;
 
     int shell_size;
@@ -96,7 +95,6 @@ struct cray_pals {
 };
 
 static const int default_apinfo_version = 5;
-static const double default_timeout = 30.;
 
 static void cray_pals_destroy (void *arg)
 {
@@ -249,14 +247,14 @@ error:
  *   return 0.
  * - a surpassing event was encountered (module not loaded?): leave pmi->valid false,
  *   return 0
- * - an error occurred such as timeout: log an error message, return -1.
+ * - an error occurred: log an error message, return -1.
  */
-static int read_future (flux_future_t *fut, struct pmi_bootstrap_info *pmi, double timeout)
+static int read_future (flux_future_t *fut, struct pmi_bootstrap_info *pmi)
 {
     flux_error_t error;
     json_t *context = NULL;
 
-    if (eventlog_wait_for (fut, "cray-pmi-bootstrap", timeout, &context, &error) < 0) {
+    if (eventlog_wait_for (fut, "cray-pmi-bootstrap", -1, &context, &error) < 0) {
         shell_log_error ("waiting for cray-pmi-bootstrap or surpassing event: %s", error.text);
         return -1;
     }
@@ -284,7 +282,8 @@ static int read_future (flux_future_t *fut, struct pmi_bootstrap_info *pmi, doub
 }
 
 /* Read pmi bootstrap info from the job eventlog.
- * This is a synchronous operation, under a timeout.
+ * This is a synchronous operation that is guaranteed by RFC 21
+ * to terminate (by a surpassing event if not the one we want).
  */
 static int get_pmi_bootstrap (struct cray_pals *ctx)
 {
@@ -297,7 +296,7 @@ static int get_pmi_bootstrap (struct cray_pals *ctx)
         shell_log_error ("Error creating event_watch future");
         return -1;
     }
-    if ((rc = read_future (fut, &ctx->pmi, ctx->timeout)) < 0)
+    if ((rc = read_future (fut, &ctx->pmi)) < 0)
         shell_log_error ("Error reading PMI bootstrap info from eventlog");
     flux_future_destroy (fut);
     return rc;
@@ -501,7 +500,6 @@ static int cray_pals_parse_args (struct cray_pals *ctx)
 
     ctx->no_edit_env = 0;
     ctx->apinfo_version = default_apinfo_version;
-    ctx->timeout = default_timeout;
 
     if (flux_shell_getopt_unpack (ctx->shell, "cray-pals", "o", &opts) < 0) {
         shell_log_error ("error parsing cray-pals options");
@@ -514,13 +512,11 @@ static int cray_pals_parse_args (struct cray_pals *ctx)
         if (json_unpack_ex (opts,
                             &jerror,
                             0,
-                            "{s?i s?i s?F s?o !}",
+                            "{s?i s?i s?o !}",
                             "no-edit-env",
                             &ctx->no_edit_env,
                             "apinfo-version",
                             &ctx->apinfo_version,
-                            "timeout",
-                            &ctx->timeout,
                             "pmi-bootstrap",
                             &pmi_bootstrap)
             < 0) {
