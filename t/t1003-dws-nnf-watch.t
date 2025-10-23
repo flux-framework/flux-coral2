@@ -240,7 +240,10 @@ test_expect_success 'configure flux with queues' '
 '
 
 test_expect_success 'exec Storage watching script with --drain-queues' '
-    flux config reload &&
+    echo "
+[rabbit]
+drain_compute_nodes = true
+    " | flux config load &&
     jobid=$(flux submit \
             --setattr=system.alloc-bypass.R="$(flux R encode -r0)" --output=dws4.out --error=dws4.err \
             -o per-resource.type=node flux python ${DWS_MODULE_PATH} -vvv --drain-queues debug) &&
