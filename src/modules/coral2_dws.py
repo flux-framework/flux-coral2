@@ -497,7 +497,7 @@ def teardown_cb(handle, _t, msg, k8s_api):
 
 
 @message_callback_wrapper
-def abort_cb(handle, _t, msg, k8s_api):
+def abort_cb(handle, _t, msg, args):
     """dws.abort RPC callback.
 
     The dws.abort RPC is sent if a job hits a special exception during the
@@ -508,13 +508,15 @@ def abort_cb(handle, _t, msg, k8s_api):
     mounts and drain any that are found. Also, look for rabbits with
     active allocations and disable them.
     """
+    k8s_api, system_status = args
     jobid = msg.payload["jobid"]
     winfo = WorkflowInfo.get(jobid)
     winfo.epilog_removed = True
     if not winfo.toredown:
         check_existence_and_move_to_teardown(handle, k8s_api, winfo)
-    # get all clientmounts for the job that aren't unmounted
-    drain_nodes_with_mounts(handle, k8s_api, winfo)
+    # drain all nodes that haven't unmounted, and disable them in `systemstatus`
+    drained = drain_nodes_with_mounts(handle, k8s_api, winfo)
+    system_status.disable_until_undrained(drained)
     # get all rabbits with active allocations and disable them.
     for rabbit_to_disable in get_servers_with_condition(
         k8s_api, winfo.name, lambda x: x["allocationSize"] > 0
@@ -1031,7 +1033,7 @@ def register_services(handle, k8s_api, system_status):
         ("setup", setup_cb, k8s_api),
         ("post_run", post_run_cb, (k8s_api, system_status)),
         ("teardown", teardown_cb, k8s_api),
-        ("abort", abort_cb, k8s_api),
+        ("abort", abort_cb, (k8s_api, system_status)),
         ("status", status_cb, None),
     ):
         yield handle.msg_watcher_create(
