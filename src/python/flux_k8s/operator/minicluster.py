@@ -144,8 +144,8 @@ class MiniCluster:
         # Not necessary, but being pedantic and paranoid
         podspec = copy.deepcopy(defaults.podspec)
         sc = self.security_context
-        sc['fsGroup'] = self.userid
-        sc['fsGroupChangePolicy'] = "OnRootMismatch"
+        sc["fsGroup"] = self.userid
+        sc["fsGroupChangePolicy"] = "OnRootMismatch"
         podspec["securityContext"] = sc
         return podspec
 
@@ -468,7 +468,7 @@ class RabbitMiniCluster(MiniCluster):
         )
 
         # A PV is a "persistent volume" and a pvc is a "persistent volume claim"
-        manager.create_persistent_volume()
+        manager.create_persistent_volume(wabbits)
         manager.create_persistent_volume_claim()
 
         # This serves as easy access to job metadata

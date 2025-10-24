@@ -40,7 +40,7 @@ class VolumeManager:
     def name(self):
         return str(self.jobid)
 
-    def create_persistent_volume(self, storage_capacity=None):
+    def create_persistent_volume(self, rabbits, storage_capacity=None):
         """
         Creates a PersistentVolume specifically for a Lustre CSI driver.
 
@@ -64,6 +64,23 @@ class VolumeManager:
             fs_type=defaults.fs_type,
         )
 
+        # Ensure we bind to the right rabbit nodes
+        node_affinity = client.V1VolumeNodeAffinity(
+            required=client.V1NodeSelector(
+                node_selector_terms=[
+                    client.V1NodeSelectorTerm(
+                        match_expressions=[
+                            client.V1NodeSelectorRequirement(
+                                key="kubernetes.io/hostname",
+                                operator="In",
+                                values=rabbits,
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+
         # PersistentVolume Spec
         pv_spec = client.V1PersistentVolumeSpec(
             capacity={"storage": storage_capacity},
@@ -73,6 +90,7 @@ class VolumeManager:
             persistent_volume_reclaim_policy=defaults.volume_reclaim_policy,
             claim_ref=claim_ref,
             csi=csi_source,
+            node_affinity=node_affinity,
         )
 
         # Final PersistentVolume object
