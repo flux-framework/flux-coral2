@@ -340,6 +340,9 @@ def setup_cb(handle, _t, msg, k8s_api):
     for hostname in hlist:
         nnf_name = storage.HOSTNAMES_TO_RABBITS[hostname]
         nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
+
+    # We need to give the rabbit nodes to the Flux Operator
+    rabbits = list(nodes_per_nnf.keys())
     handle.rpc(
         "job-manager.memo",
         payload={
@@ -397,7 +400,7 @@ def setup_cb(handle, _t, msg, k8s_api):
             name=workflow["metadata"]["name"],
             namespace=workflow["metadata"].get("namespace"),
         )
-        minicluster.generate(jobspec, list(hlist))
+        minicluster.generate(jobspec, rabbits)
 
 
 def drain_nodes_with_mounts(handle, k8s_api, winfo):
