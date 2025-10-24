@@ -142,7 +142,7 @@ class MiniCluster:
            value: "true"
         """
         # Not necessary, but being pedantic and paranoid
-        podspec = copy.deepcopy(defaults.podspec)
+        podspec = copy.deepcopy(defaults.podspec)        
         sc = self.security_context
         sc["fsGroup"] = self.userid
         sc["fsGroupChangePolicy"] = "OnRootMismatch"
@@ -245,6 +245,10 @@ class MiniCluster:
         if job.always_succeed:
             labels["always-succeed"] = "1"
 
+        # Add node affinity to ensure we schedule to subset of rabbit nodes
+        podspec = self.podspec
+        podspec["nodeAffinity"] = {"kubernetes.io/hostname": nodes}
+
         # The main spec needs the job container, sizes, and the podspec
         LOGGER.warning(f"Generating spec for {nodes} nodes and {job.tasks} tasks.")
         spec = {
@@ -255,7 +259,7 @@ class MiniCluster:
             "maxSize": len(nodes),
             "size": len(nodes),
             "tasks": job.tasks,
-            "pod": self.podspec,
+            "pod": podspec,
             "flux": {},
         }
 
