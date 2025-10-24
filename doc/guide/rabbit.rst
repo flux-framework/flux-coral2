@@ -263,3 +263,14 @@ of Flux's KVS, the complete logs cannot be stored.
 .. code-block:: bash
 
 	flux job info ${jobid} rabbit_container_log | less
+
+Node Distribution
+~~~~~~~~~~~~~~~~~
+
+El Cap Rabbit systems have one rabbit per chassis. The ``--coral2-chassis`` flag to
+:core:man1:`flux-batch`, :core:man1:`flux-alloc`, :core:man1:`flux-run`, and
+:core:man1:`flux-submit` may therefore be useful in controlling the
+allocation of rabbits, especially for node-local file systems like XFS.
+
+The flag is only available on systems with the ``flux-coral2`` package installed.
+On any such system, run ``flux alloc --help=coral2-chassis`` for documentation.
