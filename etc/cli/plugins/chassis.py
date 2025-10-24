@@ -12,7 +12,42 @@ def positive_integer(val):
 
 
 class Coral2ChassisPlugin(CLIPlugin):
-    """Set the chassis count on CORAL2 systems."""
+    """Adds a flag `--coral2-chassis` to set the chassis count on CORAL2 systems.
+
+    The flag takes a positive integer, representing the number of chassis desired;
+    the number of nodes specified via ``-N, --nodes`` will then be split evenly
+    across that number of chassis.
+
+    Use of the ``--coral2-chassis`` flag requires that ``-N, --nodes`` be specified.
+    Also, current limitations require that the number of chassis evenly divide the
+    number of nodes. For example, five total nodes across three chassis *is not*
+    supported, but fifteen total nodes across three chassis is supported.
+
+    When not specified, the number of chassis chosen is up to the scheduler.
+
+    Note that the plugin does not validate that the jobspec is satisfiable. It will
+    allow you, for instance, to request 500 nodes on a single chassis, even if there
+    are only five nodes per chassis. In such cases, the job will not be rejected until
+    it has reached the SCHED state.
+
+    On El Cap systems, there are sixteen nodes per chassis. For other systems,
+    consult local documentation.
+
+    Use of the ``--coral2-chassis`` flag also requires that the Fluxion scheduler
+    be initialized with information about chassis layout. Otherwise an exception
+    will be raised with a message about "chassis" not being a known resource type.
+
+    EXAMPLES
+    --------
+
+    Request 15 nodes, all on a single chassis:
+
+    ``flux alloc -N15 --coral2-chassis=1 -q myqueue /bin/true``
+
+    Request 200 nodes split evenly across 20 chassis:
+
+    ``flux alloc -N200 --coral2-chassis=20 -q myqueue /bin/true``
+    """
 
     def __init__(self, prog, prefix="coral2"):
         super().__init__(prog, prefix=prefix)
