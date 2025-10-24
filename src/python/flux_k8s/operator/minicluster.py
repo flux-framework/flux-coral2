@@ -143,7 +143,10 @@ class MiniCluster:
         """
         # Not necessary, but being pedantic and paranoid
         podspec = copy.deepcopy(defaults.podspec)
-        podspec["securityContext"] = {"fsGroup": self.userid}
+        sc = self.security_context
+        sc['fsGroup'] = self.userid
+        sc['fsGroupChangePolicy'] = "OnRootMismatch"
+        podspec["securityContext"] = sc
         return podspec
 
     def generate(self, job):
@@ -232,7 +235,7 @@ class MiniCluster:
             "volumes": self.volumes(job),
             "resources": self.resources,
             "imagePullPolicy": job.pull_policy,
-            "securityContext": self.security_context,
+            "securityContext": sc,
         }
         LOGGER.warning(container)
 
