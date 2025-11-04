@@ -1,3 +1,18 @@
+flux-coral2 0.29.0 - 2025-11-05
+-------------------------------
+
+### Fixes
+ * dws: disable nodes in systemstatus on abort (#436)
+ * drop unnecessary timeouts that may cause large jobs to fail (#433)
+
+### Build/Testsuite/Cleanup
+ * t: fix broken test in t1003 with explicit config (#435)
+ * build: add flux-config-rabbit to Makefile.am (#431)
+
+### Documentation
+ * cli: chassis cli plugin docs (#437)
+
+
 flux-coral2 0.28.1 - 2025-10-14
 -------------------------------
 
