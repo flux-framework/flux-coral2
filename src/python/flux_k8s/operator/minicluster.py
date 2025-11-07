@@ -236,6 +236,7 @@ class MiniCluster:
             "resources": self.resources,
             "imagePullPolicy": job.pull_policy,
             "securityContext": sc,
+            "imagePullSecret": job.pull_secret,
         }
         LOGGER.warning(container)
 

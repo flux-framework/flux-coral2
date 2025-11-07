@@ -103,6 +103,16 @@ class RabbitMPI:
         return self.get_attribute("pull_policy")
 
     @property
+    def pull_secret(self):
+        """
+        User specified pull secret for application container.
+
+        Example:
+          --setattr=rabbit.mpi.pull_secret=name-of-secret
+        """
+        return self.get_attribute("pull_secret")
+
+    @property
     def command(self):
         """
         User specified command (tested, this works)!
