@@ -1,3 +1,10 @@
+flux-coral2 0.30.0 - 2026-01-13
+-------------------------------
+
+### New Features
+ * dws: update dws and nnf crd versions (#434)
+
+
 flux-coral2 0.29.0 - 2025-11-05
 -------------------------------
 
