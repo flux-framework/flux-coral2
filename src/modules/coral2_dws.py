@@ -1155,6 +1155,7 @@ def main():
             "Service cannot run without access to kubernetes, shutting down"
         )
         sys.exit(_EXITCODE_NORESTART)
+    crd.determine_api_versions(handle, k8s_api)
     secrets_api = kubernetes.client.CoreV1Api(
         kubernetes.config.new_client_from_config(handle.conf_get("rabbit.kubeconfig"))
     )
