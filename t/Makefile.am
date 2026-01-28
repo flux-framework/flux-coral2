@@ -36,7 +36,8 @@ TESTSCRIPTS = \
 	t3002-slingshot-cmd.t \
 	python/t0001-directive-breakdown.py \
 	python/t0002-storage.py \
-	python/t0003-coral2-dws.py
+	python/t0003-coral2-dws.py \
+	python/t0004-crd.py
 
 # make check runs these TAP tests directly (both scripts and programs)
 TESTS = \
