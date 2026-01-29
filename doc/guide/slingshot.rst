@@ -35,12 +35,6 @@ advanced capabilities such as :term:`VNI` tagging, NIC resource management,
 and hardware collective offload require specialized Slingshot support from
 Flux, described here.
 
-.. warning::
-
-  As of Sept 2025, the Hardware Collective offload section is a preliminary
-  design without an implementation.  The design still needs some details
-  worked out.
-
 ***********
 VNI Tagging
 ***********
@@ -293,6 +287,11 @@ competing for local NIC resources have no protection from each other.
 ***************************
 Hardware Collective Offload
 ***************************
+
+.. warning::
+
+  As of Jan 2026, the Hardware Collective offload design discussed below
+  is not yet implemented.
 
 Slingshot implements hardware collective offload for *barrier*, *broadcast*
 (small payload), *reduce*, and *allreduce* MPI operations that may benefit
