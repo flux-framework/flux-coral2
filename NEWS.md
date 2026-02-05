@@ -1,3 +1,14 @@
+flux-coral2 0.31.0 - 2026-02-10
+-------------------------------
+
+### New Features
+ * dws: probe api versions (#445)
+
+### Documentation
+ * doc: update slingshot VNI documentation (#446)
+ * repo: add contributing docs (#443)
+
+
 flux-coral2 0.30.0 - 2026-01-13
 -------------------------------
 
