@@ -116,8 +116,6 @@ class MiniCluster:
     def is_allowed(cls, jobspec):
         """
         Determine if a MiniCluster is allowed.
-
-        TODO: we need to check the user, specifics of the jobspec, etc.
         """
         return True
 
@@ -272,7 +270,7 @@ class MiniCluster:
         minicluster = {
             "kind": "MiniCluster",
             "metadata": metadata,
-            "apiVersion": "flux-framework.org/v1alpha2",
+            "apiVersion": defaults.api_version,
             "spec": spec,
         }
         return self.create(minicluster)

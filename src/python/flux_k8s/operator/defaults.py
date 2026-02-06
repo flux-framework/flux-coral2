@@ -9,6 +9,7 @@ group = "flux-framework.org"
 version = "v1alpha2"
 namespace = "default"
 plural = "miniclusters"
+api_version = f"{group}/{version}"
 
 # Devices and volumes
 device_path = "/sys/devices"
@@ -29,10 +30,7 @@ rabbit_mount = "/mnt/nnf/rabbit"
 volume_handle = "51@kfi:32@kfi:/lslide"
 
 # Default environment for network
-environment = {
-    "OMPI_MCA_orte_base_help_aggregate": "0",
-    "OMPI_MCA_btl": "^openib",
-}
+environment = {}
 
 # Default volumes for network
 volumes = {
