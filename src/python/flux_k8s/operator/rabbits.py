@@ -18,21 +18,17 @@ class RabbitMPI:
         self.jobspec = jobspec
 
         # We must have the wabbit nodes.
-        self.set_wabbits(wabbits)
+        self.wabbits = wabbits
 
     def is_enabled(self):
         """
         Having the MPI attribute (with anything) indicates being enabled.
         """
-        if not self.jobspec.get("attributes", {}).get("system", {}).get("rabbit"):
+        if not isinstance(
+            self.jobspec.get("attributes", {}).get("system", {}).get("rabbit"), dict
+        ):
             return False
-        return (
-            self.jobspec.get("attributes", {})
-            .get("system", {})
-            .get("rabbit")
-            .get("mpi")
-            is not None
-        )
+        return self.jobspec["attributes"]["system"]["rabbit"].get("mpi") is not None
 
     def is_false(self, value):
         """
@@ -53,24 +49,15 @@ class RabbitMPI:
         I'd ideally like to put this under attributes (and not system) but likely
         system is more correct :)
         """
-        rabbit_directive = (
-            self.jobspec.get("attributes", {}).get("system", {}).get("rabbit")
-        )
-        if not rabbit_directive or not isinstance(rabbit_directive, dict):
-            return None
-
-        mpi_directive = rabbit_directive.get("mpi")
-        if not mpi_directive or not isinstance(mpi_directive, dict):
-            return None
-
-        return (
+        mpi_directive = (
             self.jobspec.get("attributes", {})
             .get("system", {})
-            .get("rabbit")
-            .get("mpi", {})
-            .get(name)
-            or None
+            .get("rabbit", {})
+            .get("mpi")
         )
+        if not mpi_directive or not isinstance(mpi_directive, dict):
+            return None
+        return self.jobspec["attributes"]["system"]["rabbit"]["mpi"]
 
     @property
     def container(self):
@@ -151,12 +138,6 @@ class RabbitMPI:
 
         # Otherwise, we only care if it's set to False
         return not self.is_false(value)
-
-    def set_wabbits(self, wabbits):
-        """
-        This is a hard requirement to have a list of rabbit nodes.
-        """
-        self.wabbits = wabbits
 
     @property
     def interactive(self):

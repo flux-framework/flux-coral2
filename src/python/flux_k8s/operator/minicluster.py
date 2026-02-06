@@ -48,39 +48,6 @@ def teardown_minicluster(handle, winfo):
     return teardown_rabbit_volumes(k8s_api, winfo.jobid, namespace=DEFAULT_NAMESPACE)
 
 
-def delete_minicluster(k8s_api, name, namespace):
-    """
-    Delete a MiniCluster by name and namespace.
-
-    We can make this asynchronous with retry in a loop if needed.
-    Kubernetes should not need that, so let's test without first.
-    """
-    # No grace period - be ruthless!
-    delete_options = client.V1DeleteOptions(
-        propagation_policy="Background", grace_period_seconds=0
-    )
-    try:
-        k8s_api.delete_namespaced_custom_object(
-            group=defaults.group,
-            version=defaults.version,
-            namespace=namespace,
-            plural=defaults.plural,
-            name=name,
-            body=delete_options,
-        )
-        LOGGER.debug(
-            f"MiniCluster '{name}' in namespace '{namespace}' deleted successfully."
-        )
-    except client.rest.ApiException as e:
-        if e.status == 404:
-            # Not found (never created or already cleaned up)
-            return
-        else:
-            LOGGER.warning(
-                f"API Error deleting MiniCluster '{name}' in '{namespace}': {e}"
-            )
-
-
 class MiniCluster:
     """
     A MiniClusterBase does not require an official workflow.
@@ -298,7 +265,30 @@ class MiniCluster:
         """
         Basic deletion function for an instance
         """
-        return delete_minicluster(self.k8s_api, self.name, self.namespace)
+        # No grace period - be ruthless!
+        delete_options = client.V1DeleteOptions(
+            propagation_policy="Background", grace_period_seconds=0
+        )
+        try:
+            self.k8s_api.delete_namespaced_custom_object(
+                group=defaults.group,
+                version=defaults.version,
+                namespace=self.namespace,
+                plural=defaults.plural,
+                name=self.name,
+                body=delete_options,
+            )
+            LOGGER.debug(
+                f"MiniCluster '{self.name}' in namespace '{self.namespace}' deleted successfully."
+            )
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                # Not found (never created or already cleaned up)
+                return
+            else:
+                LOGGER.warning(
+                    f"API Error deleting MiniCluster '{self.name}' in '{self.namespace}': {e}"
+                )
 
     @property
     def crd_info(self):
