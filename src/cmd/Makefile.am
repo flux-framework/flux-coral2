@@ -26,6 +26,7 @@ fluxcmd_ldadd = \
 dist_fluxcmd_SCRIPTS = \
 	flux-dws2jgf.py \
 	flux-rabbitmapping.py \
+	flux-hop.py \
 	flux-getrabbit.py
 
 fluxcmd_PROGRAMS =
