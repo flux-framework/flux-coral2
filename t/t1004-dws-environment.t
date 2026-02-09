@@ -4,9 +4,7 @@ test_description='Test dws_environment shell plugin'
 
 . $(dirname $0)/sharness.sh
 
-test_under_flux 2 job
-
-flux setattr log-stderr-level 1
+test_under_flux 2 job -Slog-stderr-level=1
 
 SHELL_PLUGINPATH=${FLUX_BUILD_DIR}/src/shell/plugins/.libs
 USERRC_NAME="dws_environment.lua"

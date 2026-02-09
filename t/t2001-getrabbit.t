@@ -6,9 +6,7 @@ test_description='Test getrabbit command'
 
 FLUX_SIZE=2
 
-test_under_flux ${FLUX_SIZE} job
-
-flux setattr log-stderr-level 1
+test_under_flux ${FLUX_SIZE} job -Slog-stderr-level=1
 
 CMD="flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-getrabbit.py"
 DATADIR=${SHARNESS_TEST_SRCDIR}/data/getrabbit

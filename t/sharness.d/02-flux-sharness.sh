@@ -88,11 +88,18 @@ check_module_list() {
 #
 #  Reinvoke a test file under a flux instance
 #
-#  Usage: test_under_flux <size>
+#  Usage: test_under_flux <size> [personality] [flux-start-options]
 #
 test_under_flux() {
     size=${1:-1}
     personality=${2:-full}
+
+    #  Note: args > 2 are passed along as extra arguments
+    #   to flux-start below using "$@", so shift up to the
+    #   the first two arguments away:
+    #
+    test $# -eq 1 && shift || shift 2
+
     log_file="$TEST_NAME.broker.log"
     if test -n "$TEST_UNDER_FLUX_ACTIVE" ; then
         test "$debug" = "t" || cleanup rm "${SHARNESS_TEST_DIRECTORY:-..}/$log_file"
@@ -150,6 +157,7 @@ test_under_flux() {
                       ${RC3_PATH+-o -Sbroker.rc3_path=${RC3_PATH}} \
                       ${logopts} \
                       ${valgrind} \
+                      "$@" \
                      "sh $0 ${flags}"
 }
 

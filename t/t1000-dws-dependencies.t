@@ -4,9 +4,7 @@ test_description='Test dws-jobtap plugin with fake coral2_dws.py'
 
 . $(dirname $0)/sharness.sh
 
-test_under_flux 2 job
-
-flux setattr log-stderr-level 1
+test_under_flux 2 job -Slog-stderr-level=1
 
 PLUGINPATH=${FLUX_BUILD_DIR}/src/job-manager/plugins/.libs
 DWS_SCRIPT=${SHARNESS_TEST_SRCDIR}/dws-dependencies/coral2_dws.py
