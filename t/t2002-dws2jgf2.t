@@ -11,9 +11,7 @@ fi
 
 FLUX_SIZE=2
 
-test_under_flux ${FLUX_SIZE} job
-
-flux setattr log-stderr-level 1
+test_under_flux ${FLUX_SIZE} job -Slog-stderr-level=1
 
 CMD=${FLUX_SOURCE_DIR}/src/cmd/flux-dws2jgf.py
 DATADIR=${SHARNESS_TEST_SRCDIR}/data/dws2jgf2

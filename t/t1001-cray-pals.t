@@ -8,9 +8,7 @@ USERRC_NAME="cray_pals.lua"
 
 . $(dirname $0)/sharness.sh
 
-test_under_flux 2 job
-
-flux setattr log-stderr-level 1
+test_under_flux 2 job -Slog-stderr-level=1
 
 unset PALS_RANKID PALS_NODEID PMI_CONTROL_PORT PMI_SHARED_SECRET
 

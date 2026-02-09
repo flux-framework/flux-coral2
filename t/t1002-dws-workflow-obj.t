@@ -17,9 +17,7 @@ flux version | grep -q libflux-security && test_set_prereq FLUX_SECURITY
 
 FLUX_SIZE=2
 
-test_under_flux ${FLUX_SIZE} job
-
-flux setattr log-stderr-level 1
+test_under_flux ${FLUX_SIZE} job -Slog-stderr-level=1
 
 PLUGINPATH=${FLUX_BUILD_DIR}/src/job-manager/plugins/.libs
 DWS_MODULE_PATH=${FLUX_SOURCE_DIR}/src/modules/coral2_dws.py
