@@ -443,7 +443,7 @@ test_expect_success FLUX_SECURITY 'job submission with persistent DW string and 
 test_expect_success 'job submission with standalone MGT persistent DW string works' '
 	(kubectl delete nnfstorageprofiles -nnnf-system mypoolprofile || true) &&
 	kubectl get nnfstorageprofiles -nnnf-system default -ojson | \
-		jq ".data.lustreStorage.standaloneMgtPoolName = \"mypool\" |
+		jq ".data.lustreStorage.mgtOptions.standaloneMgtPoolName = \"mypool\" |
 		.metadata.name = \"mypoolprofile\" | .data.default = false |
 		.data.lustreStorage.combinedMgtMdt = false" \
 		| kubectl apply -f - &&

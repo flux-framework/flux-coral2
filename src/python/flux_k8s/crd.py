@@ -12,7 +12,7 @@ DWS_API_VERSIONS = ["v1alpha7", "v1alpha6"]
 DEFAULT_NAMESPACE = "default"
 
 NNF_GROUP = "nnf.cray.hpe.com"
-NNF_API_VERSIONS = ["v1alpha9", "v1alpha8"]
+NNF_API_VERSIONS = ["v1alpha10", "v1alpha9", "v1alpha8"]
 
 
 def determine_api_versions(handle, k8s_api):
