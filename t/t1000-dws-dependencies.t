@@ -350,4 +350,30 @@ test_expect_success 'job-manager: dws jobtap plugin rejects bad dw_failure_toler
 	flux job wait-event -vt 5 ${create_jobid} clean
 '
 
+test_expect_success 'job-manager: dws jobtap plugin adds or-rabbit constraint' '
+	create_jobid=$(flux submit -t 8 --output=dws16.out --error=dws16.out \
+		flux python ${DWS_SCRIPT} --exclude=foobar) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	jobid=$(flux submit -Sdw="foo" -Sallow_rabbits=true hostname) &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-remove &&
+	flux job wait-event -t 5 -fjson ${jobid} jobspec-update | \
+		jq -e ".context.\"attributes.system.constraints\".or" &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job info ${jobid} jobspec | \
+		jq -e ".attributes.system.constraints.or[0].properties[0] == \"rabbit\"" &&
+	flux job wait-event -vt 1 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 5 ${create_jobid} clean
+'
+
 test_done
