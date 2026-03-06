@@ -8,6 +8,8 @@ AM_LDFLAGS = \
 AM_CPPFLAGS = \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/src/common/libccan \
+	$(FLUX_CORE_CFLAGS) \
+	$(JANSSON_CFLAGS) \
 	$(CODE_COVERAGE_CPPFLAGS)
 
 noinst_LTLIBRARIES = libutil.la
