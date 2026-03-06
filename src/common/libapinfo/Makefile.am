@@ -7,6 +7,7 @@ AM_LDFLAGS = \
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir) \
+	$(FLUX_CORE_CFLAGS) \
 	$(CODE_COVERAGE_CPPFLAGS)
 
 noinst_LTLIBRARIES = \

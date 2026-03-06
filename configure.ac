@@ -143,7 +143,6 @@ AC_PATH_PROG([CXI_SERVICE], [cxi_service])
 AC_ARG_WITH([cray-libcxi],
     AS_HELP_STRING([--with-cray-libcxi], [Require interface for CXI service setup on the Cassini NIC])
 )
-AC_CHECK_HEADERS([libcxi/libcxi.h])
 AS_IF([test "x$with_cray_libcxi" = "xyes"], [
     AS_IF([test "x$HAVE_CXI" = "xno"], [
         AC_MSG_ERROR([Cray libcxi library was not found])

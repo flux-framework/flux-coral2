@@ -16,7 +16,7 @@
 #endif
 #include <flux/idset.h>
 #include <flux/core.h>
-#ifdef HAVE_LIBCXI_LIBCXI_H
+#ifdef HAVE_CXI
 #include <libcxi/libcxi.h>
 #endif
 #ifndef CXI_SVC_MAX_VNIS

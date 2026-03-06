@@ -48,7 +48,7 @@
 #include <argz.h>
 #include <flux/shell.h>
 #include <flux/idset.h>
-#ifdef HAVE_LIBCXI_LIBCXI_H
+#ifdef HAVE_CXI
 #include <libcxi/libcxi.h>
 #endif
 
