@@ -77,6 +77,24 @@ class Coral2Graph(FluxionResourceGraphV1):
             edg = ElCapResourceRelationshipV1(parent_id, vtx.get_id())
             self._add_and_tick_uniq_id(vtx, edg)
 
+    def _encode_rabbit_as_compute_node(
+        self, parent_id, path, rank, children, hostname, properties
+    ):
+        path = f"{path}/{hostname}"
+        vtx = FluxionResourcePoolV1(
+            self._uniqId,
+            "rabbit",
+            name=hostname,
+            rank=rank,
+            properties=properties,
+            path=path,
+        )
+        edg = FluxionResourceRelationshipV1(parent_id, vtx.get_id())
+        self._add_and_tick_uniq_id(vtx, edg)
+        for key, val in children.items():
+            for i in IDset(val):
+                self._encode_child(vtx.get_id(), path, rank, str(key), i)
+
     def _encode_chassis(self, parent_id, parent_path, rabbit_name, entry):
         path = f"{parent_path}/chassis{self._chassis_ids}"
         vtx = ElCapResourcePoolV1(
@@ -103,13 +121,14 @@ class Coral2Graph(FluxionResourceGraphV1):
                     node,
                     self._rank_to_properties.get(index, {}),
                 )
-        # if the rabbit itself is in R, add it to the chassis as a compute node as well
+        # if the rabbit itself is in R, add it to the chassis as well,
+        # with type 'rabbit'
         try:
             index = self._r_hostlist.index(rabbit_name)[0]
         except FileNotFoundError:
             pass
         else:
-            self._encode_rank(
+            self._encode_rabbit_as_compute_node(
                 vtx.get_id(),
                 path,
                 index,
