@@ -49,6 +49,18 @@ scheduling = \"$(pwd)/jgf\"
   grep "flux-alloc: ERROR: Nodecount (1) must be evenly divisible" err3.out
 '
 
+test_expect_success 'flux-alloc --dry: 2 chassis are divided as expected' '
+  flux alloc -N6 --coral2-chassis=2 --dry hostname > jobspec &&
+  jq -e ".resources[0].count == 2" jobspec &&
+  jq -e ".resources[0].with[0].count == 3" jobspec
+'
+
+test_expect_success 'flux-alloc --dry: 1 chassis is divided as expected' '
+  flux alloc -N5 --coral2-chassis=1 --dry hostname > jobspec2 &&
+  jq -e ".resources[0].count == 1" jobspec2 &&
+  jq -e ".resources[0].with[0].count == 5" jobspec2
+'
+
 test_expect_success DWS_K8S 'generate actual JGF' '
   flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-rabbitmapping.py > rabbits.json &&
   flux R encode -l | flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-dws2jgf.py \
@@ -58,18 +70,6 @@ test_expect_success DWS_K8S 'generate actual JGF' '
 path = \"$(pwd)/R\"
 scheduling = \"$(pwd)/jgf2\"
 " | flux config load
-'
-
-test_expect_success DWS_K8S 'flux-alloc --dry: 2 chassis are divided as expected' '
-  flux alloc -N6 --coral2-chassis=2 --dry hostname > jobspec &&
-  jq -e ".resources[0].count == 2" jobspec &&
-  jq -e ".resources[0].with[0].count == 3" jobspec
-'
-
-test_expect_success DWS_K8S 'flux-alloc --dry: 1 chassis is divided as expected' '
-  flux alloc -N5 --coral2-chassis=1 --dry hostname > jobspec2 &&
-  jq -e ".resources[0].count == 1" jobspec2 &&
-  jq -e ".resources[0].with[0].count == 5" jobspec2
 '
 
 test_expect_success DWS_K8S 'flux-alloc: a job that provides --chassis can run' '
