@@ -61,15 +61,25 @@ class Coral2ChassisPlugin(CLIPlugin):
             type=positive_integer,
             default=0,
         )
+        self.add_option(
+            "--rabbit-cores",
+            help=(
+                "EXPERIMENTAL: Number of rabbit cores to allocate on each rabbit "
+                "associated with the job. Requires the --coral2-chassis flag "
+                "to be set."
+            ),
+            type=positive_integer,
+            default=0,
+        )
 
     def preinit(self, args):
         """Verify that chassis count is reasonable if provided."""
+        if getattr(args, "rabbit_cores", 0) > 0 and getattr(args, "chassis", 0) <= 0:
+            raise ValueError("--coral2-rabbit-compute requires --coral2-chassis=N")
         if getattr(args, "chassis", 0) <= 0:
             return
         if flux.Flux("/").conf_get("resource.scheduling") is None:
-            raise RuntimeError(
-                "Flux scheduler not configured to support chassis count"
-            )
+            raise RuntimeError("Flux scheduler not configured to support chassis count")
         try:
             nodecount = int(args.nodes)
         except (TypeError, ValueError):
@@ -100,3 +110,12 @@ class Coral2ChassisPlugin(CLIPlugin):
                 ],
             }
         ]
+        if getattr(args, "rabbit_cores", 0) > 0:
+            jobspec.setattr("system.allow_rabbits", True)
+            jobspec.jobspec["resources"][0]["with"].append(
+                {
+                    "type": "rabbit",
+                    "count": 1,
+                    "with": [{"type": "core", "count": getattr(args, "rabbit_cores")}],
+                }
+            )
