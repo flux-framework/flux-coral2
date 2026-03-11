@@ -1,4 +1,4 @@
-files: '^(src|t)/.*(\.py|\.h|\.hpp|\.c|\.cpp)'
+files: '^(src|t|etc)/.*(\.py|\.h|\.hpp|\.c|\.cpp)'
 exclude: "^(t/python/pycotap|src/common/libtap|src/common/libccan|src/common/libutil/idf58|src/common/libutil/monotime|src/common/libutil/fsd)"
 repos:
   - repo: meta
