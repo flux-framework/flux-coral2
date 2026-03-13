@@ -10,6 +10,7 @@
 
 from flux.modprobe import task
 
+
 # These jobtaps should be loaded in all Flux instances on coral2 systems.
 # Skip loading (silently) if already loaded (e.g. by configuration).
 @task(

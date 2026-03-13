@@ -622,37 +622,52 @@ static json_t *generate_constraints (flux_t *h,
                                      const char *exclude_str)
 {
     flux_plugin_arg_t *args = flux_jobtap_job_lookup (p, jobid);
-    json_t *constraints = NULL, *new_constraints, *combined_constraints;
+    json_t *constraints = NULL, *temp, *combined_constraints;
+    int allow_rabbits = 0;
+
     if (!args
         || flux_plugin_arg_unpack (args,
                                    FLUX_PLUGIN_ARG_IN,
-                                   "{s:{s:{s:{s?o}}}}",
+                                   "{s:{s:{s:{s?o s?b}}}}",
                                    "jobspec",
                                    "attributes",
                                    "system",
                                    "constraints",
-                                   &constraints)
+                                   &constraints,
+                                   "allow_rabbits",
+                                   &allow_rabbits)
                < 0) {
         flux_log_error (h, "Failed to unpack args");
         flux_plugin_arg_destroy (args);
         return NULL;
     }
     flux_plugin_arg_destroy (args);
-    if (!(new_constraints = json_pack ("{s:[{s:[s]}]}", "not", "properties", exclude_str))) {
+    if (!(temp = json_pack ("{s:[{s:[s]}]}", "not", "properties", exclude_str))) {
         flux_log_error (h, "Failed to create new constraints object for %s", idf58 (jobid));
         return NULL;
     }
     if (!constraints) {
-        // job had no constraints, can set these as
-        return new_constraints;
+        // job had no constraints, we could set these as-is
+        combined_constraints = temp;
     } else {  // join the old constraints with the new ones with AND
-        if (!(combined_constraints = json_pack ("{s:[Oo]}", "and", constraints, new_constraints))) {
+        if (!(combined_constraints = json_pack ("{s:[Oo]}", "and", constraints, temp))) {
             flux_log_error (h, "Failed to create new constraints object for %s", idf58 (jobid));
-            json_decref (new_constraints);
+            json_decref (temp);
             return NULL;
         }
-        return combined_constraints;
     }
+    if (allow_rabbits) {
+        if (!(temp = json_pack ("{s:[{s:[s]} o]}",
+                                "or",
+                                "properties",
+                                "rabbit",
+                                combined_constraints))) {
+            json_decref (combined_constraints);
+            return NULL;
+        }
+        combined_constraints = temp;
+    }
+    return combined_constraints;
 }
 
 static void resource_update_msg_cb (flux_t *h,
