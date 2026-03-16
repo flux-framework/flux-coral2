@@ -2,12 +2,16 @@ nobase_fluxk8spy_PYTHON = \
 	__init__.py \
 	crd.py \
 	directivebreakdown.py \
+	operator/defaults.py
+	operator/__init__.py
+	operator/minicluster.py
+	operator/rabbits.py
+	operator/volumes.py
 	watch.py \
 	cleanup.py \
 	workflow.py \
 	storage.py \
 	systemstatus.py
-
 
 clean-local:
 	-rm -f *.pyc */*.pyc *.pyo */*.pyo
