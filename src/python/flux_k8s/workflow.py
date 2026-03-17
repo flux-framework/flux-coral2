@@ -8,7 +8,7 @@ import flux
 import flux.job
 from flux.hostlist import Hostlist
 
-from flux_k8s import cleanup, crd
+from flux_k8s import cleanup, crd, storage
 
 
 LOGGER = logging.getLogger(__name__)
@@ -201,7 +201,13 @@ class WorkflowInfo:
             workflow["status"]["computes"]["namespace"],
             crd.COMPUTE_CRD.plural,
             workflow["status"]["computes"]["name"],
-            {"data": [{"name": hostname} for hostname in self.hlist]},
+            {
+                "data": [
+                    {"name": hostname}
+                    for hostname in self.hlist
+                    if hostname not in storage.RABBITS_TO_HOSTLISTS
+                ]
+            },
         )
 
 
