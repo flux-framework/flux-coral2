@@ -52,21 +52,21 @@ class StorageModuleTests(unittest.TestCase):
 class TestRabbitManager(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls._old_RABBITS_TO_HOSTLISTS = storage._RABBITS_TO_HOSTLISTS
+        cls._old_RABBITS_TO_HOSTLISTS = storage.RABBITS_TO_HOSTLISTS
         cls._old_HOSTNAMES_TO_RABBITS = storage.HOSTNAMES_TO_RABBITS
-        storage._RABBITS_TO_HOSTLISTS = {
+        storage.RABBITS_TO_HOSTLISTS = {
             f"rabbit{i}": Hostlist(f"compute{j + 10*i}" for j in range(10))
             for i in range(4)
         }
         storage.HOSTNAMES_TO_RABBITS = {
             compute: rabbit
-            for rabbit, hostlist in storage._RABBITS_TO_HOSTLISTS.items()
+            for rabbit, hostlist in storage.RABBITS_TO_HOSTLISTS.items()
             for compute in hostlist
         }
 
     @classmethod
     def tearDownClass(cls):
-        storage._RABBITS_TO_HOSTLISTS = cls._old_RABBITS_TO_HOSTLISTS
+        storage.RABBITS_TO_HOSTLISTS = cls._old_RABBITS_TO_HOSTLISTS
         storage.HOSTNAMES_TO_RABBITS = cls._old_HOSTNAMES_TO_RABBITS
 
     def test_nodes_not_recognized(self):
