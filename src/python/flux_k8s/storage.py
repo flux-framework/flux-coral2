@@ -12,7 +12,7 @@ from flux_k8s import crd
 LOGGER = logging.getLogger(__name__)
 EXCLUDE_PROPERTY = "badrabbit"
 HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
-_RABBITS_TO_HOSTLISTS = {}  # maps rabbits to hostlists
+RABBITS_TO_HOSTLISTS = {}  # maps rabbits to hostlists
 _READY_STATUS = "Ready"
 
 
@@ -47,7 +47,7 @@ class RabbitManager:
     """
 
     def __init__(self, handle, allowlist):
-        if not HOSTNAMES_TO_RABBITS or not _RABBITS_TO_HOSTLISTS:
+        if not HOSTNAMES_TO_RABBITS or not RABBITS_TO_HOSTLISTS:
             raise RuntimeError("populate_rabbits_dict must be called first")
         self.handle = handle  # flux.Flux() handle to use
         self.allowlist = allowlist  # `set` of nodes to allow draining for, or None
@@ -127,7 +127,7 @@ class RabbitManager:
         links are down, just the affected nodes should be marked.
         """
         name = rabbit["metadata"]["name"]
-        all_nodes = set(_RABBITS_TO_HOSTLISTS[name])
+        all_nodes = set(RABBITS_TO_HOSTLISTS[name])
         down_nodes = set()
         status = _get_status(rabbit, "Disabled")
         if status != _READY_STATUS:
@@ -266,7 +266,7 @@ class FluxionRabbitManager(RabbitManager):
         links are down but the rabbit is up, the affected nodes should be marked.
         """
         name = rabbit["metadata"]["name"]
-        all_nodes = set(_RABBITS_TO_HOSTLISTS[name])
+        all_nodes = set(RABBITS_TO_HOSTLISTS[name])
         down_nodes = set()
         status = _get_status(rabbit, "Disabled")
         if (
@@ -313,7 +313,7 @@ def populate_rabbits_dict(k8s_api):
                     f"{HOSTNAMES_TO_RABBITS[hostname]}"
                 )
             HOSTNAMES_TO_RABBITS[hostname] = nnf["name"]
-        _RABBITS_TO_HOSTLISTS[nnf["name"]] = hlist.uniq()
+        RABBITS_TO_HOSTLISTS[nnf["name"]] = hlist.uniq()
 
 
 def init_rabbits(k8s_api, handle, watchers, disable_fluxion, drain_queues):

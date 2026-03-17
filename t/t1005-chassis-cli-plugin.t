@@ -49,6 +49,36 @@ scheduling = \"$(pwd)/jgf\"
   grep "flux-alloc: ERROR: Nodecount (1) must be evenly divisible" err3.out
 '
 
+test_expect_success 'flux-alloc --dry: 2 chassis are divided as expected' '
+  flux alloc -N6 --coral2-chassis=2 --dry hostname > jobspec &&
+  jq -e ".resources[0].count == 2" jobspec &&
+  jq -e ".resources[0].with[0].count == 3" jobspec
+'
+
+test_expect_success 'flux-alloc --dry: 1 chassis is divided as expected' '
+  flux alloc -N5 --coral2-chassis=1 --dry hostname > jobspec2 &&
+  jq -e ".resources[0].count == 1" jobspec2 &&
+  jq -e ".resources[0].with[0].count == 5" jobspec2 &&
+  test_must_fail jq -e ".attributes.system.allow_rabbits == true" jobspec2
+'
+
+test_expect_success 'flux-alloc --dry: rabbit cores are added as expected' '
+  flux alloc -N8 --coral2-chassis=2 --coral2-rabbit-cores=3 --dry hostname > jobspec3 &&
+  jq -e ".resources[0].count == 2" jobspec3 &&
+  jq -e ".resources[0].with[0].count == 4" jobspec3 &&
+  jq -e ".resources[0].with[1].type == \"rabbit\"" jobspec3 &&
+  jq -e ".resources[0].with[1].count == 1" jobspec3 &&
+  jq -e ".resources[0].with[1].with[0].count == 3" jobspec3 &&
+  jq -e ".resources[0].with[1].with[0].type == \"core\"" jobspec3 &&
+  jq -e ".attributes.system.allow_rabbits == true" jobspec3
+'
+
+test_expect_success 'flux-alloc --dry: invalid rabbit cores are rejected' '
+  test_must_fail flux alloc -N5 --dry --coral2-rabbit-cores=1 hostname &&
+  test_must_fail flux alloc -N5 --dry --coral2-chassis=1 \
+    --coral2-rabbit-cores=-1 hostname
+'
+
 test_expect_success DWS_K8S 'generate actual JGF' '
   flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-rabbitmapping.py > rabbits.json &&
   flux R encode -l | flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-dws2jgf.py \
@@ -58,18 +88,6 @@ test_expect_success DWS_K8S 'generate actual JGF' '
 path = \"$(pwd)/R\"
 scheduling = \"$(pwd)/jgf2\"
 " | flux config load
-'
-
-test_expect_success DWS_K8S 'flux-alloc --dry: 2 chassis are divided as expected' '
-  flux alloc -N6 --coral2-chassis=2 --dry hostname > jobspec &&
-  jq -e ".resources[0].count == 2" jobspec &&
-  jq -e ".resources[0].with[0].count == 3" jobspec
-'
-
-test_expect_success DWS_K8S 'flux-alloc --dry: 1 chassis is divided as expected' '
-  flux alloc -N5 --coral2-chassis=1 --dry hostname > jobspec2 &&
-  jq -e ".resources[0].count == 1" jobspec2 &&
-  jq -e ".resources[0].with[0].count == 5" jobspec2
 '
 
 test_expect_success DWS_K8S 'flux-alloc: a job that provides --chassis can run' '
