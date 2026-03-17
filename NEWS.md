@@ -1,3 +1,16 @@
+flux-coral2 0.32.0 - 2026-03-17
+-------------------------------
+
+### New Features
+ * Update nnf crd version (#447)
+ * dws: `or rabbit` constraints (#453)
+
+### Build/Testsuite/Cleanup
+ * ci: upgrade actions version to v5 (#456)
+ * build: add missing AM_CPPFLAGS and incorrect libcxi.h detection
+   (#455)
+
+
 flux-coral2 0.31.0 - 2026-02-10
 -------------------------------
 
