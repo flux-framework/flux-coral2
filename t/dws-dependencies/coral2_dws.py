@@ -36,7 +36,7 @@ def create_cb(fh, t, msg, arg):
         payload={
             "id": msg.payload["jobid"],
             "resources": msg.payload["resources"],
-            "exclude": args.exclude,
+            "exclude": {"not": [{"properties": [args.exclude]}]},
         },
     )
 

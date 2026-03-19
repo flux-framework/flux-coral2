@@ -820,10 +820,10 @@ def handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion):
         "id": winfo.jobid,
         "resources": resources,
         "exclude": (
-            storage.EXCLUDE_PROPERTY
+            {"not": [{"properties": [storage.EXCLUDE_PROPERTY]}]}
             if disable_fluxion
             or not handle.conf_get("rabbit.drain_compute_nodes", True)
-            else ""
+            else None
         ),
     }
     if errmsg is not None:
