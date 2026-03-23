@@ -81,7 +81,7 @@ class Coral2Graph(FluxionResourceGraphV1):
         self, parent_id, path, rank, children, hostname, properties
     ):
         path = f"{path}/{hostname}"
-        vtx = FluxionResourcePoolV1(
+        vtx = ElCapResourcePoolV1(
             self._uniqId,
             "rabbit",
             name=hostname,
