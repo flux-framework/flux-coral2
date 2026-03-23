@@ -116,6 +116,12 @@ class Coral2ChassisPlugin(CLIPlugin):
                 {
                     "type": "rabbit",
                     "count": 1,
-                    "with": [{"type": "core", "count": getattr(args, "rabbit_cores")}],
+                    "with": [
+                        {
+                            "type": "core",
+                            "exclusive": True,
+                            "count": getattr(args, "rabbit_cores"),
+                        }
+                    ],
                 }
             )
