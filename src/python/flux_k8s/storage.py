@@ -11,6 +11,7 @@ from flux_k8s import crd
 
 LOGGER = logging.getLogger(__name__)
 EXCLUDE_PROPERTY = "badrabbit"
+ALLOCATED_PROPERTY = "alloc_rabbit"
 HOSTNAMES_TO_RABBITS = {}  # maps compute hostnames to rabbit names
 RABBITS_TO_HOSTLISTS = {}  # maps rabbits to hostlists
 _READY_STATUS = "Ready"
@@ -53,6 +54,7 @@ class RabbitManager:
         self.allowlist = allowlist  # `set` of nodes to allow draining for, or None
         self._compute_rpaths = {}  # mapping from hostnames to fluxion paths
         self._get_rpaths()
+        self._jobids_to_rabbits = {}
 
     def _get_rpaths(self):
         """Map compute nodes to Fluxion resource paths."""
@@ -180,6 +182,57 @@ class RabbitManager:
                     },
                 ).then(log_rpc_response)
 
+    def mark_rabbits_allocated(self, jobid, rabbits):
+        """Set property to mark rabbits as allocated.
+
+        This is a stopgap measure. Given that Fluxion is not aware of rabbits and their
+        capacities, rabbits must be exclusively allocated to users. This is
+        accomplished by marking ALL nodes on a chassis with the `alloc_rabbit` property
+        if one or more nodes in that chassis use a rabbit.
+
+        There is a race condition here. By the time this property is set on a chassis,
+        Fluxion may have already allocated another rabbit job to the same chassis. But
+        since this is only meant as a stopgap measure, that is acceptable.
+        """
+        self._jobids_to_rabbits[jobid] = rabbits
+        for rabbit in rabbits:
+            for hostname in RABBITS_TO_HOSTLISTS[rabbit]:
+                if hostname in self._compute_rpaths:
+                    self.handle.rpc(
+                        "sched-fluxion-resource.set_property",
+                        {
+                            "sp_resource_path": self._compute_rpaths[hostname],
+                            "sp_keyval": f"{ALLOCATED_PROPERTY}=yes",
+                        },
+                    ).then(log_rpc_response)
+
+    def mark_rabbits_free(self, jobid, handle):
+        """Set property to mark rabbits as free.
+
+        Reverses the effects of the `mark_rabbits_allocated` method. Should be called
+        once a rabbit job completes.
+        """
+        if jobid in self._jobids_to_rabbits:
+            rabbits = self._jobids_to_rabbits[jobid]
+            del self._jobids_to_rabbits[jobid]
+        else:
+            nodelist = flux.job.get_job(handle, jobid)["nodelist"]
+            rabbits = {
+                HOSTNAMES_TO_RABBITS[hostname]
+                for hostname in nodelist
+                if hostname in HOSTNAMES_TO_RABBITS
+            }
+        for rabbit in rabbits:
+            for hostname in RABBITS_TO_HOSTLISTS[rabbit]:
+                if hostname in self._compute_rpaths:
+                    payload = {
+                        "resource_path": self._compute_rpaths[hostname],
+                        "key": ALLOCATED_PROPERTY,
+                    }
+                    self.handle.rpc(
+                        "sched-fluxion-resource.remove_property", payload
+                    ).then(log_rpc_response)
+
 
 class FluxionRabbitManager(RabbitManager):
     """Class for interfacing with k8s Storage resources.
@@ -279,6 +332,12 @@ class FluxionRabbitManager(RabbitManager):
         up_nodes = all_nodes - down_nodes
         self.remove_property(up_nodes, f"marked as up by Storage {name}")
         self.set_property(down_nodes, f"marked as down by Storage {name}")
+
+    def mark_rabbits_allocated(self, jobid, rabbits):
+        """No action needed, Fluxion handles rabbit allocations."""
+
+    def mark_rabbits_free(self, jobid, handle):
+        """No action needed, Fluxion handles rabbit allocations."""
 
 
 def log_rpc_response(rpc):

@@ -318,7 +318,7 @@ def setup_timeout_cb(handle, k8s_api, winfo, compute_nodes, lustre):
 
 
 @message_callback_wrapper
-def setup_cb(handle, _t, msg, k8s_api):
+def setup_cb(handle, _t, msg, args):
     """dws.setup RPC callback.
 
     The dws.setup RPC is sent when the job has reached the RUN state
@@ -327,6 +327,7 @@ def setup_cb(handle, _t, msg, k8s_api):
     Pass the resource information on to DWS, and move the job to the `setup`
     desiredState.
     """
+    k8s_api, rabbit_manager = args
     jobid = msg.payload["jobid"]
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
     workflow_name = WorkflowInfo.get_name(jobid)
@@ -335,6 +336,7 @@ def setup_cb(handle, _t, msg, k8s_api):
     for hostname in hlist:
         nnf_name = storage.HOSTNAMES_TO_RABBITS[hostname]
         nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
+    rabbit_manager.mark_rabbits_allocated(jobid, list(nodes_per_nnf.keys()))
     handle.rpc(
         "job-manager.memo",
         payload={
@@ -746,6 +748,7 @@ def _workflow_state_change_cb_inner(
             handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
                 log_rpc_response, jobid
             )
+        rabbit_manager.mark_rabbits_free(jobid, handle)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
         cleanup.delete_workflow(workflow)
         winfo.deleted = True
@@ -816,15 +819,21 @@ def handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion):
         errmsg = repr(exc.args[0])
     else:
         errmsg = None
+    if disable_fluxion:
+        new_constraint = {
+            "and": [
+                {"not": [{"properties": [storage.EXCLUDE_PROPERTY]}]},
+                {"not": [{"properties": [storage.ALLOCATED_PROPERTY]}]},
+            ]
+        }
+    elif not handle.conf_get("rabbit.drain_compute_nodes", True):
+        new_constraint = {"not": [{"properties": [storage.EXCLUDE_PROPERTY]}]}
+    else:
+        new_constraint = None
     payload = {
         "id": winfo.jobid,
         "resources": resources,
-        "exclude": (
-            storage.EXCLUDE_PROPERTY
-            if disable_fluxion
-            or not handle.conf_get("rabbit.drain_compute_nodes", True)
-            else ""
-        ),
+        "exclude": new_constraint,
     }
     if errmsg is not None:
         payload["errmsg"] = errmsg
@@ -1025,12 +1034,12 @@ def config_logging(args):
         logging.getLogger(flux_k8s.__name__).propagate = False
 
 
-def register_services(handle, k8s_api, system_status):
+def register_services(handle, k8s_api, system_status, rabbit_manager):
     """register dws.create, dws.setup, and dws.post_run services."""
     serv_reg_fut = handle.service_register("dws")
     for service_name, cb, args in (
         ("create", create_cb, k8s_api),
-        ("setup", setup_cb, k8s_api),
+        ("setup", setup_cb, (k8s_api, rabbit_manager)),
         ("post_run", post_run_cb, (k8s_api, system_status)),
         ("teardown", teardown_cb, k8s_api),
         ("abort", abort_cb, (k8s_api, system_status)),
@@ -1185,7 +1194,7 @@ def main():
         with contextlib.ExitStack() as stack:
             for watcher in (timer_watcher,) + heartbeat_watchers:
                 stack.enter_context(watcher)
-            for service in register_services(handle, k8s_api, system_status):
+            for service in register_services(handle, k8s_api, system_status, manager):
                 stack.enter_context(service)
             watchers.add_watch(
                 Watch(

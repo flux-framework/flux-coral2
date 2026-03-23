@@ -619,10 +619,10 @@ static int exception_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t 
 static json_t *generate_constraints (flux_t *h,
                                      flux_plugin_t *p,
                                      flux_jobid_t jobid,
-                                     const char *exclude_str)
+                                     json_t *constraint_to_add)
 {
     flux_plugin_arg_t *args = flux_jobtap_job_lookup (p, jobid);
-    json_t *constraints = NULL, *temp, *combined_constraints;
+    json_t *old_constraints = NULL, *temp, *combined_constraints = NULL;
     int allow_rabbits = 0;
 
     if (!args
@@ -633,7 +633,7 @@ static json_t *generate_constraints (flux_t *h,
                                    "attributes",
                                    "system",
                                    "constraints",
-                                   &constraints,
+                                   &old_constraints,
                                    "allow_rabbits",
                                    &allow_rabbits)
                < 0) {
@@ -642,17 +642,14 @@ static json_t *generate_constraints (flux_t *h,
         return NULL;
     }
     flux_plugin_arg_destroy (args);
-    if (!(temp = json_pack ("{s:[{s:[s]}]}", "not", "properties", exclude_str))) {
-        flux_log_error (h, "Failed to create new constraints object for %s", idf58 (jobid));
-        return NULL;
-    }
-    if (!constraints) {
+    if (!old_constraints) {
         // job had no constraints, we could set these as-is
-        combined_constraints = temp;
+        combined_constraints = constraint_to_add;
+        json_incref (combined_constraints);
     } else {  // join the old constraints with the new ones with AND
-        if (!(combined_constraints = json_pack ("{s:[Oo]}", "and", constraints, temp))) {
+        if (!(combined_constraints =
+                  json_pack ("{s:[OO]}", "and", old_constraints, constraint_to_add))) {
             flux_log_error (h, "Failed to create new constraints object for %s", idf58 (jobid));
-            json_decref (temp);
             return NULL;
         }
     }
@@ -677,13 +674,13 @@ static void resource_update_msg_cb (flux_t *h,
 {
     flux_plugin_t *p = (flux_plugin_t *)arg;
     json_int_t jobid;
-    json_t *resources = NULL, *constraints = NULL;
+    json_t *resources = NULL, *constraints = NULL, *constraint_to_add = NULL;
     int state;
-    const char *errmsg = NULL, *exclude_str;
+    const char *errmsg = NULL;
     flux_plugin_arg_t *job;
 
     if (flux_msg_unpack (msg,
-                         "{s:I, s:o, s?s, s:s}",
+                         "{s:I, s:o, s?s, s:o}",
                          "id",
                          &jobid,
                          "resources",
@@ -691,7 +688,7 @@ static void resource_update_msg_cb (flux_t *h,
                          "errmsg",
                          &errmsg,
                          "exclude",
-                         &exclude_str)
+                         &constraint_to_add)
         < 0) {
         errmsg = "received malformed dws.resource-update RPC";
         goto error;
@@ -711,9 +708,9 @@ static void resource_update_msg_cb (flux_t *h,
     } else {
         flux_plugin_arg_destroy (job);
     }
-    if (strlen (exclude_str) > 0) {
-        if (!(constraints = generate_constraints (h, p, jobid, exclude_str))) {
-            errmsg = "Could not generate exclusion constraint";
+    if (!json_is_null (constraint_to_add)) {
+        if (!(constraints = generate_constraints (h, p, jobid, constraint_to_add))) {
+            errmsg = "Could not generate new constraints";
             flux_log_error (h, "%s for %s", errmsg, idf58 (jobid));
             raise_job_exception (p, jobid, PLUGIN_NAME, errmsg);
             goto error;

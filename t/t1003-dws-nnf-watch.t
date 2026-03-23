@@ -301,6 +301,17 @@ test_expect_success 'Storages are up and rabbit jobs can run' '
     test_must_fail flux ion-resource get-property /cluster0/compute-01 badrabbit
 '
 
+test_expect_success 'alloc_rabbit property is set and removed after job' '
+    test_must_fail flux ion-resource get-property /cluster0/$(hostname) alloc_rabbit &&
+    JOBID=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+        name=project1" -N1 -n1 sleep 10) &&
+    flux job wait-event -vt 10 ${JOBID} start &&
+    flux ion-resource get-property /cluster0/$(hostname) alloc_rabbit &&
+    flux cancel $JOBID &&
+    flux job wait-event -vt 20 ${JOBID} clean &&
+    test_must_fail flux ion-resource get-property /cluster0/$(hostname) alloc_rabbit
+'
+
 test_expect_success 'update to the Storage status is caught by the watch' '
     kubectl patch storages kind-worker2 \
         --type merge --patch-file ${DATA_DIR}/down.yaml &&
