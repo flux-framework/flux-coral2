@@ -66,7 +66,7 @@ test_expect_success 'flux-alloc --dry: rabbit cores are added as expected' '
   flux alloc -N8 --coral2-chassis=2 --coral2-rabbit-cores=3 --dry hostname > jobspec3 &&
   jq -e ".resources[0].count == 2" jobspec3 &&
   jq -e ".resources[0].with[0].count == 4" jobspec3 &&
-  jq -e ".resources[0].with[1].type == \"rabbit\"" jobspec3 &&
+  jq -e ".resources[0].with[1].type == \"storage_node\"" jobspec3 &&
   jq -e ".resources[0].with[1].count == 1" jobspec3 &&
   jq -e ".resources[0].with[1].with[0].count == 3" jobspec3 &&
   jq -e ".resources[0].with[1].with[0].type == \"core\"" jobspec3 &&
