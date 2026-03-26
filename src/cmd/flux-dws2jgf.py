@@ -87,6 +87,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             "storage_node",
             name=hostname,
             rank=rank,
+            exclusive=True,
             properties=properties,
             path=path,
         )
