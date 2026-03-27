@@ -114,7 +114,7 @@ class Coral2ChassisPlugin(CLIPlugin):
             jobspec.setattr("system.allow_rabbits", True)
             jobspec.jobspec["resources"][0]["with"].append(
                 {
-                    "type": "rabbit",
+                    "type": "storage_node",
                     "count": 1,
                     "with": [
                         {

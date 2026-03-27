@@ -25,6 +25,7 @@ class ElCapResourcePoolV1(FluxionResourcePoolV1):
     @staticmethod
     def constraints(resource_type):
         return resource_type in [
+            "storage_node",
             "chassis",
             "rabbit",
             "ssd",
@@ -83,9 +84,10 @@ class Coral2Graph(FluxionResourceGraphV1):
         path = f"{path}/{hostname}"
         vtx = ElCapResourcePoolV1(
             self._uniqId,
-            "rabbit",
+            "storage_node",
             name=hostname,
             rank=rank,
+            exclusive=True,
             properties=properties,
             path=path,
         )
