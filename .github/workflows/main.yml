@@ -108,7 +108,7 @@ jobs:
         && matrix.create_release
         && github.repository == 'flux-framework/flux-coral2'
       env: ${{matrix.env}}
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2.6.1
       with:
         tag_name: ${{ matrix.tag }}
         name: flux-coral2 ${{ matrix.tag }}
