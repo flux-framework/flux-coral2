@@ -5,15 +5,15 @@
 #  1eab4498d397c91de4f3652b9dfec1f9045fa4c8
 # and contemporaeous cxi-driver.
 
-git clone \
+git clone -b ${SHS_CASSINI_HEADERS_BRANCH:-release/shs-13.0} \
     --recursive --depth=1 https://github.com/HewlettPackard/shs-cassini-headers
 mkdir -p cassini-headers
 ln -s ../shs-cassini-headers cassini-headers/install
 
-git clone -b ${SHS_CXI_DRIVER_BRANCH:-main} \
+git clone -b ${SHS_CXI_DRIVER_BRANCH:-release/shs-13.0} \
     --recursive --depth=1 https://github.com/HewlettPackard/shs-cxi-driver
 
-git clone -b ${SHS_LIBCXI_BRANCH:-main} \
+git clone -b ${SHS_LIBCXI_BRANCH:-release/shs-13.0} \
     --recursive --depth=1 https://github.com/HewlettPackard/shs-libcxi
 
 BUILD_CPPFLAGS="-I$(pwd)/shs-cassini-headers/include -I$(pwd)/shs-cxi-driver/include"
