@@ -1,3 +1,15 @@
+flux-coral2 0.33.0 - 2026-04-01
+-------------------------------
+
+### New Features
+ * dws: rename 'rabbit' vertex to 'storage_node' (#462)
+ * dws: fix rabbit allocations (#461)
+
+### Build/Testsuite/Cleanup
+ * build: fix the libcxi build script (#465)
+ * ci: update release action version (#463)
+
+
 flux-coral2 0.32.1 - 2026-03-20
 -------------------------------
 
