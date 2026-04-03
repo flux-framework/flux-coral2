@@ -335,7 +335,7 @@ class TestBuildAllocSets(unittest.TestCase):
             "storage"
         ]["allocationSets"]
         alloc_sets = directivebreakdown.build_allocation_sets(
-            breakdown, self.nodes_per_nnf_1, range(1), 0
+            breakdown, self.nodes_per_nnf_1, 1, 0
         )
         self.assertEqual(
             alloc_sets[0],
@@ -346,7 +346,7 @@ class TestBuildAllocSets(unittest.TestCase):
             },
         )
         alloc_sets = directivebreakdown.build_allocation_sets(
-            breakdown, self.nodes_per_nnf_4, range(7), 0
+            breakdown, self.nodes_per_nnf_4, 7, 0
         )
         self.assertEqual(
             alloc_sets[0],
@@ -365,7 +365,7 @@ class TestBuildAllocSets(unittest.TestCase):
             "status"
         ]["storage"]["allocationSets"]
         alloc_sets = directivebreakdown.build_allocation_sets(
-            breakdown, self.nodes_per_nnf_1, range(1), 0
+            breakdown, self.nodes_per_nnf_1, 1, 0
         )
         self.assertEqual(
             alloc_sets[0],
@@ -376,7 +376,7 @@ class TestBuildAllocSets(unittest.TestCase):
             },
         )
         alloc_sets = directivebreakdown.build_allocation_sets(
-            breakdown, self.nodes_per_nnf_2, range(2), 0
+            breakdown, self.nodes_per_nnf_2, 2, 0
         )
         self.assertEqual(
             alloc_sets[0],
@@ -410,7 +410,7 @@ class TestBuildAllocSets(unittest.TestCase):
         ]["allocationSets"]
         capacity = breakdown[1]["minimumCapacity"]
         alloc_sets = directivebreakdown.build_allocation_sets(
-            breakdown, self.nodes_per_nnf_2, range(2), 0
+            breakdown, self.nodes_per_nnf_2, 2, 0
         )
         self.assertEqual(alloc_sets[0]["label"], "mgtmdt")
         self.assertEqual(
@@ -425,7 +425,7 @@ class TestBuildAllocSets(unittest.TestCase):
             },
         )
         alloc_sets = directivebreakdown.build_allocation_sets(
-            breakdown, self.nodes_per_nnf_3, range(9), 0
+            breakdown, self.nodes_per_nnf_3, 9, 0
         )
         self.assertEqual(alloc_sets[0]["label"], "mgtmdt")
         self.assertEqual(
@@ -440,7 +440,7 @@ class TestBuildAllocSets(unittest.TestCase):
             },
         )
         alloc_sets = directivebreakdown.build_allocation_sets(
-            breakdown, self.nodes_per_nnf_4, range(7), 0
+            breakdown, self.nodes_per_nnf_4, 7, 0
         )
         self.assertEqual(
             alloc_sets[1],
