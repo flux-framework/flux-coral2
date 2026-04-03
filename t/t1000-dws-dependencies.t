@@ -376,4 +376,16 @@ test_expect_success 'job-manager: dws jobtap plugin adds or-rabbit constraint' '
 	flux job wait-event -vt 5 ${create_jobid} clean
 '
 
+test_expect_success 'job-manager: dws jobtap plugin raises exception after bad RPC' '
+	create_jobid=$(flux submit -t 8 --output=dws17.out --error=dws17.out \
+		flux python ${DWS_SCRIPT} --bad-rpc) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	jobid=$(flux submit -S dw="foo" hostname) &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 2 ${jobid} exception | grep malformed &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 5 ${create_jobid} clean
+'
+
 test_done
