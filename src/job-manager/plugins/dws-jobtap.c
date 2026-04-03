@@ -691,6 +691,13 @@ static void resource_update_msg_cb (flux_t *h,
                          &constraint_to_add)
         < 0) {
         errmsg = "received malformed dws.resource-update RPC";
+        if (flux_msg_unpack (msg, "{s:I}", "id", &jobid) == 0) {
+            raise_job_exception (p, jobid, "exception", errmsg);
+        }
+        flux_log_error (h,
+                        "%s, coral2_dws module and dws_jobtap plugin versions"
+                        " may be out of sync, Flux may need to be restarted",
+                        errmsg);
         goto error;
     }
     if (errmsg) {
@@ -764,6 +771,13 @@ static void prolog_remove_msg_cb (flux_t *h,
 
     if (flux_msg_unpack (msg, "{s:I, s:o}", "id", &jobid, "variables", &env) < 0) {
         errmsg = "received malformed dws.prolog-remove RPC";
+        if (flux_msg_unpack (msg, "{s:I}", "id", &jobid) == 0) {
+            raise_job_exception (p, jobid, "exception", errmsg);
+        }
+        flux_log_error (h,
+                        "%s, coral2_dws module and dws_jobtap plugin versions"
+                        " may be out of sync, Flux may need to be restarted",
+                        errmsg);
         goto error;
     }
     if (!(prolog_active = flux_jobtap_job_aux_get (p, (flux_jobid_t)jobid, "dws_prolog_active"))) {
@@ -811,6 +825,10 @@ static void epilog_remove_msg_cb (flux_t *h,
 
     if (flux_msg_unpack (msg, "{s:I}", "id", &jobid) < 0) {
         errmsg = "received malformed dws.epilog-remove RPC";
+        flux_log_error (h,
+                        "%s, coral2_dws module and dws_jobtap plugin versions"
+                        " may be out of sync, Flux may need to be restarted",
+                        errmsg);
         goto error;
     }
     if (!(job = flux_jobtap_job_lookup (p, jobid))
