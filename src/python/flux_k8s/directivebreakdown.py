@@ -235,12 +235,16 @@ class ChassisJobspecModifier(JobspecModifier):
 
     def __init__(self, resources, min_size):
         super().__init__(resources, min_size)
-        if resources[0]["with"][0]["type"] != "node":
+        for index, sub_chassis_resource in enumerate(resources[0]["with"]):
+            if sub_chassis_resource["type"] == "node":
+                self._node_index = index
+                break
+        else:
             raise ValueError(
                 f"Expected 'node' type below 'chassis, got "
                 f"{resources[0]['with'][0]['type']}"
             )
-        self.nodes_per_chassis = resources[0]["with"][0]["count"]
+        self.nodes_per_chassis = resources[0]["with"][self._node_index]["count"]
         self.nodecount = self.nodes_per_chassis * resources[0]["count"]
 
     def get_new_resources(self):
@@ -267,16 +271,17 @@ def apply_breakdowns(k8s_api, workflow, resources, min_size):
     if not resources:
         raise ValueError("jobspec resources empty")
     # check if jobspec already has `ssd` entries
-    if resources[0]["type"] in ("slot", "chassis") and len(resources[0]["with"]) == 2:
+    if resources[0]["type"] in ("slot", "chassis") and len(resources[0]["with"]) > 1:
         for subresource in resources[0]["with"]:
-            if subresource["type"] not in ("ssd", "node"):
+            if subresource["type"] not in ("ssd", "node", "storage_node"):
                 raise ValueError(
                     f"jobspec resources has top level '{resources[0]['type']}' entry "
                     f"with {subresource['type']} below it"
                 )
-        # if we've reached here, jobspec has `ssd` entries, assume it was already
-        # updated; return None.
-        return None
+            if subresource["type"] == "ssd":
+                # if we've reached here, jobspec has `ssd` entries; assume it was already
+                # updated and return None.
+                return None
     if len(resources) > 1:
         raise ValueError(
             "jobspec resources must have a single top-level 'node' or 'chassis' entry,"
