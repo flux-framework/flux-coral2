@@ -333,7 +333,11 @@ def setup_cb(handle, _t, msg, args):
     workflow_name = WorkflowInfo.get_name(jobid)
     workflow = k8s_api.get_namespaced_custom_object(*crd.WORKFLOW_CRD, workflow_name)
     nodes_per_nnf = {}
+    compute_node_count = 0
     for hostname in hlist:
+        if hostname in storage.RABBITS_TO_HOSTLISTS:
+            continue
+        compute_node_count += 1
         nnf_name = storage.HOSTNAMES_TO_RABBITS[hostname]
         nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
     rabbit_manager.mark_rabbits_allocated(jobid, list(nodes_per_nnf.keys()))
@@ -353,7 +357,7 @@ def setup_cb(handle, _t, msg, args):
             allocation_sets = directivebreakdown.build_allocation_sets(
                 breakdown_alloc_sets,
                 nodes_per_nnf,
-                hlist,
+                compute_node_count,
                 _MIN_ALLOCATION_SIZE,
             )
             k8s_api.patch_namespaced_custom_object(

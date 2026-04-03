@@ -74,7 +74,9 @@ def check_is_lustre(breakdown_alloc_sets):
     return False
 
 
-def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_size):
+def build_allocation_sets(
+    breakdown_alloc_sets, nodes_per_nnf, compute_node_count, min_alloc_size
+):
     """Build the allocationSet for a Server based on its DirectiveBreakdown."""
     allocation_sets = []
     for alloc_set in breakdown_alloc_sets:
@@ -132,7 +134,7 @@ def build_allocation_sets(breakdown_alloc_sets, nodes_per_nnf, hlist, min_alloc_
             else:
                 nodecount_gcd = functools.reduce(math.gcd, nodes_per_nnf.values())
                 server_alloc_set["allocationSize"] = math.ceil(
-                    nodecount_gcd * alloc_set["minimumCapacity"] / len(hlist)
+                    nodecount_gcd * alloc_set["minimumCapacity"] / compute_node_count
                 )
                 # split lustre across every rabbit, weighting the split based on
                 # the number of the job's nodes associated with each rabbit
