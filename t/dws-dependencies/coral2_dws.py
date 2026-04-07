@@ -13,6 +13,7 @@ parser.add_argument("--setup-hang", action="store_true")
 parser.add_argument("--post-run-fail", action="store_true")
 parser.add_argument("--teardown-hang", action="store_true")
 parser.add_argument("--exclude", default="")
+parser.add_argument("--bad-rpc", action="store_true")
 
 args = parser.parse_args()
 
@@ -31,14 +32,20 @@ def create_cb(fh, t, msg, arg):
     print(f"Responded to create request with {payload}")
     if not payload["success"]:
         return
-    fh.rpc(
-        "job-manager.dws.resource-update",
-        payload={
-            "id": msg.payload["jobid"],
-            "resources": msg.payload["resources"],
-            "exclude": {"not": [{"properties": [args.exclude]}]},
-        },
-    )
+    if args.bad_rpc:
+        fh.rpc(
+            "job-manager.dws.resource-update",
+            payload={"id": msg.payload["jobid"]},
+        )
+    else:
+        fh.rpc(
+            "job-manager.dws.resource-update",
+            payload={
+                "id": msg.payload["jobid"],
+                "resources": msg.payload["resources"],
+                "exclude": {"not": [{"properties": [args.exclude]}]},
+            },
+        )
 
 
 def setup_cb(fh, t, msg, arg):
