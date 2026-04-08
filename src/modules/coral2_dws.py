@@ -23,6 +23,7 @@ import base64
 import cProfile
 import pstats
 import io
+import faulthandler
 
 import kubernetes
 import kubernetes.client
@@ -1143,6 +1144,7 @@ def main():
     """Init script, begin processing of services."""
     profiler = cProfile.Profile()
     profiler.enable()
+    faulthandler.enable()
     args = setup_parsing().parse_args()
     _MIN_ALLOCATION_SIZE = args.min_allocation_size
     config_logging(args)
