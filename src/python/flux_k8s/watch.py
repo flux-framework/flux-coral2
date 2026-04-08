@@ -59,7 +59,17 @@ class Watch:
                     self.resource_version = 0
                     self.watch()
                     return
-                self.resource_version = event["object"]["metadata"]["resourceVersion"]
+                try:
+                    if int(event["object"]["metadata"]["resourceVersion"]) > int(
+                        self.resource_version
+                    ):
+                        self.resource_version = event["object"]["metadata"][
+                            "resourceVersion"
+                        ]
+                except (TypeError, ValueError):
+                    self.resource_version = event["object"]["metadata"][
+                        "resourceVersion"
+                    ]
                 self.callback(event, *self.cb_args, **self.cb_kwargs)
         except ApiException as apiexc:
             if apiexc.status != 410:
