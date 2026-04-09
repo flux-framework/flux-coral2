@@ -1,3 +1,15 @@
+flux-coral2 0.33.1 - 2026-04-09
+-------------------------------
+
+### New Features
+ * dws: enable faulthandler module (#469)
+
+### Fixes
+ * flux_k8s: compare resource versions in `watch` (#470)
+ * dws: improve malformed RPC error message (#467)
+ * dws: fixes for rabbits as computes (#468)
+
+
 flux-coral2 0.33.0 - 2026-04-01
 -------------------------------
 
