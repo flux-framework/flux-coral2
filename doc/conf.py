@@ -51,7 +51,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 master_doc = "index"
 source_suffix = ".rst"
 
-extensions = ["sphinx.ext.intersphinx", "sphinx.ext.napoleon", "domainrefs"]
+extensions = ["sphinx.ext.autodoc", "sphinx.ext.intersphinx", "sphinx.ext.napoleon", "domainrefs"]
 
 domainrefs = {
     "core:man1": {
@@ -82,7 +82,7 @@ script_dir = os.path.normpath(os.path.dirname(__file__))
 py_bindings_dir = os.path.normpath(os.path.join(script_dir, "../src/python/"))
 
 # Make sure that the python bindings are in PYTHONPATH for autodoc
-#sys.path.insert(0, py_bindings_dir)
+sys.path.insert(0, py_bindings_dir)
 
 # run api doc
 def run_apidoc(_):
