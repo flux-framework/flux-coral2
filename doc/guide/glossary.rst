@@ -19,6 +19,12 @@ Glossary
     based exascale systems *Frontier* to Oak Ridge in 2022, *Aurora* to
     Argonne in 2023, and *El Capitan* to Livermore in 2024.
 
+  CRD
+    Kubernetes Custom Resource Definition.  A mechanism for extending the
+    Kubernetes API with application-specific resource types.  DWS and NNF
+    make heavy use of CRDs to represent storage allocations, file system
+    state, mount points, and data movement operations.
+
   CXI
     Cray eXascale Interface.  Another way of referring to the Cassini NIC.
 
@@ -35,6 +41,11 @@ Glossary
 
       a simplified dragonfly network
 
+  DWS
+    Data Workflow Services.  An HPE software stack, running as a set of
+    Kubernetes controllers, that manages the lifecycle of :term:`Rabbit`
+    storage allocations on behalf of a workload manager.
+
   dragonfly
     A two-level interconnect topology that divides switches into groups.
     The switches in each group have some node ports, inter-group ports,
@@ -42,6 +53,12 @@ Glossary
     the switches in the group (level 0), although other topologies are
     permitted.  The inter-group switch ports fully connect the groups
     (level 1).
+
+  finalizer
+    A Kubernetes mechanism that prevents an object from being deleted until
+    specific cleanup actions are complete.  An object with a finalizer set
+    will not be removed from the API server even after a delete request until
+    the finalizer is explicitly removed by a controller.
 
   fabric manager
     The fabric manager configures, manages, and monitors the :term:`Slingshot`
@@ -58,6 +75,11 @@ Glossary
   PMI
     Process Management Interface, a quasi-standard bootstrap API and protocol
     for MPI implementations.
+
+  NNF
+    Near-Node Flash.  The HPE near-node-local flash storage product that
+    interfaces with nearby Cray EX compute nodes via PCI Express.  The
+    :term:`Rabbit` is the NNF node.
 
   Rabbit
     HPE near-node-local storage product that interfaces with nearby Cray EX
