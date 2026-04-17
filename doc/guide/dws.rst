@@ -451,6 +451,44 @@ and is read at ``coral2_dws`` startup to populate the
 ``storage.HOSTNAMES_TO_RABBITS`` and ``storage.RABBITS_TO_HOSTLISTS``
 dictionaries.
 
+.. code-block:: json
+
+   {
+     "computes": {
+       "hetchy1001": "hetchy201",
+       "hetchy1002": "hetchy201",
+       "hetchy1003": "hetchy202",
+       "hetchy1004": "hetchy202",
+       "hetchy1005": "hetchy202",
+       "hetchy1006": "hetchy202",
+       "hetchy1007": "hetchy202",
+       "hetchy1008": "hetchy202",
+       "hetchy1009": "hetchy202",
+       "hetchy1010": "hetchy202",
+       "hetchy1011": "hetchy202",
+       "hetchy1012": "hetchy202",
+       "hetchy1013": "hetchy202",
+       "hetchy1014": "hetchy202",
+       "hetchy1015": "hetchy202",
+       "hetchy1016": "hetchy202",
+       "hetchy1017": "hetchy202",
+       "hetchy1018": "hetchy202"
+     },
+     "rabbits": {
+       "hetchy201": {
+         "capacity": 30659987046400,
+         "hostlist": "hetchy[1001-1002]"
+       },
+       "hetchy202": {
+         "capacity": 30659987046400,
+         "hostlist": "hetchy[1003-1018]"
+       }
+     }
+   }
+
+The ``computes`` object maps each compute node hostname to its rabbit.
+The ``rabbits`` object maps each rabbit hostname to its storage capacity
+(in bytes) and the RFC 29 hostlist of compute nodes connected to it.
 
 JGF generation
 ==============
