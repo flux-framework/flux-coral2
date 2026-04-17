@@ -625,36 +625,36 @@ dws-jobtap.c
 
 The jobtap plugin registers callbacks on the following job events:
 
-``job.state.depend``
+job.state.depend
   ``depend_cb()`` checks whether the jobspec contains a non-empty ``dw``
   attribute.  If so, it adds a ``dws-create`` dependency and sends the
   ``dws.create`` RPC.
 
-``job.state.run``
+job.state.run
   ``run_cb()`` starts the ``dws-setup`` prolog and sends the ``dws.setup``
   RPC with the resource assignment *R*.
 
-``job.state.cleanup``
+job.state.cleanup
   ``cleanup_cb()`` starts the ``dws-epilog`` epilog and sends the
   ``dws.post_run`` RPC.
 
-``job.event.exception``
+job.event.exception
   ``exception_cb()`` cleans up any outstanding prolog or epilog and sends
   either ``dws.teardown`` or ``dws.abort`` depending on the exception type.
 
 Inbound RPCs from ``coral2_dws`` are handled by registered message
 callbacks:
 
-``job-manager.dws.resource-update``
+job-manager.dws.resource-update
   Removes the ``dws-create`` dependency and updates the jobspec resources
   and scheduling constraints.
 
-``job-manager.dws.prolog-remove``
+job-manager.dws.prolog-remove
   Posts the ``dws_environment`` event to the job eventlog (carrying the
   ``$DW_JOB_*`` environment variables), then releases the ``dws-setup``
   prolog.
 
-``job-manager.dws.epilog-remove``
+job-manager.dws.epilog-remove
   Releases the ``dws-epilog`` epilog.
 
 coral2_dws.py
