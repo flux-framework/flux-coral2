@@ -44,9 +44,11 @@ dws-jobtap.so
   A C Flux jobtap plugin loaded in the job manager of the system instance.
   It intercepts job lifecycle events (submission, allocation, run, cleanup,
   exceptions) and drives the per-job state machine by sending RPCs to the
-  ``coral2_dws`` service.  It also holds jobs in prolog and epilog actions
-  while DWS does its work, preventing jobs from running before storage is
-  ready and from finishing before storage is cleaned up.
+  ``dws`` service.  It also exposes an RPC service under
+  ``job-manager.dws.*`` for callbacks from ``coral2_dws``, and holds jobs in
+  prolog and epilog actions while DWS does its work, preventing jobs from
+  running before storage is ready and from finishing before storage is cleaned
+  up.
 
 coral2_dws (flux-coral2-dws systemd service)
   A Python process running alongside the rank-0 broker.  It owns the
@@ -54,8 +56,7 @@ coral2_dws (flux-coral2-dws systemd service)
   k8s access: creating and deleting Workflow CRD objects, watching for state
   changes, computing resource allocations from DirectiveBreakdown CRDs,
   patching jobspecs, and communicating timing data to the job KVS.  It
-  exposes an RPC service under ``job-manager.dws.*`` that the jobtap plugin
-  calls.
+  exposes an RPC service under ``dws.*`` that the jobtap plugin calls.
 
 flux_k8s Python package
   A library bundled with ``coral2_dws`` that provides higher-level
@@ -142,7 +143,7 @@ reads the DirectiveBreakdown objects, calls
 :func:`~flux_k8s.directivebreakdown.apply_breakdowns` to compute which
 rabbits satisfy the request, and patches the jobspec ``resources`` field
 (:doc:`rfc:spec_25`) to include the required rabbit resources.  It then
-sends a ``dws.resource-update`` RPC to the jobtap plugin, which removes
+sends a ``job-manager.dws.resource-update`` RPC to the jobtap plugin, which removes
 the ``dws-create`` dependency (:doc:`rfc:spec_26`) and allows the job to
 be scheduled.
 
@@ -254,7 +255,7 @@ the service.
 ``coral2_dws`` watches for PreRun completion via the k8s Workflow stream.
 When ``status.state = PreRun`` and ``status.ready = true``, it fetches the
 DWS-provided environment variables (``$DW_JOB_*`` paths) from the Workflow
-status, then sends a ``dws.prolog-remove`` RPC carrying those variables to
+status, then sends a ``job-manager.dws.prolog-remove`` RPC carrying those variables to
 ``dws-jobtap``.
 
 The jobtap plugin posts a ``dws_environment`` event to the job eventlog
@@ -302,7 +303,7 @@ Teardown
 In Teardown, DWS destroys the file systems on the rabbits and frees all
 storage resources.  ``coral2_dws`` removes a Kubernetes :term:`finalizer` from the
 Workflow object as soon as Teardown begins (to allow the object to be
-garbage-collected), and sends a ``dws.epilog-remove`` RPC to ``dws-jobtap``
+garbage-collected), and sends a ``job-manager.dws.epilog-remove`` RPC to ``dws-jobtap``
 once Teardown is complete.  The jobtap plugin releases the ``dws-epilog``
 epilog, allowing the job to proceed to INACTIVE.
 
@@ -326,55 +327,109 @@ Teardown.
 RPC Interface
 *************
 
-``dws-jobtap`` and ``coral2_dws`` communicate exclusively through Flux RPCs
-under the ``job-manager.dws.*`` topic prefix.  All RPCs carry ``jobid`` in
-the payload.
+``dws-jobtap`` and ``coral2_dws`` communicate exclusively through Flux RPCs.
+All fields are required unless marked optional.
 
-The following table summarizes the direction and timing of each RPC.
+.. object:: dws.create
 
-.. list-table::
-   :header-rows: 1
-   :widths: 25 15 60
+   Job entered DEPEND state with a ``#DW`` directive; ``coral2_dws`` creates
+   the Workflow CRD and adds a ``dws-create`` dependency to hold the job.
 
-   * - RPC
-     - Direction
-     - When sent
+   jobid (integer)
+      Flux job ID.
 
-   * - ``dws.create``
-     - jobtap → service
-     - Job enters DEPEND state with a ``#DW`` directive.
+   userid (integer)
+      UID of the job owner.
 
-   * - ``dws.resource-update``
-     - service → jobtap
-     - Proposal state completes; carries updated ``resources`` and
-       scheduling constraints.
+   dw_directives (array)
+      List of ``#DW`` directive strings from the jobspec.
 
-   * - ``dws.setup``
-     - jobtap → service
-     - Job allocated; jobtap starts prolog and sends *R*.
+   resources (object)
+      Jobspec ``resources`` field.
 
-   * - ``dws.prolog-remove``
-     - service → jobtap
-     - PreRun completes; carries ``$DW_JOB_*`` environment variables.
+   failure_tolerance (integer)
+      Number of rabbit failures to tolerate before raising a job exception.
 
-   * - ``dws.post_run``
-     - jobtap → service
-     - Job enters CLEANUP; jobtap starts epilog.
+.. object:: dws.setup
 
-   * - ``dws.epilog-remove``
-     - service → jobtap
-     - Teardown completes; jobtap releases epilog.
+   Job was allocated compute nodes; jobtap started a prolog and sends the
+   resource assignment *R*.
 
-   * - ``dws.teardown``
-     - jobtap → service
-     - Exception occurs during normal epilog; service moves workflow to
-       Teardown.
+   jobid (integer)
+      Flux job ID.
 
-   * - ``dws.abort``
-     - jobtap → service
-     - ``epilog-timeout`` expires (``dws-epilog-timeout`` exception);
-       service drains nodes, disables rabbits, then epilog is released
-       without waiting for Teardown.
+   R (object)
+      Resource assignment (:doc:`rfc:spec_20`) from the KVS, used to
+      determine which rabbits and compute nodes were allocated.
+
+.. object:: dws.post_run
+
+   Job entered CLEANUP state; jobtap started an epilog to hold it there.
+
+   jobid (integer)
+      Flux job ID.
+
+   run_started (boolean)
+      True if the job reached RUN state; false if it was cancelled before
+      running (in which case ``coral2_dws`` skips PostRun and DataOut).
+
+.. object:: dws.teardown
+
+   A job exception occurred during the normal epilog path; ``coral2_dws``
+   moves the Workflow to Teardown.
+
+   jobid (integer)
+      Flux job ID.
+
+.. object:: dws.abort
+
+   The ``epilog-timeout`` expired (``dws-epilog-timeout`` exception);
+   ``coral2_dws`` queries for active mounts, drains affected compute nodes,
+   and disables rabbits with active allocations, then the epilog is released
+   without waiting for Teardown.
+
+   jobid (integer)
+      Flux job ID.
+
+.. object:: job-manager.dws.resource-update
+
+   Proposal state completed; ``coral2_dws`` sends the updated jobspec
+   resources and scheduling constraints so jobtap can remove the
+   ``dws-create`` dependency and allow scheduling to proceed.
+
+   id (integer)
+      Flux job ID.
+
+   resources (object)
+      Updated jobspec ``resources`` field reflecting the final rabbit
+      assignment.
+
+   exclude (object)
+      Scheduling constraints (:doc:`rfc:spec_26`) excluding compute nodes
+      whose rabbits failed during Proposal.  May be null.
+
+   errmsg (string, optional)
+      Error message set if Proposal failed.
+
+.. object:: job-manager.dws.prolog-remove
+
+   PreRun completed; ``coral2_dws`` sends the DWS-provided environment
+   variables so jobtap can post the ``dws_environment`` event and release
+   the prolog.
+
+   id (integer)
+      Flux job ID.
+
+   variables (object)
+      Map of ``$DW_JOB_*`` environment variable names to values.
+
+.. object:: job-manager.dws.epilog-remove
+
+   Teardown completed; jobtap releases the ``dws-epilog`` epilog and allows
+   the job to proceed to INACTIVE.
+
+   id (integer)
+      Flux job ID.
 
 *********************************
 Resource Scheduling Integration
@@ -395,6 +450,45 @@ This file is referenced by ``rabbit.mapping`` in the Flux configuration
 and is read at ``coral2_dws`` startup to populate the
 ``storage.HOSTNAMES_TO_RABBITS`` and ``storage.RABBITS_TO_HOSTLISTS``
 dictionaries.
+
+.. code-block:: json
+
+   {
+     "computes": {
+       "hetchy1001": "hetchy201",
+       "hetchy1002": "hetchy201",
+       "hetchy1003": "hetchy202",
+       "hetchy1004": "hetchy202",
+       "hetchy1005": "hetchy202",
+       "hetchy1006": "hetchy202",
+       "hetchy1007": "hetchy202",
+       "hetchy1008": "hetchy202",
+       "hetchy1009": "hetchy202",
+       "hetchy1010": "hetchy202",
+       "hetchy1011": "hetchy202",
+       "hetchy1012": "hetchy202",
+       "hetchy1013": "hetchy202",
+       "hetchy1014": "hetchy202",
+       "hetchy1015": "hetchy202",
+       "hetchy1016": "hetchy202",
+       "hetchy1017": "hetchy202",
+       "hetchy1018": "hetchy202"
+     },
+     "rabbits": {
+       "hetchy201": {
+         "capacity": 30659987046400,
+         "hostlist": "hetchy[1001-1002]"
+       },
+       "hetchy202": {
+         "capacity": 30659987046400,
+         "hostlist": "hetchy[1003-1018]"
+       }
+     }
+   }
+
+The ``computes`` object maps each compute node hostname to its rabbit.
+The ``rabbits`` object maps each rabbit hostname to its storage capacity
+(in bytes) and the RFC 29 hostlist of compute nodes connected to it.
 
 JGF generation
 ==============
@@ -425,7 +519,7 @@ computes
 which of the rabbits allocated to the job by Fluxion should serve each
 directive.  It then rewrites the jobspec ``resources`` field to express the
 final rabbit assignment, and passes this updated resources field back to
-``dws-jobtap`` via the ``dws.resource-update`` RPC.
+``dws-jobtap`` via the ``job-manager.dws.resource-update`` RPC.
 
 Node exclusion properties
 =========================
@@ -531,36 +625,36 @@ dws-jobtap.c
 
 The jobtap plugin registers callbacks on the following job events:
 
-``job.state.depend``
+job.state.depend
   ``depend_cb()`` checks whether the jobspec contains a non-empty ``dw``
   attribute.  If so, it adds a ``dws-create`` dependency and sends the
   ``dws.create`` RPC.
 
-``job.state.run``
+job.state.run
   ``run_cb()`` starts the ``dws-setup`` prolog and sends the ``dws.setup``
   RPC with the resource assignment *R*.
 
-``job.state.cleanup``
+job.state.cleanup
   ``cleanup_cb()`` starts the ``dws-epilog`` epilog and sends the
   ``dws.post_run`` RPC.
 
-``job.event.exception``
+job.event.exception
   ``exception_cb()`` cleans up any outstanding prolog or epilog and sends
   either ``dws.teardown`` or ``dws.abort`` depending on the exception type.
 
 Inbound RPCs from ``coral2_dws`` are handled by registered message
 callbacks:
 
-``dws.resource-update``
+job-manager.dws.resource-update
   Removes the ``dws-create`` dependency and updates the jobspec resources
   and scheduling constraints.
 
-``dws.prolog-remove``
+job-manager.dws.prolog-remove
   Posts the ``dws_environment`` event to the job eventlog (carrying the
   ``$DW_JOB_*`` environment variables), then releases the ``dws-setup``
   prolog.
 
-``dws.epilog-remove``
+job-manager.dws.epilog-remove
   Releases the ``dws-epilog`` epilog.
 
 coral2_dws.py
