@@ -831,8 +831,7 @@ static void prolog_remove_msg_cb (flux_t *h,
         prolog_active = &junk_prolog_active;  // at least it's a valid address
         flux_log_error (h, "failed to fetch 'dws_prolog_active' aux for %s", idf58 (jobid));
     }
-    if (flux_jobtap_event_post_pack (p, jobid, "dws_environment", "{s:O}", "variables", env) < 0
-        || flux_jobtap_job_aux_set (p, jobid, "flux::dws_run_started", (void *)1, NULL) < 0) {
+    if (flux_jobtap_event_post_pack (p, jobid, "dws_environment", "{s:O}", "variables", env) < 0) {
         errmsg = "failed to post dws_environment event";
         dws_prolog_finish (h, p, jobid, 0, errmsg, prolog_active);
         goto error;
