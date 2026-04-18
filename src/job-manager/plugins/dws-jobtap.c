@@ -444,7 +444,7 @@ cleanup:
     return;
 }
 
-static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
+static int finish_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
 {
     flux_jobid_t id;
     json_t *dw = NULL;
@@ -857,7 +857,7 @@ error:
 static const struct flux_plugin_handler tab[] = {
     {"job.state.depend", depend_cb, NULL},
     {"job.state.run", run_cb, NULL},
-    {"job.state.cleanup", cleanup_cb, NULL},
+    {"job.event.finish", finish_cb, NULL},
     {"job.event.exception", exception_cb, NULL},
     {0},
 };
