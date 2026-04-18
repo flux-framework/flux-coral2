@@ -444,16 +444,90 @@ cleanup:
     return;
 }
 
-static int finish_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
+/* Helper function to start DWS epilog for a job.
+ * Called by both finish_cb (for jobs that ran) and cleanup_cb (for jobs that
+ * failed before starting). The dws_run_started parameter indicates whether the
+ * job actually started (1) or not (0), which is passed to the coral2_dws service.
+ */
+static int start_dws_epilog_for_job (flux_plugin_t *p, flux_jobid_t id, int dws_run_started)
 {
-    flux_jobid_t id;
-    json_t *dw = NULL;
     flux_future_t *post_run_fut;
     flux_t *h = flux_jobtap_get_flux (p);
     flux_reactor_t *r = flux_get_reactor (h);
     flux_watcher_t *watcher = NULL;
-    int dws_run_started = 0;
     struct create_arg_t *create_args = NULL;
+
+    if (!r) {
+        flux_log_error (h, "Failed to fetch reactor from handle for %s", idf58 (id));
+        current_job_exception (p, "Failed to fetch reactor from handle");
+        return -1;
+    }
+    if (!(create_args = calloc (1, sizeof (struct create_arg_t)))
+        || flux_jobtap_job_aux_set (p, FLUX_JOBTAP_CURRENT_JOB, NULL, create_args, free) < 0) {
+        free (create_args);
+        flux_log_error (h, "error allocating arg struct for %s: %s", idf58 (id), __FUNCTION__);
+        current_job_exception (p, "error allocating arg struct");
+        return -1;
+    }
+    create_args->p = p;
+    create_args->id = id;
+
+    if (flux_jobtap_job_aux_set (p, id, "dws_epilog_active", (void *)1, NULL) < 0
+        || flux_jobtap_epilog_start (p, DWS_EPILOG_NAME) < 0) {
+        flux_log_error (h, "Failed to start jobtap epilog for %s", idf58 (id));
+        current_job_exception (p, "Failed to start jobtap epilog");
+        return -1;
+    }
+    if (epilog_timeout > 0.0) {
+        if (!(watcher = flux_timer_watcher_create (r,
+                                                   epilog_timeout,
+                                                   0.0,
+                                                   epilog_timeout_cb,
+                                                   create_args))
+            || flux_jobtap_job_aux_set (p,
+                                        FLUX_JOBTAP_CURRENT_JOB,
+                                        NULL,
+                                        watcher,
+                                        (flux_free_f)flux_watcher_destroy)
+                   < 0) {
+            dws_epilog_finish (h, p, id, 0, "Failed to init " DWS_EPILOG_NAME " timeout");
+            flux_log_error (h, "Failed to init " DWS_EPILOG_NAME " timeout for %s", idf58 (id));
+            flux_watcher_destroy (watcher);
+            return -1;
+        }
+        flux_watcher_start (watcher);
+    }
+    if (!(post_run_fut = flux_rpc_pack (h,
+                                        "dws.post_run",
+                                        FLUX_NODEID_ANY,
+                                        0,
+                                        "{s:I, s:b}",
+                                        "jobid",
+                                        id,
+                                        "run_started",
+                                        dws_run_started))
+        || flux_future_then (post_run_fut, -1., post_run_rpc_callback, create_args) < 0
+        || flux_jobtap_job_aux_set (p,
+                                    FLUX_JOBTAP_CURRENT_JOB,
+                                    NULL,
+                                    post_run_fut,
+                                    (flux_free_f)flux_future_destroy)
+               < 0) {
+        flux_future_destroy (post_run_fut);
+        dws_epilog_finish (h, p, id, 0, "Failed to send dws.post_run RPC");
+        flux_log_error (h, "Failed to send dws.post_run RPC for %s", idf58 (id));
+        return -1;
+    }
+    return 0;
+}
+
+/* Callback for CLEAN state.
+ * Starts the epilog if the job had no 'start' event.
+ */
+static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
+{
+    flux_jobid_t id;
+    json_t *dw = NULL;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -471,70 +545,40 @@ static int finish_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
     }
     // check that the job has a DW attr section
     if (dw) {
-        if (!r) {
-            flux_log_error (h, "Failed to fetch reactor from handle for %s", idf58 (id));
-            current_job_exception (p, "Failed to fetch reactor from handle");
-            return -1;
+        if (!flux_jobtap_job_event_posted (p, FLUX_JOBTAP_CURRENT_JOB, "start")) {
+            // no 'start' event, therefore no 'finish' event, so we need to start the epilog here
+            return start_dws_epilog_for_job (p, id, 0);
         }
-        if (!(create_args = calloc (1, sizeof (struct create_arg_t)))
-            || flux_jobtap_job_aux_set (p, FLUX_JOBTAP_CURRENT_JOB, NULL, create_args, free) < 0) {
-            free (create_args);
-            flux_log_error (h, "error allocating arg struct for %s: %s", idf58 (id), __FUNCTION__);
-            current_job_exception (p, "error allocating arg struct");
-            return -1;
-        }
-        create_args->p = p;
-        create_args->id = id;
+    }
+    return 0;
+}
 
-        if (flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "flux::dws_run_started")) {
-            dws_run_started = 1;
-        }
-        if (flux_jobtap_job_aux_set (p, id, "dws_epilog_active", (void *)1, NULL) < 0
-            || flux_jobtap_epilog_start (p, DWS_EPILOG_NAME) < 0) {
-            flux_log_error (h, "Failed to start jobtap epilog for %s", idf58 (id));
-            current_job_exception (p, "Failed to start jobtap epilog");
-            return -1;
-        }
-        if (epilog_timeout > 0.0) {
-            if (!(watcher = flux_timer_watcher_create (r,
-                                                       epilog_timeout,
-                                                       0.0,
-                                                       epilog_timeout_cb,
-                                                       create_args))
-                || flux_jobtap_job_aux_set (p,
-                                            FLUX_JOBTAP_CURRENT_JOB,
-                                            NULL,
-                                            watcher,
-                                            (flux_free_f)flux_watcher_destroy)
-                       < 0) {
-                dws_epilog_finish (h, p, id, 0, "Failed to init " DWS_EPILOG_NAME " timeout");
-                flux_log_error (h, "Failed to init " DWS_EPILOG_NAME " timeout for %s", idf58 (id));
-                flux_watcher_destroy (watcher);
-                return -1;
-            }
-            flux_watcher_start (watcher);
-        }
-        if (!(post_run_fut = flux_rpc_pack (h,
-                                            "dws.post_run",
-                                            FLUX_NODEID_ANY,
-                                            0,
-                                            "{s:I, s:b}",
-                                            "jobid",
-                                            id,
-                                            "run_started",
-                                            dws_run_started))
-            || flux_future_then (post_run_fut, -1., post_run_rpc_callback, create_args) < 0
-            || flux_jobtap_job_aux_set (p,
-                                        FLUX_JOBTAP_CURRENT_JOB,
-                                        NULL,
-                                        post_run_fut,
-                                        (flux_free_f)flux_future_destroy)
-                   < 0) {
-            flux_future_destroy (post_run_fut);
-            dws_epilog_finish (h, p, id, 0, "Failed to send dws.post_run RPC");
-            flux_log_error (h, "Failed to send dws.post_run RPC for %s", idf58 (id));
-            return -1;
-        }
+/* Callback for finish event.
+ * Starts the epilog.
+ */
+static int finish_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
+{
+    flux_jobid_t id;
+    json_t *dw = NULL;
+
+    if (flux_plugin_arg_unpack (args,
+                                FLUX_PLUGIN_ARG_IN,
+                                "{s:I s:{s:{s:{s?o}}}}",
+                                "id",
+                                &id,
+                                "jobspec",
+                                "attributes",
+                                "system",
+                                "dw",
+                                &dw)
+        < 0) {
+        current_job_exception (p, "Failed to unpack args");
+        return -1;
+    }
+    // check that the job has a DW attr section
+    if (dw) {
+        // since we know the 'finish' event was posted, the job must have started.
+        return start_dws_epilog_for_job (p, id, 1);
     }
     return 0;
 }
@@ -857,6 +901,7 @@ error:
 static const struct flux_plugin_handler tab[] = {
     {"job.state.depend", depend_cb, NULL},
     {"job.state.run", run_cb, NULL},
+    {"job.state.cleanup", cleanup_cb, NULL},
     {"job.event.finish", finish_cb, NULL},
     {"job.event.exception", exception_cb, NULL},
     {0},
