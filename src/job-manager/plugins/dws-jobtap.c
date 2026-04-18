@@ -555,6 +555,10 @@ static int cleanup_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *a
 
 /* Callback for finish event.
  * Starts the epilog.
+ *
+ * Note: Because flux_jobtap_job_subscribe() can be called multiple times
+ * this callback may be invoked multiple times for the same job. We use an aux to ensure
+ * the epilog is only started once.
  */
 static int finish_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *args, void *arg)
 {
@@ -577,6 +581,11 @@ static int finish_cb (flux_plugin_t *p, const char *topic, flux_plugin_arg_t *ar
     }
     // check that the job has a DW attr section
     if (dw) {
+        // Check if we've already processed the finish event for this job and started the epilog.
+        // This can happen because the plugin subscribes to job events in multiple places.
+        if (flux_jobtap_job_aux_get (p, FLUX_JOBTAP_CURRENT_JOB, "dws_epilog_active")) {
+            return 0;
+        }
         // since we know the 'finish' event was posted, the job must have started.
         return start_dws_epilog_for_job (p, id, 1);
     }
