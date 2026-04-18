@@ -124,7 +124,7 @@ class Coral2Graph(FluxionResourceGraphV1):
                     self._rank_to_properties.get(index, {}),
                 )
         # if the rabbit itself is in R, add it to the chassis as well,
-        # with type 'rabbit'
+        # with type 'storage_node'
         try:
             index = self._r_hostlist.index(rabbit_name)[0]
         except FileNotFoundError:
