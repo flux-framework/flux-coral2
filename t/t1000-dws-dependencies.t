@@ -75,6 +75,12 @@ test_expect_success 'job-manager: dws jobtap plugin works when setup RPC fails' 
 	flux job wait-event -vt 5 -m description=${PROLOG_NAME} -m status=1 \
 		${jobid} prolog-finish &&
 	flux job wait-event -vt 1 ${jobid} exception &&
+	# test that the epilog still runs even with no start event
+	test_must_fail flux job wait-event -vt 0.1 ${jobid} start &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
 	flux job wait-event -vt 5 ${jobid} clean &&
 	flux job wait-event -vt 5 ${create_jobid} clean
 '
@@ -386,6 +392,32 @@ test_expect_success 'job-manager: dws jobtap plugin raises exception after bad R
 	flux job wait-event -vt 2 ${jobid} exception | grep malformed &&
 	flux job wait-event -vt 5 ${jobid} clean &&
 	flux job wait-event -vt 5 ${create_jobid} clean
+'
+
+test_expect_success 'job-manager: epilog-start event occurs after finish event' '
+	create_jobid=$(flux submit -t 8 --output=dws18.out --error=dws18.out \
+		flux python ${DWS_SCRIPT}) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	jobid=$(flux submit --setattr=system.dw="foo" sleep 10) &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -t 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-remove &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux cancel ${jobid} &&
+	flux job wait-event -vt 5 ${jobid} finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 5 ${create_jobid} clean &&
+	flux job eventlog ${jobid} > eventlog.txt &&
+	line1=$(grep -n "finish status=" eventlog.txt | head -1 | cut -d: -f1) &&
+	line2=$(grep -n "epilog-start" eventlog.txt | head -1 | cut -d: -f1) &&
+	echo $line1 && echo $line2 &&
+	[ -n "$line1" ] && [ -n "$line2" ] && [ "$line1" -lt "$line2" ]
 '
 
 test_done
