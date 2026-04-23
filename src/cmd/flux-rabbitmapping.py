@@ -11,6 +11,45 @@ from flux.hostlist import Hostlist
 from flux_k8s import crd, cleanup
 
 
+def initialize_from_systemconfig(sysconfig):
+    """Initialize the rabbitmapping dict with locality information.
+
+    Populate as much data as possible using the SystemConfiguration, since
+    it is complete and static, while the Storage resources can come and go.
+    """
+    rabbit_mapping = {"computes": {}, "rabbits": {}}
+    for nnf in sysconfig["spec"]["storageNodes"]:
+        hlist = Hostlist()
+        nnf_name = nnf["name"]
+        for compute in nnf.get("computesAccess", []):
+            hlist.append(compute["name"])
+            rabbit_mapping["computes"][compute["name"]] = nnf_name
+        rabbit_mapping["rabbits"][nnf_name] = {}
+        rabbit_mapping["rabbits"][nnf_name]["hostlist"] = hlist.uniq().encode()
+    return rabbit_mapping
+
+
+def populate_from_storages(storages, rabbit_mapping):
+    """Populate the rabbit_mapping dict using data from Storage resources."""
+    max_capacity = 0
+    for nnf in storages["items"]:
+        nnf_name = nnf["metadata"]["name"]
+        for compute in nnf["status"]["access"].get("computes", []):
+            compute_name = compute["name"]
+            if rabbit_mapping["computes"].get(compute_name) != nnf_name:
+                raise RuntimeError(
+                    f"Mismatch: rabbit {nnf_name} claims to be "
+                    f"connected to {compute_name} but systemconfiguration gives "
+                    f"{rabbit_mapping['computes'].get(compute_name)}"
+                )
+            capacity = nnf.get("status", {}).get("capacity", 0)
+            max_capacity = max(capacity, max_capacity)
+            if capacity == 0:
+                capacity = max_capacity
+            rabbit_mapping["rabbits"][nnf_name]["capacity"] = capacity
+    return max_capacity
+
+
 def main():
     """Create a JSON file mapping compute nodes <-> rabbits.
 
@@ -43,42 +82,17 @@ def main():
         help="Do not sort keys in output JSON document",
     )
     args = parser.parse_args()
-    rabbit_mapping = {"computes": {}, "rabbits": {}}
     k8s_api = cleanup.get_k8s_api(args.kubeconfig)
     crd.determine_api_versions(flux.Flux(), k8s_api)
-    # populate as much data as possible using the SystemConfiguration, since
-    # it is complete and static, while the Storage resources can come and go
     sysconfig = k8s_api.get_namespaced_custom_object(
         *crd.SYSTEMCONFIGURATION_CRD, "default"
     )
-    for nnf in sysconfig["spec"]["storageNodes"]:
-        hlist = Hostlist()
-        nnf_name = nnf["name"]
-        for compute in nnf.get("computesAccess", []):
-            hlist.append(compute["name"])
-            rabbit_mapping["computes"][compute["name"]] = nnf_name
-        rabbit_mapping["rabbits"][nnf_name] = {}
-        rabbit_mapping["rabbits"][nnf_name]["hostlist"] = hlist.uniq().encode()
+    rabbit_mapping = initialize_from_systemconfig(sysconfig)
     # fetch storages to fill in capacity field
     storages = k8s_api.list_cluster_custom_object(
         crd.RABBIT_CRD.group, crd.RABBIT_CRD.version, crd.RABBIT_CRD.plural
     )
-    max_capacity = 0
-    for nnf in storages["items"]:
-        nnf_name = nnf["metadata"]["name"]
-        for compute in nnf["status"]["access"].get("computes", []):
-            compute_name = compute["name"]
-            if rabbit_mapping["computes"].get(compute_name) != nnf_name:
-                raise RuntimeError(
-                    f"Mismatch: rabbit {nnf_name} claims to be "
-                    f"connected to {compute_name} but systemconfiguration gives "
-                    f"{rabbit_mapping['computes'].get(compute_name)}"
-                )
-            capacity = nnf.get("status", {}).get("capacity", 0)
-            max_capacity = max(capacity, max_capacity)
-            if capacity == 0:
-                capacity = max_capacity
-            rabbit_mapping["rabbits"][nnf_name]["capacity"] = capacity
+    max_capacity = populate_from_storages(storages, rabbit_mapping)
     # go back through sysconfig, make sure capacity is there for all resources
     for nnf in sysconfig["spec"]["storageNodes"]:
         nnf_name = nnf["name"]
