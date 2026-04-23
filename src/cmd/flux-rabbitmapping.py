@@ -8,7 +8,7 @@ import json
 
 import flux
 from flux.hostlist import Hostlist
-from flux_k8s import crd, cleanup
+from flux_k8s import crd, cleanup, workflow
 
 
 def initialize_from_systemconfig(sysconfig):
@@ -48,6 +48,41 @@ def populate_from_storages(storages, rabbit_mapping):
                 capacity = max_capacity
             rabbit_mapping["rabbits"][nnf_name]["capacity"] = capacity
     return max_capacity
+
+
+def reduce_capacity_by_servers(k8s_api, rabbit_mapping):
+    """Reduce rabbit capacity by allocations in Servers custom objects.
+
+    Fetches all Servers objects across all namespaces and sums up the
+    allocated capacity per rabbit, then reduces each rabbit's capacity
+    accordingly. Skips Servers resources managed by Flux.
+    """
+    servers = k8s_api.list_cluster_custom_object(
+        crd.SERVER_CRD.group, crd.SERVER_CRD.version, crd.SERVER_CRD.plural
+    )
+
+    # Track allocated capacity per rabbit
+    allocated = {}
+    for server in servers["items"]:
+        server_name = server["metadata"]["name"]
+        # Skip Servers resources managed by Flux
+        if workflow.WorkflowInfo.is_recognized(server_name):
+            continue
+        for alloc_set in server.get("spec", {}).get("allocationSets", []):
+            allocation_size = alloc_set.get("allocationSize", 0)
+            for storage in alloc_set.get("storage", []):
+                rabbit_name = storage["name"]
+                alloc_count = storage.get("allocationCount", 1)
+                total_alloc = allocation_size * alloc_count
+                allocated[rabbit_name] = allocated.get(rabbit_name, 0) + total_alloc
+
+    # Reduce each rabbit's capacity by its allocated amount
+    for rabbit_name, alloc_amount in allocated.items():
+        if rabbit_name in rabbit_mapping["rabbits"]:
+            current_capacity = rabbit_mapping["rabbits"][rabbit_name].get("capacity", 0)
+            rabbit_mapping["rabbits"][rabbit_name]["capacity"] = max(
+                0, current_capacity - alloc_amount
+            )
 
 
 def main():
@@ -98,6 +133,8 @@ def main():
         nnf_name = nnf["name"]
         if rabbit_mapping["rabbits"][nnf_name].get("capacity") is None:
             rabbit_mapping["rabbits"][nnf_name]["capacity"] = max_capacity
+    # reduce capacity by external allocations from Servers objects
+    reduce_capacity_by_servers(k8s_api, rabbit_mapping)
     json.dump(rabbit_mapping, sys.stdout, indent=args.indent, sort_keys=args.nosort)
 
 
