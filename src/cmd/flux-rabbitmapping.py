@@ -116,6 +116,11 @@ def main():
         action="store_false",
         help="Do not sort keys in output JSON document",
     )
+    parser.add_argument(
+        "--ignore-external-allocations",
+        action="store_true",
+        help="Ignore external (non-Flux) allocations from Servers objects",
+    )
     args = parser.parse_args()
     k8s_api = cleanup.get_k8s_api(args.kubeconfig)
     crd.determine_api_versions(flux.Flux(), k8s_api)
@@ -134,7 +139,8 @@ def main():
         if rabbit_mapping["rabbits"][nnf_name].get("capacity") is None:
             rabbit_mapping["rabbits"][nnf_name]["capacity"] = max_capacity
     # reduce capacity by external allocations from Servers objects
-    reduce_capacity_by_servers(k8s_api, rabbit_mapping)
+    if not args.ignore_external_allocations:
+        reduce_capacity_by_servers(k8s_api, rabbit_mapping)
     json.dump(rabbit_mapping, sys.stdout, indent=args.indent, sort_keys=args.nosort)
 
 
