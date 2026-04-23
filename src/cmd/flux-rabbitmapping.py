@@ -45,6 +45,7 @@ def main():
     args = parser.parse_args()
     rabbit_mapping = {"computes": {}, "rabbits": {}}
     k8s_api = cleanup.get_k8s_api(args.kubeconfig)
+    crd.determine_api_versions(flux.Flux(), k8s_api)
     # populate as much data as possible using the SystemConfiguration, since
     # it is complete and static, while the Storage resources can come and go
     sysconfig = k8s_api.get_namespaced_custom_object(
