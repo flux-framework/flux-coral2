@@ -1,0 +1,18 @@
+{
+  "computes": {
+    "compute-01": "kind-worker2",
+    "compute-02": "kind-worker2",
+    "compute-03": "kind-worker2",
+    "compute-04": "kind-worker3"
+  },
+  "rabbits": {
+    "kind-worker2": {
+      "capacity": 39582418599936,
+      "hostlist": "compute-[01-03]"
+    },
+    "kind-worker3": {
+      "capacity": 39582418599936,
+      "hostlist": "compute-04"
+    }
+  }
+}

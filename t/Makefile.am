@@ -31,6 +31,7 @@ TESTSCRIPTS = \
 	t2000-dws2jgf.t \
 	t2001-getrabbit.t \
 	t2002-dws2jgf2.t \
+	t2003-rabbitmapping.t \
 	t3000-slingshot-jobtap.t \
 	t3001-slingshot-shell.t \
 	t3002-slingshot-cmd.t \
