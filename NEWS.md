@@ -1,3 +1,18 @@
+flux-coral2 0.34.0 - 2026-05-11
+-------------------------------
+
+### New Features
+ * dws: external rabbit allocations in `flux rabbitmapping` (#479)
+
+### Fixes
+ * dws: start epilog on finish event (#477)
+ * cray-pmi: add errno to set/get port (#482)
+
+### Build/Testsuite/Documentation
+ * doc: improve DWS/rabbit internals design document (#475)
+ * doc: add dws/rabbit internals design document (#474)
+
+
 flux-coral2 0.33.1 - 2026-04-09
 -------------------------------
 
