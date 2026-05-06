@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <stdint.h>
+#include <errno.h>
 
 #include <jansson.h>
 #include <sodium.h>
@@ -36,6 +37,7 @@ struct port_range {
 static json_int_t get_port (struct port_range *range)
 {
     if (range->fill <= 0) {
+        errno = ENOENT;
         return -1;
     }
     range->fill--;
@@ -45,6 +47,7 @@ static json_int_t get_port (struct port_range *range)
 static json_int_t set_port (struct port_range *range, json_int_t port)
 {
     if (range->fill >= range->maxsize) {
+        errno = ERANGE;
         return -1;
     }
     range->available_ports[range->fill] = port;
