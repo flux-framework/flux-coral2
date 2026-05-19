@@ -38,7 +38,8 @@ TESTSCRIPTS = \
 	python/t0001-directive-breakdown.py \
 	python/t0002-storage.py \
 	python/t0003-coral2-dws.py \
-	python/t0004-crd.py
+	python/t0004-crd.py \
+	python/t0005-rabbit-frobnicator.py
 
 # make check runs these TAP tests directly (both scripts and programs)
 TESTS = \
