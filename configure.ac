@@ -180,6 +180,9 @@ AC_SUBST(fluxrc3dir)
 AS_VAR_SET(fluxk8spydir, $pyexecdir/flux_k8s)
 AC_SUBST(fluxk8spydir)
 
+AS_VAR_SET(fluxfrobnpluginspydir, $pyexecdir/flux/job/frobnicator/plugins)
+AC_SUBST(fluxfrobnpluginspydir)
+
 # Target of PYTHONPATH set by flux(1) cmddriver, so flux(1)
 # doesn't inadvertently insert system python paths (or any
 # other python path for that matter) first in PYTHONPATH.
@@ -222,6 +225,7 @@ AC_CONFIG_FILES([Makefile
   src/modules/Makefile
   src/python/Makefile
   src/python/flux_k8s/Makefile
+  src/python/flux/job/frobnicator/plugins/Makefile
   doc/Makefile
   doc/test/Makefile
   etc/Makefile
