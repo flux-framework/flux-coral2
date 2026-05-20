@@ -12,9 +12,7 @@ nobase_dist_fluxconf_SCRIPTS = \
 	cli/plugins/chassis.py
 
 dist_prolog_SCRIPTS = \
-	slingshot-cxi-alloc.sh \
-	zstop_nnf_clientmount.sh
+	slingshot-cxi-alloc.sh
 dist_epilog_SCRIPTS = \
-	slingshot-cxi-free.sh \
-	start_nnf_clientmount.sh
+	slingshot-cxi-free.sh
 dist_housekeeping_SCRIPTS = slingshot-cxi-cleanup.sh
