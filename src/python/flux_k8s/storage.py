@@ -153,15 +153,18 @@ class RabbitManager:
                 Hostlist(up_nodes).uniq().encode(),
                 f": {reason}" if reason is not None else "",
             )
-        for hostname in up_nodes:
-            if hostname in self._compute_rpaths:
-                payload = {
-                    "resource_path": self._compute_rpaths[hostname],
-                    "key": EXCLUDE_PROPERTY,
-                }
-                self.handle.rpc("sched-fluxion-resource.remove_property", payload).then(
-                    log_rpc_response
-                )
+        payload = {
+            "resource_path": [
+                self._compute_rpaths[hostname]
+                for hostname in up_nodes
+                if hostname in self._compute_rpaths
+            ],
+            "key": EXCLUDE_PROPERTY,
+        }
+        if payload["resource_path"]:
+            self.handle.rpc("sched-fluxion-resource.remove_property", payload).then(
+                log_rpc_response
+            )
 
     def set_property(self, down_nodes, reason=None):
         """Send RPCs to set property on all `down_nodes`."""
@@ -172,15 +175,19 @@ class RabbitManager:
                 Hostlist(down_nodes).uniq().encode(),
                 f": {reason}" if reason is not None else "",
             )
-        for hostname in down_nodes:
-            if hostname in self._compute_rpaths:
-                self.handle.rpc(
-                    "sched-fluxion-resource.set_property",
-                    {
-                        "sp_resource_path": self._compute_rpaths[hostname],
-                        "sp_keyval": f"{EXCLUDE_PROPERTY}=bad",
-                    },
-                ).then(log_rpc_response)
+        payload = {
+            "sp_resource_path": [
+                self._compute_rpaths[hostname]
+                for hostname in down_nodes
+                if hostname in self._compute_rpaths
+            ],
+            "sp_keyval": f"{EXCLUDE_PROPERTY}=bad",
+        }
+        if payload["sp_resource_path"]:
+            self.handle.rpc(
+                "sched-fluxion-resource.set_property",
+                payload,
+            ).then(log_rpc_response)
 
     def mark_rabbits_allocated(self, jobid, rabbits):
         """Set property to mark rabbits as allocated.
