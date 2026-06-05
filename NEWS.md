@@ -1,3 +1,11 @@
+flux-coral2 0.35.0 - 2026-06-05
+-------------------------------
+
+### New Features
+ * flux_k8s: use bulk set_ and remove_property RPCs (#488)
+ * dws: rabbit frobnicator (#485)
+
+
 flux-coral2 0.34.0 - 2026-05-11
 -------------------------------
 
