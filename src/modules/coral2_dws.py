@@ -319,7 +319,7 @@ def setup_timeout_cb(handle, k8s_api, winfo, compute_nodes, lustre):
 
 
 @message_callback_wrapper
-def setup_cb(handle, _t, msg, args):
+def setup_cb(handle, _t, msg, k8s_api):
     """dws.setup RPC callback.
 
     The dws.setup RPC is sent when the job has reached the RUN state
@@ -328,7 +328,6 @@ def setup_cb(handle, _t, msg, args):
     Pass the resource information on to DWS, and move the job to the `setup`
     desiredState.
     """
-    k8s_api, rabbit_manager = args
     jobid = msg.payload["jobid"]
     hlist = Hostlist(msg.payload["R"]["execution"]["nodelist"]).uniq()
     workflow_name = WorkflowInfo.get_name(jobid)
@@ -341,7 +340,6 @@ def setup_cb(handle, _t, msg, args):
         compute_node_count += 1
         nnf_name = storage.HOSTNAMES_TO_RABBITS[hostname]
         nodes_per_nnf[nnf_name] = nodes_per_nnf.get(nnf_name, 0) + 1
-    rabbit_manager.mark_rabbits_allocated(jobid, list(nodes_per_nnf.keys()))
     handle.rpc(
         "job-manager.memo",
         payload={
@@ -677,9 +675,7 @@ def state_active(workflow, state):
     return workflow["spec"]["desiredState"] == workflow["status"]["state"] == state
 
 
-def workflow_state_change_cb(
-    event, handle, k8s_api, disable_fluxion, secrets_api, rabbit_manager
-):
+def workflow_state_change_cb(event, handle, k8s_api, secrets_api, rabbit_manager):
     """Exception-catching wrapper around _workflow_state_change_cb_inner."""
     try:
         workflow = event["object"]
@@ -702,7 +698,6 @@ def workflow_state_change_cb(
             winfo,
             handle,
             k8s_api,
-            disable_fluxion,
             secrets_api,
             rabbit_manager,
         )
@@ -727,7 +722,7 @@ def workflow_state_change_cb(
 
 
 def _workflow_state_change_cb_inner(
-    workflow, winfo, handle, k8s_api, disable_fluxion, secrets_api, rabbit_manager
+    workflow, winfo, handle, k8s_api, secrets_api, rabbit_manager
 ):
     """Handle workflow state transitions."""
     jobid = winfo.jobid
@@ -753,7 +748,6 @@ def _workflow_state_change_cb_inner(
             handle.rpc("job-manager.dws.epilog-remove", payload={"id": jobid}).then(
                 log_rpc_response, jobid
             )
-        rabbit_manager.mark_rabbits_free(jobid, handle)
         save_elapsed_time_to_kvs(handle, jobid, workflow)
         cleanup.delete_workflow(workflow)
         winfo.deleted = True
@@ -764,7 +758,7 @@ def _workflow_state_change_cb_inner(
         # 'teardown' update is still in the k8s update queue.
         return
     elif state_complete(workflow, WorkflowState.PROPOSAL):
-        handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion)
+        handle_proposal_state(workflow, winfo, handle, k8s_api)
     elif state_complete(workflow, WorkflowState.SETUP):
         # move workflow to next stage, DataIn
         winfo.move_desiredstate(WorkflowState.DATAIN, k8s_api)
@@ -805,7 +799,7 @@ def _workflow_state_change_cb_inner(
     handle_workflow_errors(workflow, winfo, handle)
 
 
-def handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion):
+def handle_proposal_state(workflow, winfo, handle, k8s_api):
     """Handle a completed proposal state, updating a job's resources.
 
     Look at directivebreakdown object to see how to modify the job's jobspec.
@@ -816,22 +810,14 @@ def handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion):
             "resources"
         ]
     try:
-        if not disable_fluxion:
-            resources = directivebreakdown.apply_breakdowns(
-                k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
-            )
+        resources = directivebreakdown.apply_breakdowns(
+            k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
+        )
     except ValueError as exc:
         errmsg = repr(exc.args[0])
     else:
         errmsg = None
-    if disable_fluxion:
-        new_constraint = {
-            "and": [
-                {"not": [{"properties": [storage.EXCLUDE_PROPERTY]}]},
-                {"not": [{"properties": [storage.ALLOCATED_PROPERTY]}]},
-            ]
-        }
-    elif not handle.conf_get("rabbit.drain_compute_nodes", True):
+    if not handle.conf_get("rabbit.drain_compute_nodes", True):
         new_constraint = {"not": [{"properties": [storage.EXCLUDE_PROPERTY]}]}
     else:
         new_constraint = None
@@ -997,11 +983,6 @@ def setup_parsing():
         help="Target only the nodes in the given queues for draining",
     )
     parser.add_argument(
-        "--disable-fluxion",
-        action="store_true",
-        help="Disable Fluxion scheduling of rabbits",
-    )
-    parser.add_argument(
         "--retry-delay",
         metavar="N",
         default=10,
@@ -1039,12 +1020,12 @@ def config_logging(args):
         logging.getLogger(flux_k8s.__name__).propagate = False
 
 
-def register_services(handle, k8s_api, system_status, rabbit_manager):
+def register_services(handle, k8s_api, system_status):
     """register dws.create, dws.setup, and dws.post_run services."""
     serv_reg_fut = handle.service_register("dws")
     for service_name, cb, args in (
         ("create", create_cb, k8s_api),
-        ("setup", setup_cb, (k8s_api, rabbit_manager)),
+        ("setup", setup_cb, k8s_api),
         ("post_run", post_run_cb, (k8s_api, system_status)),
         ("teardown", teardown_cb, k8s_api),
         ("abort", abort_cb, (k8s_api, system_status)),
@@ -1184,7 +1165,6 @@ def main():
             k8s_api,
             handle,
             watchers,
-            args.disable_fluxion,
             args.drain_queues,
         )
         # create a timer watcher for killing workflows that have been stuck in
@@ -1200,7 +1180,7 @@ def main():
         with contextlib.ExitStack() as stack:
             for watcher in (timer_watcher,) + heartbeat_watchers:
                 stack.enter_context(watcher)
-            for service in register_services(handle, k8s_api, system_status, manager):
+            for service in register_services(handle, k8s_api, system_status):
                 stack.enter_context(service)
             watchers.add_watch(
                 Watch(
@@ -1210,7 +1190,6 @@ def main():
                     workflow_state_change_cb,
                     handle,
                     k8s_api,
-                    args.disable_fluxion,
                     secrets_api,
                     manager,
                 )
