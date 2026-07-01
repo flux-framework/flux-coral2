@@ -69,10 +69,7 @@ class RabbitManager:
             ) from exc
         for vertex in nodes:
             metadata = vertex["metadata"]
-            if (
-                metadata["type"] in ("chassis", "rack")
-                and "rabbit" in metadata["properties"]
-            ):
+            if metadata["type"] == "chassis" and "rabbit" in metadata["properties"]:
                 self._rabbit_rpaths[metadata["properties"]["rabbit"]] = (
                     metadata["paths"]["containment"],
                     int(metadata["properties"].get("ssdcount", 36)),
