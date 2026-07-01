@@ -69,46 +69,12 @@ class TestRabbitManager(unittest.TestCase):
         storage.RABBITS_TO_HOSTLISTS = cls._old_RABBITS_TO_HOSTLISTS
         storage.HOSTNAMES_TO_RABBITS = cls._old_HOSTNAMES_TO_RABBITS
 
-    def test_nodes_not_recognized(self):
-        mock_flux = unittest.mock.Mock()
-        mock_flux.attr_get.return_value = list(storage.HOSTNAMES_TO_RABBITS.keys())
-        mock_flux.conf_get.return_value = ""
-        manager = storage.RabbitManager(mock_flux, None)
-        manager.set_property({"foo", "bar"})
-        mock_flux.rpc.assert_not_called()
-        manager.remove_property({"foo", "bar"})
-        mock_flux.rpc.assert_not_called()
-
-    def test_set_remove_property(self):
-        mock_flux = unittest.mock.Mock()
-        mock_flux.attr_get.return_value = list(storage.HOSTNAMES_TO_RABBITS.keys())
-        mock_flux.conf_get.return_value = ""
-        manager = storage.RabbitManager(mock_flux, None)
-        manager.set_property({"compute1"})
-        mock_flux.rpc.assert_called_once()
-        mock_flux.rpc.reset_mock()
-        manager.remove_property({"compute1"})
-        mock_flux.rpc.assert_called_once()
-
-    def test_excluded_nodes(self):
-        mock_flux = unittest.mock.Mock()
-        mock_flux.attr_get.return_value = list(storage.HOSTNAMES_TO_RABBITS.keys())
-        mock_flux.conf_get.return_value = "compute1"
-        manager = storage.RabbitManager(mock_flux, None)
-        manager.set_property({"compute1"})
-        mock_flux.rpc.assert_not_called()
-        mock_flux.rpc.reset_mock()
-        manager.remove_property({"compute1"})
-        mock_flux.rpc.assert_not_called()
-
-
-class TestFluxionRabbitManager(TestRabbitManager):
     @unittest.mock.patch("flux.kvs.get")
     def test_nodes_not_recognized(self, patched_kvs_get):
         with open(JGFDIR / "expected-compute-01.jgf", "r") as json_fd:
             patched_kvs_get.return_value = json.load(json_fd)
         mock_flux = unittest.mock.Mock()
-        manager = storage.FluxionRabbitManager(mock_flux, None)
+        manager = storage.RabbitManager(mock_flux, None)
         manager.set_property({"foo", "bar"})
         mock_flux.rpc.assert_not_called()
         manager.remove_property({"foo", "bar"})
@@ -121,7 +87,7 @@ class TestFluxionRabbitManager(TestRabbitManager):
         with open(JGFDIR / "expected-compute-01.jgf", "r") as json_fd:
             patched_kvs_get.return_value = json.load(json_fd)
         mock_flux = unittest.mock.Mock()
-        manager = storage.FluxionRabbitManager(mock_flux, None)
+        manager = storage.RabbitManager(mock_flux, None)
         manager.set_property({"compute-01"})
         mock_flux.rpc.assert_called_once()
         mock_flux.rpc.reset_mock()
@@ -133,7 +99,7 @@ class TestFluxionRabbitManager(TestRabbitManager):
         with open(JGFDIR / "expected-compute-01.jgf", "r") as json_fd:
             patched_kvs_get.return_value = json.load(json_fd)
         mock_flux = unittest.mock.Mock()
-        manager = storage.FluxionRabbitManager(mock_flux, None)
+        manager = storage.RabbitManager(mock_flux, None)
         manager._mark_rabbit("Ready", "kind-worker2")
         mock_flux.rpc.assert_called()
         mock_flux.rpc.reset_mock()
@@ -148,7 +114,7 @@ class TestFluxionRabbitManager(TestRabbitManager):
         with open(JGFDIR / "expected-compute-01.jgf", "r") as json_fd:
             patched_kvs_get.return_value = json.load(json_fd)
         mock_flux = unittest.mock.Mock()
-        manager = storage.FluxionRabbitManager(mock_flux, None)
+        manager = storage.RabbitManager(mock_flux, None)
         compute_nodes = {f"compute-0{i}" for i in range(3)}
         rabbit = _generate_fake_rabbit(compute_nodes, storage._READY_STATUS)
         manager._drain_offline_nodes(rabbit)
@@ -162,12 +128,12 @@ class TestFluxionRabbitManager(TestRabbitManager):
         with open(JGFDIR / "expected-compute-01.jgf", "r") as json_fd:
             patched_kvs_get.return_value = json.load(json_fd)
         mock_flux = unittest.mock.Mock()
-        manager = storage.FluxionRabbitManager(mock_flux, set())
+        manager = storage.RabbitManager(mock_flux, set())
         compute_nodes = {f"compute-0{i}" for i in range(3)}
         rabbit = _generate_fake_rabbit(compute_nodes, "Down")
         manager._drain_offline_nodes(rabbit)
         mock_flux.rpc.assert_not_called()
-        manager = storage.FluxionRabbitManager(mock_flux, compute_nodes)
+        manager = storage.RabbitManager(mock_flux, compute_nodes)
         rabbit = _generate_fake_rabbit(compute_nodes, "Down")
         manager._drain_offline_nodes(rabbit)
         mock_flux.rpc.assert_called_once()
