@@ -47,10 +47,21 @@ class Coral2Graph(FluxionResourceGraphV1):
     CORAL2 Graph:  extend jsongraph's Graph class
     """
 
-    def __init__(self, rv1, rabbit_mapping, r_hostlist, chunks_per_nnf, cluster_name):
+    def __init__(
+        self,
+        rv1,
+        rabbit_mapping,
+        r_hostlist,
+        chunks_per_nnf,
+        cluster_name,
+        resource_exclude,
+    ):
         """Constructor
         rv1 -- RV1 Dictorary that conforms to Flux RFC 20:
                    Resource Set Specification Version 1
+        resource_exclude -- ranks to omit from the graph, as an RFC 22 IDset
+                   string or an RFC 29 hostlist string (empty string means
+                   exclude nothing)
         """
         self._rabbit_mapping = rabbit_mapping
         self._r_hostlist = r_hostlist
@@ -61,6 +72,12 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._rank_to_properties = get_node_properties(
             rv1["execution"].get("properties", {})
         )
+        # try reading in resource_exclude as an IDset and fall back to hostlist
+        try:
+            # this works even if resource_exclude is the empty string
+            self._resource_exclude = r_hostlist[IDset(resource_exclude)]
+        except ValueError:
+            self._resource_exclude = Hostlist(resource_exclude)
         # Call super().__init__() last since it calls __encode
         super().__init__(rv1)
 
@@ -110,6 +127,8 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._add_and_tick_uniq_id(vtx, edg)
         self._encode_ssds(vtx.get_id(), path, entry["capacity"])
         for node in Hostlist(entry["hostlist"]):
+            if node in self._resource_exclude:
+                continue
             try:
                 index = self._r_hostlist.index(node)[0]
             except FileNotFoundError:
@@ -155,6 +174,8 @@ class Coral2Graph(FluxionResourceGraphV1):
         dws_computes = set(self._rabbit_mapping["computes"].keys())
         dws_computes |= set(self._rabbit_mapping["rabbits"].keys())
         for rank, node in enumerate(self._r_hostlist):
+            if node in self._resource_exclude:
+                continue
             if node not in dws_computes:
                 self._encode_rank(
                     vtx.get_id(),
@@ -196,10 +217,58 @@ def to_gibibytes(bytecount):
     return bytecount // (1024**3)
 
 
-def encode(rv1, rabbit_mapping, r_hostlist, chunks_per_nnf, cluster_name):
-    graph = Coral2Graph(rv1, rabbit_mapping, r_hostlist, chunks_per_nnf, cluster_name)
+def encode(
+    rv1, rabbit_mapping, r_hostlist, chunks_per_nnf, cluster_name, resource_exclude
+):
+    """Build the CORAL2 graph and store its JGF under rv1["scheduling"]."""
+    graph = Coral2Graph(
+        rv1, rabbit_mapping, r_hostlist, chunks_per_nnf, cluster_name, resource_exclude
+    )
     rv1["scheduling"] = graph.to_JSON()
     return rv1
+
+
+def fetch_resource_exclude(from_config):
+    """Fetch the configured `resource.exclude` value.
+
+    When ``from_config`` is a path, read it from that TOML file; otherwise
+    read it from the running broker's config. Returns the empty string if the
+    value is unset or cannot be fetched (e.g. no broker), so callers always
+    get a valid IDset/hostlist string.
+    """
+    if from_config is not None:
+        proc = subprocess.run(
+            [
+                "flux",
+                "config",
+                "get",
+                "-c",
+                from_config,
+                "-d",
+                "",
+                "resource.exclude",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            encoding="utf8",
+        )
+        if proc.returncode == 0:
+            return proc.stdout.strip()
+        else:
+            print(
+                f"Could not fetch `resource.exclude` from config: {proc.stderr}",
+                file=sys.stderr,
+            )
+    else:
+        try:
+            return flux.Flux().conf_get("resource.exclude", "")
+        except FileNotFoundError:  # broker offline
+            print(
+                "Unable to fetch `resource.exclude` from config",
+                file=sys.stderr,
+            )
+    return ""
 
 
 LOGGER = logging.getLogger("flux-dws2jgf")
@@ -298,7 +367,12 @@ def main():
             "but not R from stdin"
         )
     output = encode(
-        input_r, rabbit_mapping, r_hostlist, args.chunks_per_nnf, args.cluster_name
+        input_r,
+        rabbit_mapping,
+        r_hostlist,
+        args.chunks_per_nnf,
+        args.cluster_name,
+        fetch_resource_exclude(args.from_config),
     )
     if args.only_sched:
         output = output["scheduling"]

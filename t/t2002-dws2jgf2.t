@@ -58,6 +58,42 @@ EOF
 	jq -e '.computes.\"$(hostname)\" == \"rabbit1\"' rabbits.json
 "
 
+test_expect_success 'dws2jgf accepts an IDset resource.exclude' "
+	cat > idset.toml <<-EOF &&
+	[resource]
+	exclude = \"1\"
+
+	[[resource.config]]
+	hosts = \"somecluster[0-3]\"
+	cores = \"0-3\"
+	EOF
+	flux python \${CMD} --no-validate --from-config idset.toml \
+		--only-sched \$DATADIR/rabbitmapping.json | jq . > idset.jgf &&
+	test \$(jq '[.graph.nodes[].metadata.name \
+		| select(. == \"somecluster1\")] | length' idset.jgf) -eq 0 &&
+	jq -e 'any(.graph.nodes[].metadata.name; . == \"somecluster0\")' idset.jgf &&
+	jq -e 'any(.graph.nodes[].metadata.name; . == \"somecluster2\")' idset.jgf &&
+	jq -e 'any(.graph.nodes[].metadata.name; . == \"somecluster3\")' idset.jgf
+"
+
+test_expect_success 'dws2jgf accepts a Hostlist resource.exclude' "
+	cat > hostlist.toml <<-EOF &&
+	[resource]
+	exclude = \"somecluster3\"
+
+	[[resource.config]]
+	hosts = \"somecluster[0-3]\"
+	cores = \"0-3\"
+	EOF
+	flux python \${CMD} --no-validate --from-config hostlist.toml \
+		--only-sched \$DATADIR/rabbitmapping.json | jq . > hostlist.jgf &&
+	test \$(jq '[.graph.nodes[].metadata.name \
+		| select(. == \"somecluster3\")] | length' hostlist.jgf) -eq 0 &&
+	jq -e 'any(.graph.nodes[].metadata.name; . == \"somecluster0\")' hostlist.jgf &&
+	jq -e 'any(.graph.nodes[].metadata.name; . == \"somecluster1\")' hostlist.jgf &&
+	jq -e 'any(.graph.nodes[].metadata.name; . == \"somecluster2\")' hostlist.jgf
+"
+
 test_expect_success 'fluxion can be loaded with output of dws2jgf' '
 	flux run -n1 hostname &&
 	flux R encode -l | flux python ${CMD} --no-validate -c1 rabbits.json \
