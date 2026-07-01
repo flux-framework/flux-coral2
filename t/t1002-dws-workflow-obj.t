@@ -113,94 +113,8 @@ fake = 1
 	test_must_fail ${LAUNCH_DWS} -v
 '
 
-test_expect_success 'exec dws service-providing script with fluxion scheduling disabled' '
-	flux config reload &&
-	start_dws_script --disable-fluxion
-'
-
-test_expect_success 'job submission without DW string works with fluxion-rabbit scheduling disabled' '
-	jobid=$(flux submit -n1 /bin/true) &&
-	flux job wait-event -vt 25 -m status=0 ${jobid} finish &&
-	test_must_fail flux job wait-event -vt 5 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add
-'
-
-test_expect_success 'job submission with valid DW string works with fluxion-rabbit scheduling disabled' '
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
-		-N1 -n1 hostname) &&
-	walk_job_through_prolog $jobid &&
-	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
-	job_epilog_start_finish_clean $jobid
-'
-
-test_expect_success 'inspection of resources while job running passes' '
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
-		-N1 -n1 -t200 sleep 30) &&
-	walk_job_through_prolog $jobid &&
-	kubectl get clientmounts -A &&
-	kubectl get clientmounts -A -oyaml &&
-	flux python ${SHARNESS_TEST_SRCDIR}/scripts/coral2_inspection.py $jobid $DWS_MODULE_PATH &&
-	flux cancel $jobid &&
-	flux job wait-event -t 3 ${jobid} exception &&
-	job_epilog_start_finish_clean $jobid
-'
-
-test_expect_success 'dws service script handles restarts while a job is in SCHED with fluxion disabled' '
-	flux queue stop --all &&
-	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
-		-N1 -n1 true) &&
-	flux job wait-event -vt 15 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-add &&
-	flux job wait-event -t 15 -m description=${CREATE_DEP_NAME} \
-		${jobid} dependency-remove &&
-	start_dws_script --disable-fluxion &&
-	test_must_fail flux job wait-event -vt 10 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start &&
-	flux queue start --all &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-start
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
-		${jobid} prolog-finish
-	flux job wait-event -vt 5 -m status=0 ${jobid} finish &&
-	job_epilog_start_finish_clean $jobid
-'
-
-test_expect_success 'rabbit jobs run even with --requires with fluxion scheduling disabled' '
-	JOBID1=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
-		name=project1" --requires="not foo and not bar" -N1 -n1 hostname) &&
-	JOBID2=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
-		name=project1" --requires=^foo -N1 -n1 hostname) &&
-	JOBID3=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
-		name=project1" --requires=-foo -N1 -n1 hostname) &&
-	JOBID4=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
-		name=project1" --requires="not (foo and bar)" -N1 -n1 hostname) &&
-	flux job wait-event -vt 10 ${JOBID1} jobspec-update &&
-	flux job wait-event -vt 10 ${JOBID2} jobspec-update &&
-	flux job wait-event -vt 10 ${JOBID3} jobspec-update &&
-	flux job wait-event -vt 10 ${JOBID4} jobspec-update &&
-	flux job wait-event -vt 10 ${JOBID1} alloc &&
-	flux job wait-event -vt 10 ${JOBID2} alloc &&
-	flux job wait-event -vt 10 ${JOBID3} alloc &&
-	flux job wait-event -vt 10 ${JOBID4} alloc &&
-	flux job wait-event -vt 10 -m status=0 ${JOBID1} finish &&
-	flux job wait-event -vt 10 -m status=0 ${JOBID2} finish &&
-	flux job wait-event -vt 10 -m status=0 ${JOBID3} finish &&
-	flux job wait-event -vt 10 -m status=0 ${JOBID4} finish &&
-	flux job wait-event -vt 20 ${JOBID1} clean &&
-	flux job wait-event -vt 20 ${JOBID2} clean &&
-	flux job wait-event -vt 20 ${JOBID3} clean &&
-	flux job wait-event -vt 20 ${JOBID4} clean &&
-	flux job attach $JOBID1 &&
-	flux job attach $JOBID2 &&
-	flux job attach $JOBID3 &&
-	flux job attach $JOBID4 &&
-	sleep 2 &&
-	${RPC} "dws.status" | jq -e .workflows &&
-	${RPC} "dws.status" | jq -e ".workflows | length == 0"
-'
-
 test_expect_success 'load fluxion with rabbits' '
-	flux cancel ${DWS_JOBID} &&
+	flux config reload &&
 	flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-rabbitmapping.py > rabbits.json &&
 	flux R encode -l | flux python ${FLUX_SOURCE_DIR}/src/cmd/flux-dws2jgf.py \
 	--no-validate rabbits.json | jq . > R.local &&
@@ -277,6 +191,39 @@ test_expect_success 'job requesting copy-offload in DW string works' '
 	flux job info ${jobid} rabbit_teardown_timing &&
 	flux job info ${jobid} rabbit_datamovements | jq "length == 0" &&
 	flux job info ${jobid} rabbit_container_log
+'
+test_expect_success 'rabbit jobs run even with --requires' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+		name=project1" --requires="not foo and not bar" -N1 -n1 hostname) &&
+	walk_job_through_prolog $jobid &&
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	job_epilog_start_finish_clean $jobid &&
+	sleep 2 &&
+	${RPC} "dws.status" | jq -e .workflows &&
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+'
+
+test_expect_success 'rabbit jobs run even with --requires=^foo' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs \
+		name=project1" --requires=^foo -N1 -n1 hostname) &&
+	walk_job_through_prolog $jobid &&
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	job_epilog_start_finish_clean $jobid &&
+	sleep 2 &&
+	${RPC} "dws.status" | jq -e .workflows &&
+	${RPC} "dws.status" | jq -e ".workflows | length == 0"
+'
+
+test_expect_success 'inspection of resources while job running passes' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 -t200 sleep 30) &&
+	walk_job_through_prolog $jobid &&
+	kubectl get clientmounts -A &&
+	kubectl get clientmounts -A -oyaml &&
+	flux python ${SHARNESS_TEST_SRCDIR}/scripts/coral2_inspection.py $jobid $DWS_MODULE_PATH &&
+	flux cancel $jobid &&
+	flux job wait-event -t 3 ${jobid} exception &&
+	job_epilog_start_finish_clean $jobid
 '
 
 test_expect_success 'revert changes to containerprofile' '
