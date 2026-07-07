@@ -1,3 +1,10 @@
+flux-coral2 0.36.0 - 2026-07-07
+-------------------------------
+
+### Fixes
+ * dws2jgf: do not output any ranks in `resource.exclude` (#491)
+
+
 flux-coral2 0.35.0 - 2026-06-05
 -------------------------------
 
