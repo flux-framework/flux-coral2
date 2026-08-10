@@ -161,7 +161,12 @@ class JobspecModifier(abc.ABC):
     def __init__(self, resources, min_size):
         self.resources = copy.deepcopy(resources)
         self._min_size = min_size
-        self.ssd_resources = {"type": "ssd", "count": 0, "exclusive": True}
+        self.ssd_resources = {
+            "type": "ssd",
+            "count": 0,
+            "unit": "GiB",
+            "exclusive": False,
+        }
         self.limits = ResourceLimits()
         self.nodecount = 1
 
