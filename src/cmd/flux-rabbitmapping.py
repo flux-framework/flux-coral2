@@ -42,11 +42,16 @@ def populate_from_storages(storages, rabbit_mapping):
                     f"connected to {compute_name} but systemconfiguration gives "
                     f"{rabbit_mapping['computes'].get(compute_name)}"
                 )
-            capacity = nnf.get("status", {}).get("capacity", 0)
-            max_capacity = max(capacity, max_capacity)
-            if capacity == 0:
-                capacity = max_capacity
-            rabbit_mapping["rabbits"][nnf_name]["capacity"] = capacity
+        # status.capacity is free (not total) bytes; sum the per-device
+        # capacities to get the rabbit's total raw capacity instead.
+        capacity = sum(
+            device.get("capacity", 0)
+            for device in nnf.get("status", {}).get("devices", [])
+        )
+        max_capacity = max(capacity, max_capacity)
+        if capacity == 0:
+            capacity = max_capacity
+        rabbit_mapping["rabbits"][nnf_name]["capacity"] = capacity
     return max_capacity
 
 
