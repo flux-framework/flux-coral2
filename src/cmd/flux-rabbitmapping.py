@@ -30,8 +30,13 @@ def initialize_from_systemconfig(sysconfig):
 
 
 def populate_from_storages(storages, rabbit_mapping):
-    """Populate the rabbit_mapping dict using data from Storage resources."""
+    """Populate the rabbit_mapping dict using data from Storage resources.
+
+    Returns the maximum per-rabbit capacity and a dict mapping rabbit name
+    to its reported ``status.capacity`` (free bytes).
+    """
     max_capacity = 0
+    free_capacity = {}
     for nnf in storages["items"]:
         nnf_name = nnf["metadata"]["name"]
         for compute in nnf["status"]["access"].get("computes", []):
@@ -52,7 +57,8 @@ def populate_from_storages(storages, rabbit_mapping):
         if capacity == 0:
             capacity = max_capacity
         rabbit_mapping["rabbits"][nnf_name]["capacity"] = capacity
-    return max_capacity
+        free_capacity[nnf_name] = nnf.get("status", {}).get("capacity", 0)
+    return max_capacity, free_capacity
 
 
 def reduce_capacity_by_servers(k8s_api, rabbit_mapping):
@@ -87,6 +93,25 @@ def reduce_capacity_by_servers(k8s_api, rabbit_mapping):
             current_capacity = rabbit_mapping["rabbits"][rabbit_name].get("capacity", 0)
             rabbit_mapping["rabbits"][rabbit_name]["capacity"] = max(
                 0, current_capacity - alloc_amount
+            )
+
+
+def warn_capacity_below_free(rabbit_mapping, free_capacity):
+    """Warn if a rabbit's capacity is below its reported free capacity.
+
+    ``status.capacity`` is free bytes, which already excludes external
+    allocations, so total-minus-external must never dip below it. A
+    violation means our accounting double-counted or the Storage data is
+    inconsistent.
+    """
+    for rabbit_name, free in free_capacity.items():
+        capacity = rabbit_mapping["rabbits"].get(rabbit_name, {}).get("capacity", 0)
+        if capacity < free:
+            print(
+                f"warning: rabbit {rabbit_name} capacity {capacity} is below its "
+                f"reported free capacity {free} after accounting for external "
+                f"allocations",
+                file=sys.stderr,
             )
 
 
@@ -137,7 +162,7 @@ def main():
     storages = k8s_api.list_cluster_custom_object(
         crd.RABBIT_CRD.group, crd.RABBIT_CRD.version, crd.RABBIT_CRD.plural
     )
-    max_capacity = populate_from_storages(storages, rabbit_mapping)
+    max_capacity, free_capacity = populate_from_storages(storages, rabbit_mapping)
     # go back through sysconfig, make sure capacity is there for all resources
     for nnf in sysconfig["spec"]["storageNodes"]:
         nnf_name = nnf["name"]
@@ -146,6 +171,7 @@ def main():
     # reduce capacity by external allocations from Servers objects
     if not args.ignore_external_allocations:
         reduce_capacity_by_servers(k8s_api, rabbit_mapping)
+        warn_capacity_below_free(rabbit_mapping, free_capacity)
     json.dump(rabbit_mapping, sys.stdout, indent=args.indent, sort_keys=args.nosort)
 
 
