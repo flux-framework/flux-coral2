@@ -274,3 +274,19 @@ allocation of rabbits, especially for node-local file systems like XFS.
 
 The flag is only available on systems with the ``flux-coral2`` package installed.
 On any such system, run ``flux alloc --help=coral2-chassis`` for documentation.
+
+Rabbit Cores
+~~~~~~~~~~~~
+
+The ``--coral2-rabbit-cores`` flag to :core:man1:`flux-batch`, :core:man1:`flux-alloc`,
+:core:man1:`flux-run`, and :core:man1:`flux-submit` is an **experimental** option
+for allocating compute cores on the rabbits themselves, in addition to the compute
+nodes. It takes a positive integer, the number of cores to allocate on each rabbit
+associated with the job.
+
+Because rabbits are allocated per chassis, ``--coral2-rabbit-cores`` requires that
+the ``--coral2-chassis`` flag also be set; the requested cores are reserved on the
+rabbit in each allocated chassis.
+
+The flag is only available on systems with the ``flux-coral2`` package installed.
+On any such system, run ``flux alloc --help=coral2-rabbit-cores`` for documentation.
