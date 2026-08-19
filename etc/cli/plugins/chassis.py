@@ -37,6 +37,13 @@ class Coral2ChassisPlugin(CLIPlugin):
     be initialized with information about chassis layout. Otherwise an exception
     will be raised with a message about "chassis" not being a known resource type.
 
+    This plugin also provides an EXPERIMENTAL ``--coral2-rabbit-cores`` flag, which
+    takes a positive integer and allocates that many compute cores on each rabbit
+    associated with the job, in addition to the compute nodes. Because rabbits are
+    allocated per chassis, ``--coral2-rabbit-cores`` requires that
+    ``--coral2-chassis`` also be set; the requested cores are reserved on the rabbit
+    in each allocated chassis.
+
     EXAMPLES
     --------
 
@@ -47,6 +54,10 @@ class Coral2ChassisPlugin(CLIPlugin):
     Request 200 nodes split evenly across 20 chassis:
 
     ``flux alloc -N200 --coral2-chassis=20 -q myqueue /bin/true``
+
+    Request 32 nodes across 2 chassis, with 4 cores on each chassis's rabbit:
+
+    ``flux alloc -N32 --coral2-chassis=2 --coral2-rabbit-cores=4 -q myqueue /bin/true``
     """
 
     def __init__(self, prog, prefix="coral2"):
