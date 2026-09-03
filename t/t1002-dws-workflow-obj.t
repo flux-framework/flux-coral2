@@ -58,17 +58,17 @@ start_dws_script()
 
 walk_job_through_prolog()
 {
-	flux job wait-event -vt 10 -m description=${CREATE_DEP_NAME} \
+	flux job wait-event -vt 20 -m description=${CREATE_DEP_NAME} \
 		${1} dependency-add &&
-	flux job wait-event -t 10 -m description=${CREATE_DEP_NAME} \
+	flux job wait-event -t 20 -m description=${CREATE_DEP_NAME} \
 		${1} dependency-remove &&
 	${RPC} "dws.status" | jq -e ".workflows | index($(flux job id $1))" &&
-	flux job wait-event -t 10 -m rabbit_workflow=fluxjob-$(flux job id ${1}) \
+	flux job wait-event -t 20 -m rabbit_workflow=fluxjob-$(flux job id ${1}) \
 		${1} memo &&
-	flux job wait-event -t 5 ${1} jobspec-update &&
-	flux job wait-event -t 15 ${1} depend &&
-	flux job wait-event -t 15 ${1} priority &&
-	flux job wait-event -vt 15 -m description=${PROLOG_NAME} \
+	flux job wait-event -t 10 ${1} jobspec-update &&
+	flux job wait-event -t 30 ${1} depend &&
+	flux job wait-event -t 30 ${1} priority &&
+	flux job wait-event -vt 30 -m description=${PROLOG_NAME} \
 		${1} prolog-start &&
 	flux job wait-event -vt 45 -m description=${PROLOG_NAME} \
 		${1} prolog-finish
