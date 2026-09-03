@@ -24,7 +24,10 @@ fi
 
 test_expect_success 'smoke test to ensure storages are live' '
     kubectl get storages kind-worker2 -ojson | jq -e ".spec.mode == \"Live\"" &&
-    kubectl get storages kind-worker3 -ojson | jq -e ".spec.mode == \"Live\""
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.status == \"Ready\"" &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".spec.mode == \"Live\"" &&
+    kubectl get storages kind-worker3 -ojson | jq -e ".status.status == \"Ready\"" &&
+    kubectl get storages kind-worker2 -ojson | jq -e ".status.access.computes[0].status == \"Ready\""
 '
 
 test_expect_success 'job-manager: load alloc-bypass plugin' '

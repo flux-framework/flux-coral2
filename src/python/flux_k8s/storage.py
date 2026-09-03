@@ -267,7 +267,12 @@ def init_rabbits(k8s_api, handle, watchers, drain_queues):
     manager = RabbitManager(handle, allowlist)
     resource_version = 0
     for rabbit in api_response["items"]:
-        resource_version = rabbit["metadata"]["resourceVersion"]
+        try:  # resourceVersion should be an integer we can compare; if not, ignore
+            resource_version = max(
+                resource_version, int(rabbit["metadata"]["resourceVersion"])
+            )
+        except (TypeError, ValueError):
+            pass
         manager.rabbit_state_change_cb(
             {"object": rabbit},
         )
