@@ -1,3 +1,18 @@
+flux-coral2 0.37.0 - 2026-09-04
+-------------------------------
+
+### Fixes
+ * rabbitmapping: do not double-count allocations (#497)
+ * rabbitmapping: capacity check (#501)
+ * flux_k8s: compare `storage` resourceVersions (#500)
+
+### Build/Testsuite/Documentation
+ * docs: document the `--coral2-rabbit-cores` option (#498)
+
+### Cleanup
+ * dws: remove `--disable-fluxion` logic (#494)
+
+
 flux-coral2 0.36.0 - 2026-07-07
 -------------------------------
 
