@@ -134,7 +134,7 @@ test_expect_success 'delete example fluxjob systemstorage' '
 	kubectl delete nnfsystemstorage fluxjob-example
 '
 
-test_expect_success 'flux-rabbitmapping capacity never goes negative' '
+test_expect_success 'flux-rabbitmapping warns on stderr when capacity is below free' '
 	cat > huge_systemstorage.yaml <<-EOF &&
 apiVersion: nnf.cray.hpe.com/v1alpha11
 kind: NnfSystemStorage
@@ -155,7 +155,9 @@ spec:
     kind: NnfStorageProfile
 EOF
 	kubectl apply -f huge_systemstorage.yaml &&
-	flux python ${CMD} -i2 > rabbits-huge-alloc.json &&
+	flux python ${CMD} -i2 > rabbits-huge-alloc.json 2> rabbits-huge-alloc.err &&
+	grep "rabbit kind-worker2 capacity 0 is below its reported free capacity" rabbits-huge-alloc.err &&
+	! grep "below its reported free capacity" rabbits-huge-alloc.json &&
 	capacity=$(jq ".rabbits[\"kind-worker2\"].capacity" rabbits-huge-alloc.json) &&
 	test $capacity -eq 0
 '
