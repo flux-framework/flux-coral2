@@ -69,9 +69,6 @@ class Coral2Graph(FluxionResourceGraphV1):
         self._chassis_ids = 0
         self._cluster_name = cluster_name
         self._rank_to_children = get_node_children(rv1["execution"]["R_lite"])
-        self._rank_to_properties = get_node_properties(
-            rv1["execution"].get("properties", {})
-        )
         # try reading in resource_exclude as an IDset and fall back to hostlist
         try:
             # this works even if resource_exclude is the empty string
@@ -96,7 +93,12 @@ class Coral2Graph(FluxionResourceGraphV1):
             self._add_and_tick_uniq_id(vtx, edg)
 
     def _encode_rabbit_as_compute_node(
-        self, parent_id, path, rank, children, hostname, properties
+        self,
+        parent_id,
+        path,
+        rank,
+        children,
+        hostname,
     ):
         path = f"{path}/{hostname}"
         vtx = ElCapResourcePoolV1(
@@ -105,7 +107,6 @@ class Coral2Graph(FluxionResourceGraphV1):
             name=hostname,
             rank=rank,
             exclusive=True,
-            properties=properties,
             path=path,
         )
         edg = FluxionResourceRelationshipV1(parent_id, vtx.get_id())
@@ -140,7 +141,7 @@ class Coral2Graph(FluxionResourceGraphV1):
                     index,
                     self._rank_to_children[index],
                     node,
-                    self._rank_to_properties.get(index, {}),
+                    None,
                 )
         # if the rabbit itself is in R, add it to the chassis as well,
         # with type 'storage_node'
@@ -155,7 +156,6 @@ class Coral2Graph(FluxionResourceGraphV1):
                 index,
                 self._rank_to_children[index],
                 rabbit_name,
-                self._rank_to_properties.get(index, {}),
             )
         self._chassis_ids += 1
 
@@ -183,7 +183,7 @@ class Coral2Graph(FluxionResourceGraphV1):
                     rank,
                     self._rank_to_children[rank],
                     node,
-                    self._rank_to_properties.get(rank, {}),
+                    None,
                 )
 
 
@@ -200,16 +200,6 @@ def get_node_children(r_lite):
         else:
             rank_to_children[rank] = entry["children"]
     return rank_to_children
-
-
-def get_node_properties(properties):
-    """Return a mapping from rank to properties."""
-    rank_to_property = {}
-    for prop_name, idset_str in properties.items():
-        for rank in IDset(idset_str):
-            properties = rank_to_property.setdefault(rank, {})
-            properties[prop_name] = ""
-    return rank_to_property
 
 
 def to_gibibytes(bytecount):
