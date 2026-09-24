@@ -14,8 +14,18 @@ parser.add_argument("--post-run-fail", action="store_true")
 parser.add_argument("--teardown-hang", action="store_true")
 parser.add_argument("--exclude", default="")
 parser.add_argument("--bad-rpc", action="store_true")
+parser.add_argument("--double-resource-update", action="store_true")
 
 args = parser.parse_args()
+
+
+def log_resource_update_response(fut):
+    try:
+        fut.get()
+    except OSError as exc:
+        print(f"resource-update RPC failed: {exc.strerror}")
+    else:
+        print("resource-update RPC succeeded")
 
 
 def create_cb(fh, t, msg, arg):
@@ -38,14 +48,15 @@ def create_cb(fh, t, msg, arg):
             payload={"id": msg.payload["jobid"]},
         )
     else:
-        fh.rpc(
-            "job-manager.dws.resource-update",
-            payload={
-                "id": msg.payload["jobid"],
-                "resources": msg.payload["resources"],
-                "exclude": {"not": [{"properties": [args.exclude]}]},
-            },
-        )
+        for _ in range(2 if args.double_resource_update else 1):
+            fh.rpc(
+                "job-manager.dws.resource-update",
+                payload={
+                    "id": msg.payload["jobid"],
+                    "resources": msg.payload["resources"],
+                    "exclude": {"not": [{"properties": [args.exclude]}]},
+                },
+            ).then(log_resource_update_response)
 
 
 def setup_cb(fh, t, msg, arg):

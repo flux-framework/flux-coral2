@@ -87,6 +87,7 @@ class WorkflowInfo:
         self.toredown = False  # True if workflows has been moved to teardown
         self.deleted = False  # True if delete request has been sent to k8s
         self.epilog_removed = False  # True if jobtap epilog was already removed
+        self.resource_update_sent = False  # True if resource-update RPC was sent
         self.state_timer = None  # Flux timer-watcher for a state
         self._failures = Hostlist()  # nodes that failed rabbit creation or mounting
         self.hlist = None  # R hostlist for the job
