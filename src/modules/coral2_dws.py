@@ -804,6 +804,10 @@ def handle_proposal_state(workflow, winfo, handle, k8s_api):
 
     Look at directivebreakdown object to see how to modify the job's jobspec.
     """
+    if winfo.resource_update_sent:
+        # this callback can fire multiple times, but the jobtap plugin's
+        # jobspec update is cumulative, so the RPC must only be sent once
+        return
     resources = winfo.resources
     if resources is None:
         resources = flux.job.kvslookup.job_kvs_lookup(handle, winfo.jobid)["jobspec"][
@@ -829,12 +833,13 @@ def handle_proposal_state(workflow, winfo, handle, k8s_api):
     if errmsg is not None:
         payload["errmsg"] = errmsg
     if resources is not None:
-        # resources is None if the resource-update has already been applied
+        # resources may be None if the resource-update has already been applied
         handle.rpc(
             "job-manager.dws.resource-update",
             payload=payload,
         ).then(log_rpc_response, winfo.jobid)
         save_workflow_to_kvs(handle, winfo.jobid, workflow)
+        winfo.resource_update_sent = True
 
 
 def handle_workflow_errors(workflow, winfo, handle):
