@@ -30,6 +30,7 @@
 
 #define PLUGIN_NAME "dws"
 #define CREATE_DEP_NAME "dws-create"
+#define CREATE_DEP_REMOVED_AUX "dws_create_dep_removed"
 #define SETUP_PROLOG_NAME "dws-setup"
 #define DWS_EPILOG_NAME "dws-epilog"
 #define EPILOG_ABORT_EXCEPTION "dws-epilog-timeout"
@@ -759,6 +760,12 @@ static void resource_update_msg_cb (flux_t *h,
             flux_log_error (h, PLUGIN_NAME " %s: flux_respond", __FUNCTION__);
         return;
     }
+    if (flux_jobtap_job_aux_get (p, (flux_jobid_t)jobid, CREATE_DEP_REMOVED_AUX)) {
+        // the resource-update has already been applied to this job, ignore
+        // this duplicate RPC rather than posting a second jobspec-update
+        errmsg = "dws-create dependency already removed";
+        goto error;
+    }
     if (!(job = flux_jobtap_job_lookup (p, jobid))
         || flux_plugin_arg_unpack (job, FLUX_PLUGIN_ARG_IN, "{s:i}", "state", &state) < 0
         || state != FLUX_JOB_STATE_DEPEND) {
@@ -793,6 +800,12 @@ static void resource_update_msg_cb (flux_t *h,
     if (flux_jobtap_dependency_remove (p, jobid, CREATE_DEP_NAME) < 0) {
         errmsg = "Failed to remove dependency for job";
         flux_log_error (h, CREATE_DEP_NAME ": %s %s", errmsg, idf58 (jobid));
+        goto error;
+    }
+    if (flux_jobtap_job_aux_set (p, (flux_jobid_t)jobid, CREATE_DEP_REMOVED_AUX, (void *)1, NULL)
+        < 0) {
+        errmsg = "Failed to set " CREATE_DEP_REMOVED_AUX " aux for job";
+        flux_log_error (h, "%s %s", errmsg, idf58 (jobid));
         goto error;
     }
 
