@@ -52,7 +52,6 @@ class Coral2Graph(FluxionResourceGraphV1):
         rv1,
         rabbit_mapping,
         r_hostlist,
-        chunks_per_nnf,
         cluster_name,
         resource_exclude,
     ):
@@ -65,7 +64,6 @@ class Coral2Graph(FluxionResourceGraphV1):
         """
         self._rabbit_mapping = rabbit_mapping
         self._r_hostlist = r_hostlist
-        self._chunks_per_nnf = chunks_per_nnf
         self._chassis_ids = 0
         self._cluster_name = cluster_name
         self._rank_to_children = get_node_children(rv1["execution"]["R_lite"])
@@ -83,17 +81,16 @@ class Coral2Graph(FluxionResourceGraphV1):
 
     def _encode_ssds(self, parent_id, parent_path, capacity):
         res_type = "ssd"
-        for i in range(self._chunks_per_nnf):
-            vtx = ElCapResourcePoolV1(
-                self._uniqId,
-                res_type,
-                unit="GiB",
-                size=to_gibibytes(capacity // self._chunks_per_nnf),
-                status=1,  # status=1 marks the ssds as 'down' initially
-                path=f"{parent_path}/{res_type}{i}",
-            )
-            edg = ElCapResourceRelationshipV1(parent_id, vtx.get_id())
-            self._add_and_tick_uniq_id(vtx, edg)
+        vtx = ElCapResourcePoolV1(
+            self._uniqId,
+            res_type,
+            unit="GiB",
+            size=to_gibibytes(capacity),
+            status=1,  # status=1 marks the ssds as 'down' initially
+            path=f"{parent_path}/{res_type}0",
+        )
+        edg = ElCapResourceRelationshipV1(parent_id, vtx.get_id())
+        self._add_and_tick_uniq_id(vtx, edg)
 
     def _encode_rabbit_as_compute_node(
         self, parent_id, path, rank, children, hostname, properties
@@ -120,7 +117,7 @@ class Coral2Graph(FluxionResourceGraphV1):
             self._uniqId,
             "chassis",
             iden=self._chassis_ids,
-            properties={"rabbit": rabbit_name, "ssdcount": str(self._chunks_per_nnf)},
+            properties={"rabbit": rabbit_name},
             path=path,
         )
         edg = ElCapResourceRelationshipV1(parent_id, vtx.get_id())
@@ -217,13 +214,9 @@ def to_gibibytes(bytecount):
     return bytecount // (1024**3)
 
 
-def encode(
-    rv1, rabbit_mapping, r_hostlist, chunks_per_nnf, cluster_name, resource_exclude
-):
+def encode(rv1, rabbit_mapping, r_hostlist, cluster_name, resource_exclude):
     """Build the CORAL2 graph and store its JGF under rv1["scheduling"]."""
-    graph = Coral2Graph(
-        rv1, rabbit_mapping, r_hostlist, chunks_per_nnf, cluster_name, resource_exclude
-    )
+    graph = Coral2Graph(rv1, rabbit_mapping, r_hostlist, cluster_name, resource_exclude)
     rv1["scheduling"] = graph.to_JSON()
     return rv1
 
@@ -292,12 +285,8 @@ def main():
     parser.add_argument(
         "-c",
         "--chunks-per-nnf",
-        help=(
-            "The number of ways to split a rabbit/nnf for Flux scheduling. "
-            "Higher numbers allow finer-grained scheduling at the possible cost "
-            "of scheduler performance."
-        ),
-        default=36,
+        help=argparse.SUPPRESS,
+        default=None,
         metavar="N",
         type=int,
     )
@@ -357,6 +346,8 @@ def main():
         sys.exit(
             "Could not fetch rabbit.mapping from config, Flux may be misconfigured"
         )
+    if args.chunks_per_nnf:
+        LOGGER.warning("-c / --chunks-per-nnf is deprecated and has no effect")
     with open(args.rabbitmapping, "r", encoding="utf8") as rabbitmap_fd:
         rabbit_mapping = json.load(rabbitmap_fd)
     r_hostlist = Hostlist(input_r["execution"]["nodelist"])
@@ -370,7 +361,6 @@ def main():
         input_r,
         rabbit_mapping,
         r_hostlist,
-        args.chunks_per_nnf,
         args.cluster_name,
         fetch_resource_exclude(args.from_config),
     )

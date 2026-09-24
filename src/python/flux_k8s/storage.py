@@ -70,10 +70,9 @@ class RabbitManager:
         for vertex in nodes:
             metadata = vertex["metadata"]
             if metadata["type"] == "chassis" and "rabbit" in metadata["properties"]:
-                self._rabbit_rpaths[metadata["properties"]["rabbit"]] = (
-                    metadata["paths"]["containment"],
-                    int(metadata["properties"].get("ssdcount", 36)),
-                )
+                self._rabbit_rpaths[metadata["properties"]["rabbit"]] = metadata[
+                    "paths"
+                ]["containment"]
             if metadata["type"] == "node":
                 self._compute_rpaths[metadata["name"]] = metadata["paths"][
                     "containment"
@@ -102,21 +101,20 @@ class RabbitManager:
 
     def _mark_rabbit(self, status, name):
         """Send RPCs to mark ssd vertices as up or down."""
-        resource_path, ssdcount = self._rabbit_rpaths[name]
+        resource_path = self._rabbit_rpaths[name]
         if status == _READY_STATUS:
             LOGGER.debug("Marking rabbit %s as up", name)
             status = "up"
         else:
             LOGGER.debug("Marking rabbit %s as down, status is %s", name, status)
             status = "down"
-        for ssdnum in range(ssdcount):
-            payload = {
-                "resource_path": resource_path + f"/ssd{ssdnum}",
-                "status": status,
-            }
-            self.handle.rpc("sched-fluxion-resource.set_status", payload).then(
-                log_rpc_response
-            )
+        payload = {
+            "resource_path": resource_path + "/ssd0",
+            "status": status,
+        }
+        self.handle.rpc("sched-fluxion-resource.set_status", payload).then(
+            log_rpc_response
+        )
 
     def _drain_offline_nodes(self, rabbit):
         """Drain nodes listed as offline in a given Storage resource.

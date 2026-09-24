@@ -35,8 +35,7 @@
             "type": "chassis",
             "id": 0,
             "properties": {
-              "rabbit": "kind-worker2",
-              "ssdcount": "36"
+              "rabbit": "kind-worker2"
             },
             "paths": {
               "containment": "/compute/chassis0"
@@ -48,7 +47,7 @@
           "metadata": {
             "type": "ssd",
             "unit": "GiB",
-            "size": 1024,
+            "size": 36864,
             "paths": {
               "containment": "/compute/chassis0/ssd0"
             },
@@ -57,426 +56,6 @@
         },
         {
           "id": "3",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd1"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "4",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd2"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "5",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd3"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "6",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd4"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "7",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd5"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "8",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd6"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "9",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd7"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "10",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd8"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "11",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd9"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "12",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd10"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "13",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd11"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "14",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd12"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "15",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd13"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "16",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd14"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "17",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd15"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "18",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd16"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "19",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd17"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "20",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd18"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "21",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd19"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "22",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd20"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "23",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd21"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "24",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd22"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "25",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd23"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "26",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd24"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "27",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd25"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "28",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd26"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "29",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd27"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "30",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd28"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "31",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd29"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "32",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd30"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "33",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd31"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "34",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd32"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "35",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd33"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "36",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd34"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "37",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis0/ssd35"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "38",
           "metadata": {
             "type": "node",
             "name": "compute-01",
@@ -487,7 +66,7 @@
           }
         },
         {
-          "id": "39",
+          "id": "4",
           "metadata": {
             "type": "core",
             "id": 0,
@@ -498,7 +77,7 @@
           }
         },
         {
-          "id": "40",
+          "id": "5",
           "metadata": {
             "type": "core",
             "id": 1,
@@ -509,7 +88,7 @@
           }
         },
         {
-          "id": "41",
+          "id": "6",
           "metadata": {
             "type": "core",
             "id": 2,
@@ -520,7 +99,7 @@
           }
         },
         {
-          "id": "42",
+          "id": "7",
           "metadata": {
             "type": "core",
             "id": 3,
@@ -531,7 +110,7 @@
           }
         },
         {
-          "id": "43",
+          "id": "8",
           "metadata": {
             "type": "core",
             "id": 4,
@@ -542,7 +121,7 @@
           }
         },
         {
-          "id": "44",
+          "id": "9",
           "metadata": {
             "type": "node",
             "name": "compute-02",
@@ -553,7 +132,7 @@
           }
         },
         {
-          "id": "45",
+          "id": "10",
           "metadata": {
             "type": "core",
             "id": 0,
@@ -564,7 +143,7 @@
           }
         },
         {
-          "id": "46",
+          "id": "11",
           "metadata": {
             "type": "core",
             "id": 1,
@@ -575,7 +154,7 @@
           }
         },
         {
-          "id": "47",
+          "id": "12",
           "metadata": {
             "type": "core",
             "id": 2,
@@ -586,7 +165,7 @@
           }
         },
         {
-          "id": "48",
+          "id": "13",
           "metadata": {
             "type": "core",
             "id": 3,
@@ -597,7 +176,7 @@
           }
         },
         {
-          "id": "49",
+          "id": "14",
           "metadata": {
             "type": "core",
             "id": 4,
@@ -608,7 +187,7 @@
           }
         },
         {
-          "id": "50",
+          "id": "15",
           "metadata": {
             "type": "node",
             "name": "compute-03",
@@ -619,7 +198,7 @@
           }
         },
         {
-          "id": "51",
+          "id": "16",
           "metadata": {
             "type": "core",
             "id": 0,
@@ -630,7 +209,7 @@
           }
         },
         {
-          "id": "52",
+          "id": "17",
           "metadata": {
             "type": "core",
             "id": 1,
@@ -641,7 +220,7 @@
           }
         },
         {
-          "id": "53",
+          "id": "18",
           "metadata": {
             "type": "core",
             "id": 2,
@@ -652,7 +231,7 @@
           }
         },
         {
-          "id": "54",
+          "id": "19",
           "metadata": {
             "type": "core",
             "id": 3,
@@ -663,7 +242,7 @@
           }
         },
         {
-          "id": "55",
+          "id": "20",
           "metadata": {
             "type": "core",
             "id": 4,
@@ -674,13 +253,12 @@
           }
         },
         {
-          "id": "56",
+          "id": "21",
           "metadata": {
             "type": "chassis",
             "id": 1,
             "properties": {
-              "rabbit": "kind-worker3",
-              "ssdcount": "36"
+              "rabbit": "kind-worker3"
             },
             "paths": {
               "containment": "/compute/chassis1"
@@ -688,11 +266,11 @@
           }
         },
         {
-          "id": "57",
+          "id": "22",
           "metadata": {
             "type": "ssd",
             "unit": "GiB",
-            "size": 1024,
+            "size": 36864,
             "paths": {
               "containment": "/compute/chassis1/ssd0"
             },
@@ -700,427 +278,7 @@
           }
         },
         {
-          "id": "58",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd1"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "59",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd2"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "60",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd3"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "61",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd4"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "62",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd5"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "63",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd6"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "64",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd7"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "65",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd8"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "66",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd9"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "67",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd10"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "68",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd11"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "69",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd12"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "70",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd13"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "71",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd14"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "72",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd15"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "73",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd16"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "74",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd17"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "75",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd18"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "76",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd19"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "77",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd20"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "78",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd21"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "79",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd22"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "80",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd23"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "81",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd24"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "82",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd25"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "83",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd26"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "84",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd27"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "85",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd28"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "86",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd29"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "87",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd30"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "88",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd31"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "89",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd32"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "90",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd33"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "91",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd34"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "92",
-          "metadata": {
-            "type": "ssd",
-            "unit": "GiB",
-            "size": 1024,
-            "paths": {
-              "containment": "/compute/chassis1/ssd35"
-            },
-            "status": 1
-          }
-        },
-        {
-          "id": "93",
+          "id": "23",
           "metadata": {
             "type": "node",
             "name": "compute-04",
@@ -1131,7 +289,7 @@
           }
         },
         {
-          "id": "94",
+          "id": "24",
           "metadata": {
             "type": "core",
             "id": 0,
@@ -1142,7 +300,7 @@
           }
         },
         {
-          "id": "95",
+          "id": "25",
           "metadata": {
             "type": "core",
             "id": 1,
@@ -1153,7 +311,7 @@
           }
         },
         {
-          "id": "96",
+          "id": "26",
           "metadata": {
             "type": "core",
             "id": 2,
@@ -1164,7 +322,7 @@
           }
         },
         {
-          "id": "97",
+          "id": "27",
           "metadata": {
             "type": "core",
             "id": 3,
@@ -1175,7 +333,7 @@
           }
         },
         {
-          "id": "98",
+          "id": "28",
           "metadata": {
             "type": "core",
             "id": 4,
@@ -1186,7 +344,7 @@
           }
         },
         {
-          "id": "99",
+          "id": "29",
           "metadata": {
             "type": "node",
             "name": "nodws0",
@@ -1197,7 +355,7 @@
           }
         },
         {
-          "id": "100",
+          "id": "30",
           "metadata": {
             "type": "core",
             "id": 0,
@@ -1208,7 +366,7 @@
           }
         },
         {
-          "id": "101",
+          "id": "31",
           "metadata": {
             "type": "core",
             "id": 1,
@@ -1219,7 +377,7 @@
           }
         },
         {
-          "id": "102",
+          "id": "32",
           "metadata": {
             "type": "core",
             "id": 2,
@@ -1230,7 +388,7 @@
           }
         },
         {
-          "id": "103",
+          "id": "33",
           "metadata": {
             "type": "core",
             "id": 3,
@@ -1241,7 +399,7 @@
           }
         },
         {
-          "id": "104",
+          "id": "34",
           "metadata": {
             "type": "core",
             "id": 4,
@@ -1252,7 +410,7 @@
           }
         },
         {
-          "id": "105",
+          "id": "35",
           "metadata": {
             "type": "node",
             "name": "nodws1",
@@ -1263,7 +421,7 @@
           }
         },
         {
-          "id": "106",
+          "id": "36",
           "metadata": {
             "type": "core",
             "id": 0,
@@ -1274,7 +432,7 @@
           }
         },
         {
-          "id": "107",
+          "id": "37",
           "metadata": {
             "type": "core",
             "id": 1,
@@ -1285,7 +443,7 @@
           }
         },
         {
-          "id": "108",
+          "id": "38",
           "metadata": {
             "type": "core",
             "id": 2,
@@ -1296,7 +454,7 @@
           }
         },
         {
-          "id": "109",
+          "id": "39",
           "metadata": {
             "type": "core",
             "id": 3,
@@ -1307,7 +465,7 @@
           }
         },
         {
-          "id": "110",
+          "id": "40",
           "metadata": {
             "type": "core",
             "id": 4,
@@ -1318,7 +476,7 @@
           }
         },
         {
-          "id": "111",
+          "id": "41",
           "metadata": {
             "type": "node",
             "name": "nodws2",
@@ -1329,7 +487,7 @@
           }
         },
         {
-          "id": "112",
+          "id": "42",
           "metadata": {
             "type": "core",
             "id": 0,
@@ -1340,7 +498,7 @@
           }
         },
         {
-          "id": "113",
+          "id": "43",
           "metadata": {
             "type": "core",
             "id": 1,
@@ -1351,7 +509,7 @@
           }
         },
         {
-          "id": "114",
+          "id": "44",
           "metadata": {
             "type": "core",
             "id": 2,
@@ -1362,7 +520,7 @@
           }
         },
         {
-          "id": "115",
+          "id": "45",
           "metadata": {
             "type": "core",
             "id": 3,
@@ -1373,7 +531,7 @@
           }
         },
         {
-          "id": "116",
+          "id": "46",
           "metadata": {
             "type": "core",
             "id": 4,
@@ -1384,7 +542,7 @@
           }
         },
         {
-          "id": "117",
+          "id": "47",
           "metadata": {
             "type": "node",
             "name": "nodws3",
@@ -1395,7 +553,7 @@
           }
         },
         {
-          "id": "118",
+          "id": "48",
           "metadata": {
             "type": "core",
             "id": 0,
@@ -1406,7 +564,7 @@
           }
         },
         {
-          "id": "119",
+          "id": "49",
           "metadata": {
             "type": "core",
             "id": 1,
@@ -1417,7 +575,7 @@
           }
         },
         {
-          "id": "120",
+          "id": "50",
           "metadata": {
             "type": "core",
             "id": 2,
@@ -1428,7 +586,7 @@
           }
         },
         {
-          "id": "121",
+          "id": "51",
           "metadata": {
             "type": "core",
             "id": 3,
@@ -1439,7 +597,7 @@
           }
         },
         {
-          "id": "122",
+          "id": "52",
           "metadata": {
             "type": "core",
             "id": 4,
@@ -1450,7 +608,7 @@
           }
         },
         {
-          "id": "123",
+          "id": "53",
           "metadata": {
             "type": "node",
             "name": "nodws4",
@@ -1461,7 +619,7 @@
           }
         },
         {
-          "id": "124",
+          "id": "54",
           "metadata": {
             "type": "core",
             "id": 0,
@@ -1472,7 +630,7 @@
           }
         },
         {
-          "id": "125",
+          "id": "55",
           "metadata": {
             "type": "core",
             "id": 1,
@@ -1483,7 +641,7 @@
           }
         },
         {
-          "id": "126",
+          "id": "56",
           "metadata": {
             "type": "core",
             "id": 2,
@@ -1494,7 +652,7 @@
           }
         },
         {
-          "id": "127",
+          "id": "57",
           "metadata": {
             "type": "core",
             "id": 3,
@@ -1505,7 +663,7 @@
           }
         },
         {
-          "id": "128",
+          "id": "58",
           "metadata": {
             "type": "core",
             "id": 4,
@@ -1516,7 +674,7 @@
           }
         },
         {
-          "id": "129",
+          "id": "59",
           "metadata": {
             "type": "node",
             "name": "nodws5",
@@ -1527,7 +685,7 @@
           }
         },
         {
-          "id": "130",
+          "id": "60",
           "metadata": {
             "type": "core",
             "id": 0,
@@ -1538,7 +696,7 @@
           }
         },
         {
-          "id": "131",
+          "id": "61",
           "metadata": {
             "type": "core",
             "id": 1,
@@ -1549,7 +707,7 @@
           }
         },
         {
-          "id": "132",
+          "id": "62",
           "metadata": {
             "type": "core",
             "id": 2,
@@ -1560,7 +718,7 @@
           }
         },
         {
-          "id": "133",
+          "id": "63",
           "metadata": {
             "type": "core",
             "id": 3,
@@ -1571,7 +729,7 @@
           }
         },
         {
-          "id": "134",
+          "id": "64",
           "metadata": {
             "type": "core",
             "id": 4,
@@ -1596,23 +754,23 @@
           "target": "3"
         },
         {
-          "source": "1",
+          "source": "3",
           "target": "4"
         },
         {
-          "source": "1",
+          "source": "3",
           "target": "5"
         },
         {
-          "source": "1",
+          "source": "3",
           "target": "6"
         },
         {
-          "source": "1",
+          "source": "3",
           "target": "7"
         },
         {
-          "source": "1",
+          "source": "3",
           "target": "8"
         },
         {
@@ -1620,23 +778,23 @@
           "target": "9"
         },
         {
-          "source": "1",
+          "source": "9",
           "target": "10"
         },
         {
-          "source": "1",
+          "source": "9",
           "target": "11"
         },
         {
-          "source": "1",
+          "source": "9",
           "target": "12"
         },
         {
-          "source": "1",
+          "source": "9",
           "target": "13"
         },
         {
-          "source": "1",
+          "source": "9",
           "target": "14"
         },
         {
@@ -1644,480 +802,200 @@
           "target": "15"
         },
         {
-          "source": "1",
+          "source": "15",
           "target": "16"
         },
         {
-          "source": "1",
+          "source": "15",
           "target": "17"
         },
         {
-          "source": "1",
+          "source": "15",
           "target": "18"
         },
         {
-          "source": "1",
+          "source": "15",
           "target": "19"
         },
         {
-          "source": "1",
+          "source": "15",
           "target": "20"
         },
         {
-          "source": "1",
+          "source": "0",
           "target": "21"
         },
         {
-          "source": "1",
+          "source": "21",
           "target": "22"
         },
         {
-          "source": "1",
+          "source": "21",
           "target": "23"
         },
         {
-          "source": "1",
+          "source": "23",
           "target": "24"
         },
         {
-          "source": "1",
+          "source": "23",
           "target": "25"
         },
         {
-          "source": "1",
+          "source": "23",
           "target": "26"
         },
         {
-          "source": "1",
+          "source": "23",
           "target": "27"
         },
         {
-          "source": "1",
+          "source": "23",
           "target": "28"
         },
         {
-          "source": "1",
+          "source": "0",
           "target": "29"
         },
         {
-          "source": "1",
+          "source": "29",
           "target": "30"
         },
         {
-          "source": "1",
+          "source": "29",
           "target": "31"
         },
         {
-          "source": "1",
+          "source": "29",
           "target": "32"
         },
         {
-          "source": "1",
+          "source": "29",
           "target": "33"
         },
         {
-          "source": "1",
+          "source": "29",
           "target": "34"
         },
         {
-          "source": "1",
+          "source": "0",
           "target": "35"
         },
         {
-          "source": "1",
+          "source": "35",
           "target": "36"
         },
         {
-          "source": "1",
+          "source": "35",
           "target": "37"
         },
         {
-          "source": "1",
+          "source": "35",
           "target": "38"
         },
         {
-          "source": "38",
+          "source": "35",
           "target": "39"
         },
         {
-          "source": "38",
+          "source": "35",
           "target": "40"
         },
         {
-          "source": "38",
+          "source": "0",
           "target": "41"
         },
         {
-          "source": "38",
+          "source": "41",
           "target": "42"
         },
         {
-          "source": "38",
+          "source": "41",
           "target": "43"
         },
         {
-          "source": "1",
+          "source": "41",
           "target": "44"
         },
         {
-          "source": "44",
+          "source": "41",
           "target": "45"
         },
         {
-          "source": "44",
+          "source": "41",
           "target": "46"
         },
         {
-          "source": "44",
+          "source": "0",
           "target": "47"
         },
         {
-          "source": "44",
+          "source": "47",
           "target": "48"
         },
         {
-          "source": "44",
+          "source": "47",
           "target": "49"
         },
         {
-          "source": "1",
+          "source": "47",
           "target": "50"
         },
         {
-          "source": "50",
+          "source": "47",
           "target": "51"
         },
         {
-          "source": "50",
+          "source": "47",
           "target": "52"
         },
         {
-          "source": "50",
+          "source": "0",
           "target": "53"
         },
         {
-          "source": "50",
+          "source": "53",
           "target": "54"
         },
         {
-          "source": "50",
+          "source": "53",
           "target": "55"
         },
         {
-          "source": "0",
+          "source": "53",
           "target": "56"
         },
         {
-          "source": "56",
+          "source": "53",
           "target": "57"
         },
         {
-          "source": "56",
+          "source": "53",
           "target": "58"
         },
         {
-          "source": "56",
+          "source": "0",
           "target": "59"
         },
         {
-          "source": "56",
+          "source": "59",
           "target": "60"
         },
         {
-          "source": "56",
+          "source": "59",
           "target": "61"
         },
         {
-          "source": "56",
+          "source": "59",
           "target": "62"
         },
         {
-          "source": "56",
+          "source": "59",
           "target": "63"
         },
         {
-          "source": "56",
+          "source": "59",
           "target": "64"
-        },
-        {
-          "source": "56",
-          "target": "65"
-        },
-        {
-          "source": "56",
-          "target": "66"
-        },
-        {
-          "source": "56",
-          "target": "67"
-        },
-        {
-          "source": "56",
-          "target": "68"
-        },
-        {
-          "source": "56",
-          "target": "69"
-        },
-        {
-          "source": "56",
-          "target": "70"
-        },
-        {
-          "source": "56",
-          "target": "71"
-        },
-        {
-          "source": "56",
-          "target": "72"
-        },
-        {
-          "source": "56",
-          "target": "73"
-        },
-        {
-          "source": "56",
-          "target": "74"
-        },
-        {
-          "source": "56",
-          "target": "75"
-        },
-        {
-          "source": "56",
-          "target": "76"
-        },
-        {
-          "source": "56",
-          "target": "77"
-        },
-        {
-          "source": "56",
-          "target": "78"
-        },
-        {
-          "source": "56",
-          "target": "79"
-        },
-        {
-          "source": "56",
-          "target": "80"
-        },
-        {
-          "source": "56",
-          "target": "81"
-        },
-        {
-          "source": "56",
-          "target": "82"
-        },
-        {
-          "source": "56",
-          "target": "83"
-        },
-        {
-          "source": "56",
-          "target": "84"
-        },
-        {
-          "source": "56",
-          "target": "85"
-        },
-        {
-          "source": "56",
-          "target": "86"
-        },
-        {
-          "source": "56",
-          "target": "87"
-        },
-        {
-          "source": "56",
-          "target": "88"
-        },
-        {
-          "source": "56",
-          "target": "89"
-        },
-        {
-          "source": "56",
-          "target": "90"
-        },
-        {
-          "source": "56",
-          "target": "91"
-        },
-        {
-          "source": "56",
-          "target": "92"
-        },
-        {
-          "source": "56",
-          "target": "93"
-        },
-        {
-          "source": "93",
-          "target": "94"
-        },
-        {
-          "source": "93",
-          "target": "95"
-        },
-        {
-          "source": "93",
-          "target": "96"
-        },
-        {
-          "source": "93",
-          "target": "97"
-        },
-        {
-          "source": "93",
-          "target": "98"
-        },
-        {
-          "source": "0",
-          "target": "99"
-        },
-        {
-          "source": "99",
-          "target": "100"
-        },
-        {
-          "source": "99",
-          "target": "101"
-        },
-        {
-          "source": "99",
-          "target": "102"
-        },
-        {
-          "source": "99",
-          "target": "103"
-        },
-        {
-          "source": "99",
-          "target": "104"
-        },
-        {
-          "source": "0",
-          "target": "105"
-        },
-        {
-          "source": "105",
-          "target": "106"
-        },
-        {
-          "source": "105",
-          "target": "107"
-        },
-        {
-          "source": "105",
-          "target": "108"
-        },
-        {
-          "source": "105",
-          "target": "109"
-        },
-        {
-          "source": "105",
-          "target": "110"
-        },
-        {
-          "source": "0",
-          "target": "111"
-        },
-        {
-          "source": "111",
-          "target": "112"
-        },
-        {
-          "source": "111",
-          "target": "113"
-        },
-        {
-          "source": "111",
-          "target": "114"
-        },
-        {
-          "source": "111",
-          "target": "115"
-        },
-        {
-          "source": "111",
-          "target": "116"
-        },
-        {
-          "source": "0",
-          "target": "117"
-        },
-        {
-          "source": "117",
-          "target": "118"
-        },
-        {
-          "source": "117",
-          "target": "119"
-        },
-        {
-          "source": "117",
-          "target": "120"
-        },
-        {
-          "source": "117",
-          "target": "121"
-        },
-        {
-          "source": "117",
-          "target": "122"
-        },
-        {
-          "source": "0",
-          "target": "123"
-        },
-        {
-          "source": "123",
-          "target": "124"
-        },
-        {
-          "source": "123",
-          "target": "125"
-        },
-        {
-          "source": "123",
-          "target": "126"
-        },
-        {
-          "source": "123",
-          "target": "127"
-        },
-        {
-          "source": "123",
-          "target": "128"
-        },
-        {
-          "source": "0",
-          "target": "129"
-        },
-        {
-          "source": "129",
-          "target": "130"
-        },
-        {
-          "source": "129",
-          "target": "131"
-        },
-        {
-          "source": "129",
-          "target": "132"
-        },
-        {
-          "source": "129",
-          "target": "133"
-        },
-        {
-          "source": "129",
-          "target": "134"
         }
       ]
     }
