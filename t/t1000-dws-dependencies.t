@@ -420,4 +420,35 @@ test_expect_success 'job-manager: epilog-start event occurs after finish event' 
 	[ -n "$line1" ] && [ -n "$line2" ] && [ "$line1" -lt "$line2" ]
 '
 
+test_expect_success 'job-manager: dws jobtap plugin ignores duplicate resource-update RPC' '
+	create_jobid=$(flux submit -t 8 --output=dws19.out --error=dws19.out \
+		flux python ${DWS_SCRIPT} --double-resource-update) &&
+	flux job wait-event -vt 15 -p guest.exec.eventlog ${create_jobid} shell.start &&
+	# hold an unrelated job and depend on it, so that the dws job stays in
+	# DEPEND state long enough to receive both resource-update RPCs
+	dep_jobid=$(flux submit --urgency=hold hostname) &&
+	jobid=$(flux submit --dependency=afterany:${dep_jobid} -S dw="foo" hostname) &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-add &&
+	flux job wait-event -vt 5 -m description=${DEPENDENCY_NAME} \
+		${jobid} dependency-remove &&
+	flux job urgency ${dep_jobid} default &&
+	flux job wait-event -vt 5 ${dep_jobid} clean &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-start &&
+	flux job wait-event -vt 5 -m description=${PROLOG_NAME} \
+		${jobid} prolog-finish &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-start &&
+	flux job wait-event -vt 5 -m description=${EPILOG_NAME} \
+		${jobid} epilog-finish &&
+	flux job wait-event -vt 1 -m status=0 ${jobid} finish &&
+	flux job wait-event -vt 5 ${jobid} clean &&
+	flux job wait-event -vt 5 ${create_jobid} clean &&
+	grep "resource-update RPC failed: dws-create dependency already removed" \
+		dws19.out &&
+	test $(grep -c "resource-update RPC succeeded" dws19.out) -eq 1 &&
+	test $(flux job eventlog ${jobid} | grep -c jobspec-update) -eq 1
+'
+
 test_done
