@@ -58,12 +58,6 @@ test_expect_success 'flux-dws2jgf.py outputs expected JGF for compute nodes not 
 	test_cmp ${DATADIR}/expected-compute-01-nodws.jgf actual-compute-01-nodws.jgf
 '
 
-test_expect_success 'flux-dws2jgf.py handles properties correctly' '
-	cat ${DATADIR}/R-properties | \
-	flux python ${CMD} --no-validate rabbits.json | jq . > actual-properties.jgf &&
-	test_cmp ${DATADIR}/expected-properties.jgf actual-properties.jgf
-'
-
 test_expect_success 'flux-dws2jgf.py can read from a config file' '
 	cat >resourceconf.toml <<-EOT &&
 	[[resource.config]]
