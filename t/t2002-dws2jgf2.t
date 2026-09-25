@@ -26,22 +26,13 @@ test_expect_success 'dws2jgf works from config' '
 	test -s from_config.jgf
 '
 
-test_expect_success 'dws2jgf sets properties on nodes not in rabbitmapping' "
-	jq -e '.graph.nodes[].metadata | select(.name==\"somecluster42\") \
-		| .properties.mi300a == \"\"' from_config.jgf &&
-	jq -e '.graph.nodes[].metadata | select(.name==\"somecluster43\") \
-		| .properties.mi300a == \"\"' from_config.jgf
-"
-
-test_expect_success 'dws2jgf sets properties on nodes in rabbitmapping' "
+test_expect_success 'dws2jgf does not set properties on nodes' "
 	jq -e '.graph.nodes[].metadata | select(.name==\"somecluster14\") \
-		| .properties.pci == \"\"' from_config.jgf &&
-	jq -e '.graph.nodes[].metadata | select(.name==\"somecluster15\") \
-		| .properties.pci == \"\"' from_config.jgf &&
-	jq -e '.graph.nodes[].metadata | select(.name==\"somecluster18\") \
-		| .properties.pdebug == \"\"' from_config.jgf &&
-	jq -e '.graph.nodes[].metadata | select(.name==\"somecluster40\") \
-		| .properties.pdebug == \"\"' from_config.jgf
+		| .properties == null' from_config.jgf &&
+	jq -e '.graph.nodes[].metadata | select(.name==\"somecluster42\") \
+		| .properties == null' from_config.jgf &&
+	jq -e '.graph.nodes[].metadata | select(.name==\"somecluster43\") \
+		| .properties == null' from_config.jgf
 "
 
 test_expect_success 'JGF has rabbits as down' "
