@@ -126,6 +126,20 @@ test_expect_success 'load fluxion with rabbits' '
 	flux module load sched-fluxion-qmanager
 '
 
+test_expect_success 'exec dws service-providing script with fluxion scheduling disabled' '
+	start_dws_script --disable-fluxion
+'
+
+test_expect_success 'job submission with valid DW string works with fluxion disabled' '
+	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
+		-N1 -n1 hostname) &&
+	walk_job_through_prolog $jobid &&
+	flux job wait-event -t 5 -f json ${jobid} jobspec-update > nofluxion.json &&
+	jq -e ".context.resources | tostring | contains(\"ssd\") | not" nofluxion.json &&
+	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
+	job_epilog_start_finish_clean $jobid
+'
+
 test_expect_success 'exec dws service-providing script' '
 	start_dws_script
 '
@@ -141,6 +155,8 @@ test_expect_success 'job submission with valid DW string works' '
 	jobid=$(flux submit --setattr=system.dw="#DW jobdw capacity=10GiB type=xfs name=project1" \
 		-S dw_failure_tolerance=0 -N1 -n1 hostname) &&
 	walk_job_through_prolog $jobid &&
+	flux job wait-event -t 5 -f json ${jobid} jobspec-update > fluxion.json &&
+	jq -e ".context.resources | tostring | contains(\"ssd\")" fluxion.json &&
 	flux job wait-event -vt 15 -m status=0 ${jobid} finish &&
 	flux job wait-event -t1 -fjson ${jobid} dws_environment > env-event.json &&
 	jq -e .context.variables env-event.json &&
