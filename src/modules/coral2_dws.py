@@ -675,7 +675,9 @@ def state_active(workflow, state):
     return workflow["spec"]["desiredState"] == workflow["status"]["state"] == state
 
 
-def workflow_state_change_cb(event, handle, k8s_api, secrets_api, rabbit_manager):
+def workflow_state_change_cb(
+    event, handle, k8s_api, disable_fluxion, secrets_api, rabbit_manager
+):
     """Exception-catching wrapper around _workflow_state_change_cb_inner."""
     try:
         workflow = event["object"]
@@ -698,6 +700,7 @@ def workflow_state_change_cb(event, handle, k8s_api, secrets_api, rabbit_manager
             winfo,
             handle,
             k8s_api,
+            disable_fluxion,
             secrets_api,
             rabbit_manager,
         )
@@ -722,7 +725,7 @@ def workflow_state_change_cb(event, handle, k8s_api, secrets_api, rabbit_manager
 
 
 def _workflow_state_change_cb_inner(
-    workflow, winfo, handle, k8s_api, secrets_api, rabbit_manager
+    workflow, winfo, handle, k8s_api, disable_fluxion, secrets_api, rabbit_manager
 ):
     """Handle workflow state transitions."""
     jobid = winfo.jobid
@@ -758,7 +761,7 @@ def _workflow_state_change_cb_inner(
         # 'teardown' update is still in the k8s update queue.
         return
     elif state_complete(workflow, WorkflowState.PROPOSAL):
-        handle_proposal_state(workflow, winfo, handle, k8s_api)
+        handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion)
     elif state_complete(workflow, WorkflowState.SETUP):
         # move workflow to next stage, DataIn
         winfo.move_desiredstate(WorkflowState.DATAIN, k8s_api)
@@ -799,10 +802,11 @@ def _workflow_state_change_cb_inner(
     handle_workflow_errors(workflow, winfo, handle)
 
 
-def handle_proposal_state(workflow, winfo, handle, k8s_api):
+def handle_proposal_state(workflow, winfo, handle, k8s_api, disable_fluxion):
     """Handle a completed proposal state, updating a job's resources.
 
     Look at directivebreakdown object to see how to modify the job's jobspec.
+    If Fluxion is not scheduling rabbits, leave the job's resources alone.
     """
     if winfo.resource_update_sent:
         # this callback can fire multiple times, but the jobtap plugin's
@@ -814,9 +818,10 @@ def handle_proposal_state(workflow, winfo, handle, k8s_api):
             "resources"
         ]
     try:
-        resources = directivebreakdown.apply_breakdowns(
-            k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
-        )
+        if not disable_fluxion:
+            resources = directivebreakdown.apply_breakdowns(
+                k8s_api, workflow, resources, _MIN_ALLOCATION_SIZE
+            )
     except ValueError as exc:
         errmsg = repr(exc.args[0])
     else:
@@ -986,6 +991,11 @@ def setup_parsing():
         "--drain-queues",
         nargs="+",
         help="Target only the nodes in the given queues for draining",
+    )
+    parser.add_argument(
+        "--disable-fluxion",
+        action="store_true",
+        help="Disable Fluxion scheduling of rabbits",
     )
     parser.add_argument(
         "--retry-delay",
@@ -1195,6 +1205,7 @@ def main():
                     workflow_state_change_cb,
                     handle,
                     k8s_api,
+                    args.disable_fluxion,
                     secrets_api,
                     manager,
                 )
