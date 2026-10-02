@@ -185,7 +185,7 @@ static int post_event (flux_plugin_t *p,
         json_t *o;
         if (!(o = json_string (empty_reason))
             || json_object_set_new (context, "empty-reason", o) < 0) {
-            json_decref (o);
+            // `*_new` functions decref even when returning < 0
             goto error;
         }
     }

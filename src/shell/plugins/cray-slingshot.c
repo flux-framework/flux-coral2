@@ -149,7 +149,7 @@ static int array_append_int (json_t *array, int val)
 {
     json_t *o;
     if (!(o = json_integer (val)) || json_array_append_new (array, o) < 0) {
-        json_decref (o);
+        // `*_new` functions decref even when returning < 0
         shell_log_error ("out of memory building int array");
         return -1;
     }
@@ -160,7 +160,6 @@ static int array_append_str (json_t *array, const char *val)
 {
     json_t *o;
     if (!(o = json_string (val)) || json_array_append_new (array, o) < 0) {
-        json_decref (o);
         shell_log_error ("out of memory building string array");
         return -1;
     }

@@ -102,7 +102,7 @@ static json_t *vnipool_alloc_array (struct vnipool *vp, int count)
         if (idset_alloc (vp->pool, &vni) < 0)
             goto error;
         if (!(o = json_integer (vni)) || json_array_append_new (vnis, o) < 0) {
-            json_decref (o);
+            // `*_new` functions decref even when returning < 0
             idset_free (vp->pool, vni);
         }
     }
@@ -134,12 +134,13 @@ json_t *vnipool_reserve (struct vnipool *vp, flux_jobid_t id, int vnicount, flux
         errno = ENOSPC;
         return NULL;
     }
-    if (json_object_set_new (vp->jobs, key, vnis) < 0) {
+    if (json_object_set (vp->jobs, key, vnis) < 0) {
         errprintf (error, "out of memory saving VNI reservation");
-        vnipool_free_array (vp, vnis);
+        vnipool_free_array (vp, vnis);  // decref's `vnis`
         errno = ENOMEM;
         return NULL;
     }
+    json_decref (vnis);
     return vnis;
 }
 
