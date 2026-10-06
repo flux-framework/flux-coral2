@@ -1,3 +1,24 @@
+flux-coral2 0.37.0 - 2026-10-06
+-------------------------------
+
+### New Features
+ * dws2jgf: do not copy R properties into JGF (#507)
+
+### Fixes
+ * rabbitmapping: do not double-count allocations (#497)
+ * rabbitmapping: capacity check (#501)
+ * flux_k8s: compare `storage` resourceVersions (#500)
+ * dws: guard against multiple jobspec updates (#506)
+ * plugins: fix stolen JSON reference cleanup (#511)
+
+### Build/Testsuite/Documentation
+ * docs: document the `--coral2-rabbit-cores` option (#498)
+
+### Cleanup
+ * dws: remove all `--disable-fluxion` logic (#494)
+ * dws: restore some `--disable-fluxion` logic (#510)
+
+
 flux-coral2 0.36.0 - 2026-07-07
 -------------------------------
 
