@@ -32,6 +32,7 @@ TESTSCRIPTS = \
 	t2001-getrabbit.t \
 	t2002-dws2jgf2.t \
 	t2003-rabbitmapping.t \
+	t2004-rabbit-orphan-scan.t \
 	t3000-slingshot-jobtap.t \
 	t3001-slingshot-shell.t \
 	t3002-slingshot-cmd.t \
@@ -39,7 +40,8 @@ TESTSCRIPTS = \
 	python/t0002-storage.py \
 	python/t0003-coral2-dws.py \
 	python/t0004-crd.py \
-	python/t0005-rabbit-frobnicator.py
+	python/t0005-rabbit-frobnicator.py \
+	python/t0006-rabbit-orphan-scan.py
 
 # make check runs these TAP tests directly (both scripts and programs)
 TESTS = \
@@ -56,6 +58,7 @@ dist_check_SCRIPTS = \
 	scripts/run_timeout.py \
 	scripts/apinfo_checker.py \
 	scripts/set_status.py \
+	scripts/fluxion_alloc.py \
 	scripts/sign-as.py \
 	scripts/coral2_inspection.py \
 	rc/rc1-job \
