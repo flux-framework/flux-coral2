@@ -69,6 +69,11 @@ AS_IF([test "x$enable_pylint" = "xyes"], [
                  )
 ])
 AM_CONDITIONAL([ENABLE_PYLINT], [test "x$PYLINT" = "xpylint"])
+AM_CHECK_PYMOD(yaml,
+                  ,
+                  ,
+                  [AC_MSG_ERROR([could not find python module yaml (PyYAML)])]
+                )
 AM_CHECK_PYMOD(kubernetes,
                   [Version(kubernetes.__version__) >= Version('11.0.0')],
                   ,
