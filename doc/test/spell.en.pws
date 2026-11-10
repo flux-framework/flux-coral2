@@ -296,3 +296,5 @@ traverser
 ath
 gfilter
 obid
+lookups
+modprobe
