@@ -65,6 +65,13 @@ man_pages = [
         1,
     ),
     (
+        "man1/flux-rabbit-orphan-scan",
+        "flux-rabbit-orphan-scan",
+        "flux-coral2 commands",
+        [author],
+        1,
+    ),
+    (
         "man1/flux-slingshot",
         "flux-slingshot",
         "Slingshot NIC utility for Flux",
